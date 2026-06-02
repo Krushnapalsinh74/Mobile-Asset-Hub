@@ -1,6 +1,6 @@
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-import { eduApi } from '@/services/api';
+import { eduApi, getId } from '@/services/api';
 import type { Chapter } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -97,7 +97,7 @@ export default function TestConfigScreen() {
           questionsJson: JSON.stringify(questions),
           subjectId,
           subjectName,
-          chapterId: selectedChapter._id,
+          chapterId: getId(selectedChapter),
           chapterName: selectedChapter.name,
           mode,
         },
@@ -148,10 +148,10 @@ export default function TestConfigScreen() {
             </View>
           )}
           {chaptersQuery.data?.map((ch) => {
-            const isSelected = selectedChapter?._id === ch._id;
+            const isSelected = getId(selectedChapter ?? {}) === getId(ch);
             return (
               <Pressable
-                key={ch._id}
+                key={getId(ch)}
                 style={[
                   styles.chapterChip,
                   {
