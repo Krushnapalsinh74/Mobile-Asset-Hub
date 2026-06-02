@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 
 interface AppState {
   studentName: string | null;
+  studentEmail: string | null;
   boardId: string | null;
   boardName: string | null;
   standardId: string | null;
@@ -11,7 +12,7 @@ interface AppState {
 }
 
 interface AppContextValue extends AppState {
-  setStudent: (name: string) => Promise<void>;
+  setStudent: (name: string, email: string) => Promise<void>;
   setBoard: (id: string, name: string) => Promise<void>;
   setStandard: (id: string, name: string) => Promise<void>;
   clearAll: () => Promise<void>;
@@ -21,6 +22,7 @@ const AppContext = createContext<AppContextValue | null>(null);
 
 const KEYS = {
   studentName: '@edu:studentName',
+  studentEmail: '@edu:studentEmail',
   boardId: '@edu:boardId',
   boardName: '@edu:boardName',
   standardId: '@edu:standardId',
@@ -30,6 +32,7 @@ const KEYS = {
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AppState>({
     studentName: null,
+    studentEmail: null,
     boardId: null,
     boardName: null,
     standardId: null,
@@ -43,6 +46,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       pairs.forEach(([k, v]) => { map[k] = v; });
       setState({
         studentName: map[KEYS.studentName],
+        studentEmail: map[KEYS.studentEmail],
         boardId: map[KEYS.boardId],
         boardName: map[KEYS.boardName],
         standardId: map[KEYS.standardId],
@@ -52,9 +56,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const setStudent = async (name: string) => {
-    await AsyncStorage.setItem(KEYS.studentName, name);
-    setState(s => ({ ...s, studentName: name }));
+  const setStudent = async (name: string, email: string) => {
+    await AsyncStorage.multiSet([[KEYS.studentName, name], [KEYS.studentEmail, email]]);
+    setState(s => ({ ...s, studentName: name, studentEmail: email }));
   };
 
   const setBoard = async (id: string, name: string) => {
@@ -69,7 +73,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const clearAll = async () => {
     await AsyncStorage.multiRemove(Object.values(KEYS));
-    setState({ studentName: null, boardId: null, boardName: null, standardId: null, standardName: null, isLoaded: true });
+    setState({ studentName: null, studentEmail: null, boardId: null, boardName: null, standardId: null, standardName: null, isLoaded: true });
   };
 
   return (

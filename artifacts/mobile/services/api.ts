@@ -1,4 +1,5 @@
 const BASE_URL = 'https://kparkit.com/edu';
+const OTP_BASE = 'https://otp.kparkit.com';
 
 export interface Board {
   _id?: string;
@@ -53,6 +54,39 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   }
   return r.json() as Promise<T>;
 }
+
+async function otpReq<T>(path: string, body: unknown): Promise<T> {
+  const r = await fetch(OTP_BASE + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    const msg = await r.text().catch(() => '');
+    throw new Error(`OTP error ${r.status}: ${msg}`);
+  }
+  return r.json() as Promise<T>;
+}
+
+export interface OtpSendResult {
+  success: boolean;
+  message?: string;
+}
+
+export interface OtpVerifyResult {
+  success: boolean;
+  name?: string;
+  email?: string;
+  token?: string;
+  message?: string;
+}
+
+export const otpApi = {
+  sendOtp: (email: string) =>
+    otpReq<OtpSendResult>('/send', { email }),
+  verifyOtp: (email: string, otp: string) =>
+    otpReq<OtpVerifyResult>('/verify', { email, otp }),
+};
 
 export const eduApi = {
   getBoards: () => req<Board[]>('/api/boards'),
