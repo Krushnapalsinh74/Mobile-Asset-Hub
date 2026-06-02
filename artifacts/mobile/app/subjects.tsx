@@ -1,6 +1,6 @@
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-import { eduApi } from '@/services/api';
+import { eduApi, getId } from '@/services/api';
 import type { Subject } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -54,7 +54,7 @@ function SubjectCard({ subject, index }: { subject: Subject; index: number }) {
         Haptics.selectionAsync();
         router.push({
           pathname: '/subject' as any,
-          params: { subjectId: subject._id, subjectName: subject.name },
+          params: { subjectId: getId(subject), subjectName: subject.name },
         });
       }}
     >
@@ -144,7 +144,7 @@ export default function SubjectsScreen() {
       {subjectsQuery.data && subjectsQuery.data.length > 0 && (
         <FlatList
           data={subjectsQuery.data}
-          keyExtractor={(item) => item._id}
+          keyExtractor={(item) => getId(item)}
           numColumns={2}
           contentContainerStyle={[
             styles.grid,

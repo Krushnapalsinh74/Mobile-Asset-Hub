@@ -1,6 +1,6 @@
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-import { eduApi } from '@/services/api';
+import { eduApi, getId } from '@/services/api';
 import type { Chapter } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -40,7 +40,7 @@ export default function ChaptersScreen() {
       params: {
         subjectId,
         subjectName,
-        chapterId: chapter._id,
+        chapterId: getId(chapter),
         chapterName: chapter.name,
         mode: mode ?? '',
       },
@@ -76,7 +76,7 @@ export default function ChaptersScreen() {
       {chaptersQuery.data && (
         <FlatList
           data={chaptersQuery.data}
-          keyExtractor={(item) => item._id}
+          keyExtractor={(item) => getId(item)}
           contentContainerStyle={[
             styles.list,
             {

@@ -1,6 +1,6 @@
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-import { eduApi } from '@/services/api';
+import { eduApi, getId } from '@/services/api';
 import type { Topic } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -46,7 +46,7 @@ export default function TopicsScreen() {
           subjectName,
           chapterId,
           chapterName,
-          topicId: topic._id,
+          topicId: getId(topic),
           topicName: topic.name,
         },
       });
@@ -58,7 +58,7 @@ export default function TopicsScreen() {
           subjectName,
           chapterId,
           chapterName,
-          topicId: topic._id,
+          topicId: getId(topic),
           topicName: topic.name,
         },
       });
@@ -109,7 +109,7 @@ export default function TopicsScreen() {
       {topicsQuery.data && topicsQuery.data.length > 0 && (
         <FlatList
           data={topicsQuery.data}
-          keyExtractor={(item) => item._id}
+          keyExtractor={(item) => getId(item)}
           contentContainerStyle={[
             styles.list,
             {

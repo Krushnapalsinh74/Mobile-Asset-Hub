@@ -1,25 +1,34 @@
 const BASE_URL = 'https://kparkit.com/edu';
 
 export interface Board {
-  _id: string;
+  _id?: string;
+  id?: string;
   name: string;
 }
 export interface Standard {
-  _id: string;
+  _id?: string;
+  id?: string;
   name: string;
 }
 export interface Subject {
-  _id: string;
+  _id?: string;
+  id?: string;
   name: string;
 }
 export interface Chapter {
-  _id: string;
+  _id?: string;
+  id?: string;
   name: string;
   order?: number;
 }
 export interface Topic {
-  _id: string;
+  _id?: string;
+  id?: string;
   name: string;
+}
+
+export function getId(item: { _id?: string; id?: string }): string {
+  return (item._id ?? item.id ?? '');
 }
 export interface ChatMessage {
   role: 'user' | 'assistant';

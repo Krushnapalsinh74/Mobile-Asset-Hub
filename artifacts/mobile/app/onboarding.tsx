@@ -1,6 +1,6 @@
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-import { eduApi } from '@/services/api';
+import { eduApi, getId } from '@/services/api';
 import type { Board, Standard } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -42,14 +42,14 @@ export default function OnboardingScreen() {
 
   const handleBoardSelect = (board: Board) => {
     Haptics.selectionAsync();
-    setSelectedBoard({ id: board._id, name: board.name });
+    setSelectedBoard({ id: getId(board), name: board.name });
     setSelectedStandard(null);
     setStep('standard');
   };
 
   const handleStandardSelect = (std: Standard) => {
     Haptics.selectionAsync();
-    setSelectedStandard({ id: std._id, name: std.name });
+    setSelectedStandard({ id: getId(std), name: std.name });
   };
 
   const handleContinue = async () => {
@@ -116,7 +116,7 @@ export default function OnboardingScreen() {
             )}
             {boardsQuery.data?.map((board) => (
               <Pressable
-                key={board._id}
+                key={getId(board)}
                 style={[
                   styles.selCard,
                   { backgroundColor: colors.card, borderColor: colors.border },
@@ -149,10 +149,10 @@ export default function OnboardingScreen() {
               </View>
             )}
             {standardsQuery.data?.map((std) => {
-              const isSelected = selectedStandard?.id === std._id;
+              const isSelected = selectedStandard?.id === getId(std);
               return (
                 <Pressable
-                  key={std._id}
+                  key={getId(std)}
                   style={[
                     styles.selCard,
                     {
