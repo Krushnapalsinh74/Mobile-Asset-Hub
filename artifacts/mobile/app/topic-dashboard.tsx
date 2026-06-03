@@ -3,6 +3,7 @@ import { useColors } from '@/hooks/useColors';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -61,9 +62,23 @@ export default function TopicDashboardScreen() {
       topicId: string;
       topicName: string;
     }>();
-  const { boardName, standardName } = useApp();
+  const { boardName, standardName, setLastStudied } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    if (subjectId && subjectName && topicId && topicName) {
+      setLastStudied({
+        subjectId,
+        subjectName,
+        chapterId,
+        chapterName,
+        topicId,
+        topicName,
+        timestamp: Date.now(),
+      });
+    }
+  }, [topicId]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

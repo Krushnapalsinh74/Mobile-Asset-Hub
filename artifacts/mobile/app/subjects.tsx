@@ -1,4 +1,5 @@
 import { useApp } from '@/context/AppContext';
+import type { LastStudied } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { eduApi, getId } from '@/services/api';
 import type { Subject } from '@/services/api';
@@ -11,6 +12,7 @@ import {
   FlatList,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -44,6 +46,10 @@ function getTheme(name: string, index: number) {
   return SUBJECT_THEMES[index % SUBJECT_THEMES.length];
 }
 
+function getThemeByName(name: string) {
+  return getTheme(name, 0);
+}
+
 function getGreeting() {
   const h = new Date().getHours();
   if (h < 12) return 'Good morning';
@@ -51,15 +57,81 @@ function getGreeting() {
   return 'Good evening';
 }
 
-function SubjectCard({ subject, index }: { subject: Subject; index: number }) {
-  const colors = useColors();
-  const theme = getTheme(subject.name, index);
-  const bg = theme.color + '18';
-  const border = theme.color + '35';
+function getFirstName(name: string | null) {
+  if (!name) return 'Student';
+  const cleaned = name.replace(/[0-9_]/g, ' ').trim();
+  const first = cleaned.split(/\s+/)[0];
+  return first.charAt(0).toUpperCase() + first.slice(1, 14);
+}
 
+function timeAgo(ts: number): string {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function ContinueLearning({ last, colors }: { last: LastStudied; colors: ReturnType<typeof useColors> }) {
+  const theme = getThemeByName(last.subjectName);
+  return (
+    <View style={[styles.continueWrap, { backgroundColor: theme.color + '12', borderColor: theme.color + '30' }]}>
+      <View style={styles.continueLeft}>
+        <View style={[styles.continueIconWrap, { backgroundColor: theme.color + '22' }]}>
+          <Ionicons name={theme.icon} size={22} color={theme.color} />
+        </View>
+        <View style={styles.continueText}>
+          <Text style={[styles.continueLabel, { color: colors.mutedForeground }]}>
+            Continue learning
+          </Text>
+          <Text style={[styles.continueSubject, { color: colors.text }]} numberOfLines={1}>
+            {last.subjectName}
+          </Text>
+          {(last.topicName || last.chapterName) && (
+            <Text style={[styles.continueTopic, { color: colors.mutedForeground }]} numberOfLines={1}>
+              {last.topicName ?? last.chapterName}
+            </Text>
+          )}
+        </View>
+      </View>
+      <Pressable
+        style={[styles.resumeBtn, { backgroundColor: theme.color }]}
+        onPress={() => {
+          Haptics.selectionAsync();
+          if (last.topicId && last.topicName) {
+            router.push({
+              pathname: '/topic-dashboard' as any,
+              params: {
+                subjectId: last.subjectId,
+                subjectName: last.subjectName,
+                chapterId: last.chapterId ?? '',
+                chapterName: last.chapterName ?? '',
+                topicId: last.topicId,
+                topicName: last.topicName,
+              },
+            });
+          } else {
+            router.push({
+              pathname: '/subject' as any,
+              params: { subjectId: last.subjectId, subjectName: last.subjectName },
+            });
+          }
+        }}
+      >
+        <Text style={styles.resumeBtnText}>Resume</Text>
+        <Ionicons name="play" size={12} color="#FFFFFF" />
+      </Pressable>
+    </View>
+  );
+}
+
+function SubjectCard({ subject, index, colors }: { subject: Subject; index: number; colors: ReturnType<typeof useColors> }) {
+  const theme = getTheme(subject.name, index);
   return (
     <Pressable
-      style={[styles.cardWrap]}
+      style={styles.cardWrap}
       onPress={() => {
         Haptics.selectionAsync();
         router.push({
@@ -68,20 +140,21 @@ function SubjectCard({ subject, index }: { subject: Subject; index: number }) {
         });
       }}
     >
-      <View
-        style={[
-          styles.card,
-          { backgroundColor: bg, borderColor: border },
-        ]}
-      >
+      <View style={[styles.card, { backgroundColor: theme.color + '14', borderColor: theme.color + '30' }]}>
+        {/* Decorative circle */}
+        <View style={[styles.cardCircle, { backgroundColor: theme.color + '10' }]} />
+
         <View style={[styles.iconWrap, { backgroundColor: theme.color + '28' }]}>
-          <Ionicons name={theme.icon} size={30} color={theme.color} />
+          <Ionicons name={theme.icon} size={28} color={theme.color} />
         </View>
+
         <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={2}>
           {subject.name}
         </Text>
-        <View style={[styles.goBtn, { backgroundColor: theme.color }]}>
-          <Ionicons name="arrow-forward" size={12} color="#FFFFFF" />
+
+        <View style={[styles.goChip, { backgroundColor: theme.color }]}>
+          <Text style={styles.goChipText}>Open</Text>
+          <Ionicons name="arrow-forward" size={11} color="#FFF" />
         </View>
       </View>
     </Pressable>
@@ -89,7 +162,7 @@ function SubjectCard({ subject, index }: { subject: Subject; index: number }) {
 }
 
 export default function SubjectsScreen() {
-  const { studentName, boardId, standardId, boardName, standardName, clearAll } = useApp();
+  const { studentName, boardId, standardId, boardName, standardName, lastStudied, clearAll } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
@@ -99,105 +172,148 @@ export default function SubjectsScreen() {
     enabled: !!boardId && !!standardId,
   });
 
-  const firstName = (studentName ?? 'Student').split(/[\s@_0-9]/)[0] || studentName?.charAt(0).toUpperCase() + (studentName?.slice(1, 12) ?? '');
+  const firstName = getFirstName(studentName);
+  const total = subjectsQuery.data?.length ?? 0;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 16,
-            backgroundColor: colors.card,
-            borderBottomColor: colors.border,
-          },
-        ]}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 24 }}
+        refreshControl={undefined}
       >
-        <View style={styles.headerRow}>
-          <View style={styles.headerLeft}>
-            <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
-              {getGreeting()} 👋
-            </Text>
-            <Text style={[styles.studentName, { color: colors.text }]} numberOfLines={1}>
-              {firstName}
-            </Text>
-          </View>
-          <Pressable onPress={clearAll} style={[styles.settingsBtn, { backgroundColor: colors.secondary }]}>
-            <Ionicons name="settings-outline" size={18} color={colors.mutedForeground} />
-          </Pressable>
-        </View>
-
-        <View style={styles.metaRow}>
-          <View style={[styles.metaChip, { backgroundColor: colors.primaryLight }]}>
-            <Ionicons name="school-outline" size={12} color={colors.primary} />
-            <Text style={[styles.metaText, { color: colors.primary }]}>{boardName}</Text>
-          </View>
-          <View style={[styles.metaChip, { backgroundColor: colors.primaryLight }]}>
-            <Ionicons name="layers-outline" size={12} color={colors.primary} />
-            <Text style={[styles.metaText, { color: colors.primary }]}>{standardName}</Text>
-          </View>
-        </View>
-
-        <Text style={[styles.subheading, { color: colors.mutedForeground }]}>
-          Choose a subject to start studying
-        </Text>
-      </View>
-
-      {subjectsQuery.isLoading && (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
-            Loading subjects...
-          </Text>
-        </View>
-      )}
-
-      {subjectsQuery.error && (
-        <View style={styles.center}>
-          <View style={[styles.emptyIcon, { backgroundColor: colors.secondary }]}>
-            <Ionicons name="cloud-offline-outline" size={34} color={colors.destructive} />
-          </View>
-          <Text style={[styles.errorTitle, { color: colors.text }]}>Couldn't load subjects</Text>
-          <Text style={[styles.errorSub, { color: colors.mutedForeground }]}>
-            Check your internet connection
-          </Text>
-          <Pressable
-            onPress={() => subjectsQuery.refetch()}
-            style={[styles.retryBtn, { backgroundColor: colors.primary }]}
-          >
-            <Text style={styles.retryText}>Try Again</Text>
-          </Pressable>
-        </View>
-      )}
-
-      {subjectsQuery.data && subjectsQuery.data.length === 0 && (
-        <View style={styles.center}>
-          <View style={[styles.emptyIcon, { backgroundColor: colors.secondary }]}>
-            <Ionicons name="book-outline" size={34} color={colors.mutedForeground} />
-          </View>
-          <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
-            No subjects found for this class
-          </Text>
-        </View>
-      )}
-
-      {subjectsQuery.data && subjectsQuery.data.length > 0 && (
-        <FlatList
-          data={subjectsQuery.data}
-          keyExtractor={(item) => getId(item)}
-          numColumns={2}
-          contentContainerStyle={[
-            styles.grid,
-            { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 16 },
+        {/* ── Header ── */}
+        <View
+          style={[
+            styles.header,
+            {
+              paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 18,
+              backgroundColor: colors.card,
+              borderBottomColor: colors.border,
+            },
           ]}
-          columnWrapperStyle={styles.row}
-          renderItem={({ item, index }) => <SubjectCard subject={item} index={index} />}
-          refreshing={subjectsQuery.isFetching}
-          onRefresh={() => subjectsQuery.refetch()}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
+        >
+          <View style={styles.headerRow}>
+            <View style={styles.headerLeft}>
+              <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
+                {getGreeting()} 👋
+              </Text>
+              <Text style={[styles.studentName, { color: colors.text }]} numberOfLines={1}>
+                {firstName}
+              </Text>
+            </View>
+            <Pressable
+              onPress={clearAll}
+              style={[styles.settingsBtn, { backgroundColor: colors.secondary }]}
+            >
+              <Ionicons name="settings-outline" size={18} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+
+          {/* Board + class pills */}
+          <View style={styles.metaRow}>
+            <View style={[styles.metaChip, { backgroundColor: colors.primaryLight }]}>
+              <Ionicons name="school-outline" size={12} color={colors.primary} />
+              <Text style={[styles.metaText, { color: colors.primary }]}>{boardName}</Text>
+            </View>
+            <View style={[styles.metaChip, { backgroundColor: colors.primaryLight }]}>
+              <Ionicons name="layers-outline" size={12} color={colors.primary} />
+              <Text style={[styles.metaText, { color: colors.primary }]}>{standardName}</Text>
+            </View>
+            {total > 0 && (
+              <View style={[styles.metaChip, { backgroundColor: colors.secondary }]}>
+                <Ionicons name="book-outline" size={12} color={colors.mutedForeground} />
+                <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
+                  {total} subjects
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* ── Continue Learning ── */}
+        {lastStudied && (
+          <View style={styles.section}>
+            <ContinueLearning last={lastStudied} colors={colors} />
+          </View>
+        )}
+
+        {/* ── Subjects ── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Subjects</Text>
+            {total > 0 && (
+              <Text style={[styles.sectionCount, { color: colors.mutedForeground }]}>
+                {total} available
+              </Text>
+            )}
+          </View>
+
+          {subjectsQuery.isLoading && (
+            <View style={styles.center}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
+                Loading subjects...
+              </Text>
+            </View>
+          )}
+
+          {subjectsQuery.error && (
+            <View style={styles.center}>
+              <View style={[styles.emptyIcon, { backgroundColor: colors.secondary }]}>
+                <Ionicons name="cloud-offline-outline" size={32} color={colors.destructive} />
+              </View>
+              <Text style={[styles.errorTitle, { color: colors.text }]}>Couldn't load subjects</Text>
+              <Text style={[styles.errorSub, { color: colors.mutedForeground }]}>
+                Check your internet connection
+              </Text>
+              <Pressable
+                onPress={() => subjectsQuery.refetch()}
+                style={[styles.retryBtn, { backgroundColor: colors.primary }]}
+              >
+                <Text style={styles.retryText}>Try Again</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {subjectsQuery.data && subjectsQuery.data.length === 0 && (
+            <View style={styles.center}>
+              <View style={[styles.emptyIcon, { backgroundColor: colors.secondary }]}>
+                <Ionicons name="book-outline" size={32} color={colors.mutedForeground} />
+              </View>
+              <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
+                No subjects found for this class
+              </Text>
+            </View>
+          )}
+
+          {subjectsQuery.data && subjectsQuery.data.length > 0 && (
+            <View style={styles.grid}>
+              {subjectsQuery.data.map((item, index) => (
+                <SubjectCard key={getId(item)} subject={item} index={index} colors={colors} />
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* ── Quick actions strip ── */}
+        <View style={[styles.section, styles.tipsRow]}>
+          {[
+            { icon: 'chatbubbles-outline' as const, label: 'Need help?', sub: 'Ask AI Tutor', color: '#6366F1' },
+            { icon: 'trophy-outline' as const, label: 'Test yourself', sub: 'Live Quiz', color: '#F59E0B' },
+          ].map((tip) => (
+            <View key={tip.label} style={[styles.tipCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={[styles.tipIcon, { backgroundColor: tip.color + '18' }]}>
+                <Ionicons name={tip.icon} size={18} color={tip.color} />
+              </View>
+              <View>
+                <Text style={[styles.tipLabel, { color: colors.text }]}>{tip.label}</Text>
+                <Text style={[styles.tipSub, { color: colors.mutedForeground }]}>{tip.sub}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -216,16 +332,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   headerLeft: { flex: 1, paddingRight: 12 },
-  greeting: {
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
-    marginBottom: 2,
-  },
-  studentName: {
-    fontSize: 22,
-    fontWeight: '700',
-    fontFamily: 'Inter_700Bold',
-  },
+  greeting: { fontSize: 13, fontFamily: 'Inter_400Regular', marginBottom: 2 },
+  studentName: { fontSize: 22, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   settingsBtn: {
     width: 38,
     height: 38,
@@ -233,7 +341,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  metaRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  metaRow: { flexDirection: 'row', gap: 7, flexWrap: 'wrap' },
   metaChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -242,31 +350,71 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 20,
   },
-  metaText: {
-    fontSize: 11,
-    fontWeight: '600',
-    fontFamily: 'Inter_600SemiBold',
+  metaText: { fontSize: 11, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  section: { paddingHorizontal: 16, paddingTop: 20 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
   },
-  subheading: {
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
+  sectionTitle: { fontSize: 17, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  sectionCount: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+
+  /* Continue Learning */
+  continueWrap: {
+    borderRadius: 22,
+    borderWidth: 1.5,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  grid: { padding: 12 },
-  row: { gap: 12, marginBottom: 12 },
-  cardWrap: { flex: 1 },
+  continueLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  continueIconWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  continueText: { flex: 1 },
+  continueLabel: { fontSize: 11, fontFamily: 'Inter_400Regular', marginBottom: 2 },
+  continueSubject: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  continueTopic: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  resumeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 12,
+  },
+  resumeBtnText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF', fontFamily: 'Inter_700Bold' },
+
+  /* Subject grid */
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  cardWrap: { width: '47.5%' },
   card: {
     borderRadius: 24,
     borderWidth: 1.5,
     padding: 18,
-    paddingBottom: 16,
-    minHeight: 160,
+    minHeight: 168,
     justifyContent: 'space-between',
-    position: 'relative',
     overflow: 'hidden',
+    position: 'relative',
+  },
+  cardCircle: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    bottom: -24,
+    right: -24,
   },
   iconWrap: {
-    width: 58,
-    height: 58,
+    width: 56,
+    height: 56,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
@@ -279,25 +427,48 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     flex: 1,
   },
-  goBtn: {
-    alignSelf: 'flex-end',
-    width: 26,
-    height: 26,
-    borderRadius: 8,
+  goChip: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
     marginTop: 10,
   },
-  center: {
+  goChipText: { fontSize: 11, fontWeight: '700', color: '#FFFFFF', fontFamily: 'Inter_700Bold' },
+
+  /* Quick tips strip */
+  tipsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingBottom: 4,
+  },
+  tipCard: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+  },
+  tipIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
-    paddingHorizontal: 32,
   },
+  tipLabel: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  tipSub: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 1 },
+
+  /* States */
+  center: { alignItems: 'center', justifyContent: 'center', gap: 12, paddingVertical: 40 },
   emptyIcon: {
-    width: 72,
-    height: 72,
+    width: 68,
+    height: 68,
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
@@ -306,11 +477,6 @@ const styles = StyleSheet.create({
   hintText: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center' },
   errorTitle: { fontSize: 17, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
   errorSub: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center' },
-  retryBtn: {
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-    borderRadius: 14,
-    marginTop: 4,
-  },
+  retryBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 14, marginTop: 4 },
   retryText: { color: '#FFFFFF', fontWeight: '700', fontFamily: 'Inter_700Bold', fontSize: 14 },
 });

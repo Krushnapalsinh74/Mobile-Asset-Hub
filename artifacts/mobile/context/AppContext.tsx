@@ -1,6 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
+export interface LastStudied {
+  subjectId: string;
+  subjectName: string;
+  chapterId?: string;
+  chapterName?: string;
+  topicId?: string;
+  topicName?: string;
+  timestamp: number;
+}
+
 interface AppState {
   studentName: string | null;
   studentEmail: string | null;
@@ -8,6 +18,7 @@ interface AppState {
   boardName: string | null;
   standardId: string | null;
   standardName: string | null;
+  lastStudied: LastStudied | null;
   isLoaded: boolean;
 }
 
@@ -15,6 +26,7 @@ interface AppContextValue extends AppState {
   setStudent: (name: string, email: string) => Promise<void>;
   setBoard: (id: string, name: string) => Promise<void>;
   setStandard: (id: string, name: string) => Promise<void>;
+  setLastStudied: (data: LastStudied) => Promise<void>;
   clearAll: () => Promise<void>;
 }
 
@@ -27,6 +39,7 @@ const KEYS = {
   boardName: '@edu:boardName',
   standardId: '@edu:standardId',
   standardName: '@edu:standardName',
+  lastStudied: '@edu:lastStudied',
 };
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -37,6 +50,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     boardName: null,
     standardId: null,
     standardName: null,
+    lastStudied: null,
     isLoaded: false,
   });
 
@@ -44,6 +58,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.multiGet(Object.values(KEYS)).then((pairs) => {
       const map: Record<string, string | null> = {};
       pairs.forEach(([k, v]) => { map[k] = v; });
+      let lastStudied: LastStudied | null = null;
+      try {
+        if (map[KEYS.lastStudied]) lastStudied = JSON.parse(map[KEYS.lastStudied]!);
+      } catch {}
       setState({
         studentName: map[KEYS.studentName],
         studentEmail: map[KEYS.studentEmail],
@@ -51,6 +69,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         boardName: map[KEYS.boardName],
         standardId: map[KEYS.standardId],
         standardName: map[KEYS.standardName],
+        lastStudied,
         isLoaded: true,
       });
     });
@@ -71,13 +90,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setState(s => ({ ...s, standardId: id, standardName: name }));
   };
 
+  const setLastStudied = async (data: LastStudied) => {
+    await AsyncStorage.setItem(KEYS.lastStudied, JSON.stringify(data));
+    setState(s => ({ ...s, lastStudied: data }));
+  };
+
   const clearAll = async () => {
     await AsyncStorage.multiRemove(Object.values(KEYS));
-    setState({ studentName: null, studentEmail: null, boardId: null, boardName: null, standardId: null, standardName: null, isLoaded: true });
+    setState({ studentName: null, studentEmail: null, boardId: null, boardName: null, standardId: null, standardName: null, lastStudied: null, isLoaded: true });
   };
 
   return (
-    <AppContext.Provider value={{ ...state, setStudent, setBoard, setStandard, clearAll }}>
+    <AppContext.Provider value={{ ...state, setStudent, setBoard, setStandard, setLastStudied, clearAll }}>
       {children}
     </AppContext.Provider>
   );
