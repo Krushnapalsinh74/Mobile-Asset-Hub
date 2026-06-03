@@ -47,6 +47,8 @@ export default function ChaptersScreen() {
     });
   };
 
+  const isExplanation = mode === 'explanation';
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ title: subjectName ? `${subjectName} — Chapters` : 'Chapters' }} />
@@ -62,13 +64,15 @@ export default function ChaptersScreen() {
 
       {chaptersQuery.error && (
         <View style={styles.center}>
-          <Ionicons name="cloud-offline-outline" size={48} color={colors.destructive} />
-          <Text style={[styles.errorText, { color: colors.text }]}>Failed to load chapters</Text>
+          <View style={[styles.emptyIcon, { backgroundColor: colors.secondary }]}>
+            <Ionicons name="cloud-offline-outline" size={34} color={colors.destructive} />
+          </View>
+          <Text style={[styles.errorText, { color: colors.text }]}>Couldn't load chapters</Text>
           <Pressable
             onPress={() => chaptersQuery.refetch()}
             style={[styles.retryBtn, { backgroundColor: colors.primary }]}
           >
-            <Text style={styles.retryText}>Retry</Text>
+            <Text style={styles.retryText}>Try Again</Text>
           </Pressable>
         </View>
       )}
@@ -79,12 +83,16 @@ export default function ChaptersScreen() {
           keyExtractor={(item) => getId(item)}
           contentContainerStyle={[
             styles.list,
-            {
-              paddingBottom:
-                insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 20,
-            },
+            { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 20 },
           ]}
           showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            chaptersQuery.data.length > 0 ? (
+              <Text style={[styles.listHeader, { color: colors.mutedForeground }]}>
+                {chaptersQuery.data.length} chapters
+              </Text>
+            ) : null
+          }
           renderItem={({ item, index }) => (
             <Pressable
               style={[
@@ -97,16 +105,20 @@ export default function ChaptersScreen() {
                 <Text style={[styles.numText, { color: colors.primary }]}>{index + 1}</Text>
               </View>
               <View style={styles.chapterInfo}>
-                <Text style={[styles.chapterName, { color: colors.text }]}>{item.name}</Text>
+                <Text style={[styles.chapterName, { color: colors.text }]} numberOfLines={2}>
+                  {item.name}
+                </Text>
                 <Text style={[styles.chapterHint, { color: colors.mutedForeground }]}>
-                  {mode === 'explanation' ? 'Select to view explanation' : 'Tap to see topics'}
+                  {isExplanation ? 'Tap to view explanation' : 'Tap to explore topics'}
                 </Text>
               </View>
-              <Ionicons
-                name={mode === 'explanation' ? 'bulb-outline' : 'chevron-forward'}
-                size={20}
-                color={colors.mutedForeground}
-              />
+              <View style={[styles.chevronWrap, { backgroundColor: colors.secondary }]}>
+                <Ionicons
+                  name={isExplanation ? 'bulb-outline' : 'chevron-forward'}
+                  size={16}
+                  color={isExplanation ? colors.accent : colors.mutedForeground}
+                />
+              </View>
             </Pressable>
           )}
           scrollEnabled={!!chaptersQuery.data.length}
@@ -118,39 +130,62 @@ export default function ChaptersScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  list: { padding: 16, gap: 10 },
+  list: { padding: 16, gap: 8 },
+  listHeader: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    fontWeight: '600',
+    marginBottom: 8,
+    letterSpacing: 0.3,
+  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  emptyIcon: {
+    width: 68,
+    height: 68,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
   chapterCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 18,
+    padding: 14,
+    borderRadius: 20,
     borderWidth: 1,
     gap: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 8,
     elevation: 1,
   },
   numBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 13,
+    width: 46,
+    height: 46,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
   },
   numText: { fontSize: 15, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   chapterInfo: { flex: 1 },
   chapterName: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     fontFamily: 'Inter_600SemiBold',
     marginBottom: 3,
+    lineHeight: 20,
   },
-  chapterHint: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  chapterHint: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  chevronWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   hintText: { fontSize: 14, fontFamily: 'Inter_400Regular' },
   errorText: { fontSize: 16, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
-  retryBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
-  retryText: { color: '#FFFFFF', fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  retryBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, marginTop: 4 },
+  retryText: { color: '#FFFFFF', fontWeight: '700', fontFamily: 'Inter_700Bold', fontSize: 14 },
 });

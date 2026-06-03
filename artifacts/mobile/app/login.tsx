@@ -1,8 +1,8 @@
 import { useApp } from '@/context/AppContext';
+import { useColors } from '@/hooks/useColors';
 import { otpApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
@@ -28,11 +28,11 @@ export default function LoginScreen() {
   const [resendCooldown, setResendCooldown] = useState(0);
 
   const { setStudent } = useApp();
+  const colors = useColors();
   const otpInputRef = useRef<TextInput>(null);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const isValidEmail = (e: string) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
+  const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
 
   const startCooldown = () => {
     setResendCooldown(30);
@@ -49,19 +49,13 @@ export default function LoginScreen() {
 
   const handleSendOtp = async () => {
     const trimmed = email.trim().toLowerCase();
-    if (!isValidEmail(trimmed)) {
-      setError('Please enter a valid email address.');
-      return;
-    }
+    if (!isValidEmail(trimmed)) { setError('Please enter a valid email address.'); return; }
     setError('');
     setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const res = await otpApi.sendOtp(trimmed);
-      if (res.success === false) {
-        setError(res.message ?? 'Could not send OTP. Please try again.');
-        return;
-      }
+      if (res.success === false) { setError(res.message ?? 'Could not send OTP. Please try again.'); return; }
       setEmail(trimmed);
       setStep('otp');
       startCooldown();
@@ -75,10 +69,7 @@ export default function LoginScreen() {
 
   const handleVerifyOtp = async () => {
     const trimmedOtp = otp.trim();
-    if (trimmedOtp.length < 4) {
-      setError('Please enter the OTP sent to your email.');
-      return;
-    }
+    if (trimmedOtp.length < 4) { setError('Please enter the OTP sent to your email.'); return; }
     setError('');
     setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -109,178 +100,167 @@ export default function LoginScreen() {
       await otpApi.sendOtp(email);
       startCooldown();
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {
-      setError('Could not resend OTP. Try again.');
-    } finally {
-      setLoading(false);
-    }
+    } catch { setError('Could not resend OTP. Try again.'); }
+    finally { setLoading(false); }
   };
 
   return (
-    <LinearGradient colors={['#312E81', '#4F46E5', '#6D28D9']} style={styles.gradient}>
-      <SafeAreaView style={styles.safe}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.kav}
-        >
-          <View style={styles.content}>
-            <View style={styles.logoWrap}>
-              <Ionicons name="school" size={52} color="rgba(255,255,255,0.95)" />
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.kav}
+      >
+        <View style={styles.content}>
+          {/* Brand top */}
+          <View style={styles.brand}>
+            <View style={[styles.logoWrap, { backgroundColor: colors.primaryLight }]}>
+              <Ionicons name="school" size={36} color={colors.primary} />
             </View>
-            <Text style={styles.appName}>EduLearn</Text>
-            <Text style={styles.tagline}>Your personalized learning companion</Text>
-
-            <View style={styles.card}>
-              {step === 'email' ? (
-                <>
-                  <View style={styles.cardHeader}>
-                    <View style={[styles.stepIcon, { backgroundColor: '#EEF2FF' }]}>
-                      <Ionicons name="mail-outline" size={22} color="#4F46E5" />
-                    </View>
-                    <View style={styles.cardHeaderText}>
-                      <Text style={styles.cardHeading}>Sign in with Email</Text>
-                      <Text style={styles.cardSub}>
-                        We'll send a one-time password to your inbox
-                      </Text>
-                    </View>
-                  </View>
-
-                  <Text style={styles.label}>Email address</Text>
-                  <TextInput
-                    style={[styles.input, !!error && styles.inputError]}
-                    placeholder="you@example.com"
-                    placeholderTextColor="#9CA3AF"
-                    value={email}
-                    onChangeText={(t) => { setEmail(t); setError(''); }}
-                    autoFocus
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    returnKeyType="send"
-                    onSubmitEditing={handleSendOtp}
-                    editable={!loading}
-                  />
-
-                  {!!error && (
-                    <View style={styles.errorRow}>
-                      <Ionicons name="alert-circle-outline" size={14} color="#EF4444" />
-                      <Text style={styles.errorText}>{error}</Text>
-                    </View>
-                  )}
-
-                  <Pressable
-                    style={[
-                      styles.button,
-                      (!isValidEmail(email) || loading) && styles.buttonDisabled,
-                    ]}
-                    onPress={handleSendOtp}
-                    disabled={!isValidEmail(email) || loading}
-                  >
-                    {loading ? (
-                      <ActivityIndicator color="#FFFFFF" />
-                    ) : (
-                      <>
-                        <Text style={styles.buttonText}>Send OTP</Text>
-                        <Ionicons name="send-outline" size={17} color="#FFFFFF" />
-                      </>
-                    )}
-                  </Pressable>
-                </>
-              ) : (
-                <>
-                  <View style={styles.cardHeader}>
-                    <View style={[styles.stepIcon, { backgroundColor: '#ECFDF5' }]}>
-                      <Ionicons name="key-outline" size={22} color="#10B981" />
-                    </View>
-                    <View style={styles.cardHeaderText}>
-                      <Text style={styles.cardHeading}>Enter OTP</Text>
-                      <Text style={styles.cardSub}>
-                        Sent to{' '}
-                        <Text style={styles.emailHighlight}>{email}</Text>
-                      </Text>
-                    </View>
-                  </View>
-
-                  <Pressable
-                    style={styles.changeEmail}
-                    onPress={() => {
-                      setStep('email');
-                      setOtp('');
-                      setError('');
-                      if (cooldownRef.current) clearInterval(cooldownRef.current);
-                      setResendCooldown(0);
-                    }}
-                  >
-                    <Ionicons name="arrow-back" size={13} color="#4F46E5" />
-                    <Text style={styles.changeEmailText}>Change email</Text>
-                  </Pressable>
-
-                  <Text style={styles.label}>One-time password</Text>
-                  <TextInput
-                    ref={otpInputRef}
-                    style={[styles.input, styles.otpInput, !!error && styles.inputError]}
-                    placeholder="••••••"
-                    placeholderTextColor="#9CA3AF"
-                    value={otp}
-                    onChangeText={(t) => { setOtp(t.replace(/\D/g, '')); setError(''); }}
-                    keyboardType="number-pad"
-                    maxLength={8}
-                    returnKeyType="done"
-                    onSubmitEditing={handleVerifyOtp}
-                    editable={!loading}
-                    autoFocus
-                  />
-
-                  {!!error && (
-                    <View style={styles.errorRow}>
-                      <Ionicons name="alert-circle-outline" size={14} color="#EF4444" />
-                      <Text style={styles.errorText}>{error}</Text>
-                    </View>
-                  )}
-
-                  <Pressable
-                    style={[styles.button, (otp.length < 4 || loading) && styles.buttonDisabled]}
-                    onPress={handleVerifyOtp}
-                    disabled={otp.length < 4 || loading}
-                  >
-                    {loading ? (
-                      <ActivityIndicator color="#FFFFFF" />
-                    ) : (
-                      <>
-                        <Text style={styles.buttonText}>Verify OTP</Text>
-                        <Ionicons name="checkmark-circle-outline" size={17} color="#FFFFFF" />
-                      </>
-                    )}
-                  </Pressable>
-
-                  <Pressable
-                    style={styles.resendRow}
-                    onPress={handleResend}
-                    disabled={resendCooldown > 0 || loading}
-                  >
-                    <Text
-                      style={[
-                        styles.resendText,
-                        resendCooldown > 0 && styles.resendTextMuted,
-                      ]}
-                    >
-                      {resendCooldown > 0
-                        ? `Resend OTP in ${resendCooldown}s`
-                        : "Didn't receive it? Resend OTP"}
-                    </Text>
-                  </Pressable>
-                </>
-              )}
-            </View>
+            <Text style={[styles.appName, { color: colors.text }]}>EduLearn</Text>
+            <Text style={[styles.tagline, { color: colors.mutedForeground }]}>
+              Your personalized learning companion
+            </Text>
           </View>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    </LinearGradient>
+
+          {/* Card */}
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {step === 'email' ? (
+              <>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.stepIcon, { backgroundColor: colors.primaryLight }]}>
+                    <Ionicons name="mail-outline" size={20} color={colors.primary} />
+                  </View>
+                  <View style={styles.cardHeaderText}>
+                    <Text style={[styles.cardHeading, { color: colors.text }]}>Sign in</Text>
+                    <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>
+                      We'll send a one-time password to your inbox
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={[styles.label, { color: colors.text }]}>Email address</Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    { backgroundColor: colors.secondary, borderColor: error ? colors.destructive : colors.border, color: colors.text },
+                  ]}
+                  placeholder="you@example.com"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={email}
+                  onChangeText={(t) => { setEmail(t); setError(''); }}
+                  autoFocus
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="send"
+                  onSubmitEditing={handleSendOtp}
+                  editable={!loading}
+                />
+
+                {!!error && (
+                  <View style={styles.errorRow}>
+                    <Ionicons name="alert-circle-outline" size={13} color={colors.destructive} />
+                    <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
+                  </View>
+                )}
+
+                <Pressable
+                  style={[styles.button, { backgroundColor: colors.primary, opacity: (!isValidEmail(email) || loading) ? 0.45 : 1 }]}
+                  onPress={handleSendOtp}
+                  disabled={!isValidEmail(email) || loading}
+                >
+                  {loading ? <ActivityIndicator color="#FFFFFF" /> : (
+                    <>
+                      <Text style={styles.buttonText}>Send OTP</Text>
+                      <Ionicons name="send-outline" size={16} color="#FFFFFF" />
+                    </>
+                  )}
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.stepIcon, { backgroundColor: colors.successLight }]}>
+                    <Ionicons name="key-outline" size={20} color={colors.success} />
+                  </View>
+                  <View style={styles.cardHeaderText}>
+                    <Text style={[styles.cardHeading, { color: colors.text }]}>Enter OTP</Text>
+                    <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>
+                      Sent to{' '}
+                      <Text style={{ color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>
+                        {email}
+                      </Text>
+                    </Text>
+                  </View>
+                </View>
+
+                <Pressable
+                  style={styles.changeEmail}
+                  onPress={() => {
+                    setStep('email'); setOtp(''); setError('');
+                    if (cooldownRef.current) clearInterval(cooldownRef.current);
+                    setResendCooldown(0);
+                  }}
+                >
+                  <Ionicons name="arrow-back" size={13} color={colors.primary} />
+                  <Text style={[styles.changeEmailText, { color: colors.primary }]}>Change email</Text>
+                </Pressable>
+
+                <Text style={[styles.label, { color: colors.text }]}>One-time password</Text>
+                <TextInput
+                  ref={otpInputRef}
+                  style={[
+                    styles.input,
+                    styles.otpInput,
+                    { backgroundColor: colors.secondary, borderColor: error ? colors.destructive : colors.border, color: colors.text },
+                  ]}
+                  placeholder="······"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={otp}
+                  onChangeText={(t) => { setOtp(t.replace(/\D/g, '')); setError(''); }}
+                  keyboardType="number-pad"
+                  maxLength={8}
+                  returnKeyType="done"
+                  onSubmitEditing={handleVerifyOtp}
+                  editable={!loading}
+                  autoFocus
+                />
+
+                {!!error && (
+                  <View style={styles.errorRow}>
+                    <Ionicons name="alert-circle-outline" size={13} color={colors.destructive} />
+                    <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
+                  </View>
+                )}
+
+                <Pressable
+                  style={[styles.button, { backgroundColor: colors.primary, opacity: (otp.length < 4 || loading) ? 0.45 : 1 }]}
+                  onPress={handleVerifyOtp}
+                  disabled={otp.length < 4 || loading}
+                >
+                  {loading ? <ActivityIndicator color="#FFFFFF" /> : (
+                    <>
+                      <Text style={styles.buttonText}>Verify OTP</Text>
+                      <Ionicons name="checkmark-circle-outline" size={16} color="#FFFFFF" />
+                    </>
+                  )}
+                </Pressable>
+
+                <Pressable style={styles.resendRow} onPress={handleResend} disabled={resendCooldown > 0 || loading}>
+                  <Text style={[styles.resendText, { color: resendCooldown > 0 ? colors.mutedForeground : colors.primary }]}>
+                    {resendCooldown > 0 ? `Resend OTP in ${resendCooldown}s` : "Didn't receive it? Resend OTP"}
+                  </Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
   safe: { flex: 1 },
   kav: { flex: 1 },
   content: {
@@ -288,116 +268,71 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
+    gap: 28,
   },
+  brand: { alignItems: 'center', gap: 10 },
   logoWrap: {
-    width: 104,
-    height: 104,
-    borderRadius: 32,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    width: 80,
+    height: 80,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 4,
   },
-  appName: {
-    fontSize: 38,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    fontFamily: 'Inter_700Bold',
-    marginBottom: 8,
-  },
-  tagline: {
-    fontSize: 15,
-    color: 'rgba(255,255,255,0.75)',
-    fontFamily: 'Inter_400Regular',
-    marginBottom: 44,
-    textAlign: 'center',
-  },
+  appName: { fontSize: 30, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  tagline: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center' },
   card: {
     width: '100%',
-    backgroundColor: '#FFFFFF',
     borderRadius: 28,
-    padding: 28,
+    padding: 24,
+    borderWidth: 1,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 24 },
-    shadowOpacity: 0.22,
-    shadowRadius: 44,
-    elevation: 16,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.07,
+    shadowRadius: 24,
+    elevation: 4,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 14,
-    marginBottom: 24,
+    gap: 12,
+    marginBottom: 22,
   },
   stepIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 15,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   cardHeaderText: { flex: 1 },
-  cardHeading: {
-    fontSize: 19,
-    fontWeight: '700',
-    color: '#1E1B4B',
-    fontFamily: 'Inter_700Bold',
-    marginBottom: 4,
-  },
-  cardSub: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontFamily: 'Inter_400Regular',
-    lineHeight: 19,
-  },
-  emailHighlight: {
-    color: '#4F46E5',
-    fontFamily: 'Inter_600SemiBold',
-    fontWeight: '600',
-  },
+  cardHeading: { fontSize: 18, fontWeight: '700', fontFamily: 'Inter_700Bold', marginBottom: 3 },
+  cardSub: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 19 },
   changeEmail: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     marginBottom: 16,
   },
-  changeEmailText: {
-    fontSize: 13,
-    color: '#4F46E5',
-    fontFamily: 'Inter_500Medium',
-    fontWeight: '500',
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#374151',
-    fontFamily: 'Inter_600SemiBold',
-    marginBottom: 8,
-  },
+  changeEmailText: { fontSize: 13, fontFamily: 'Inter_500Medium', fontWeight: '500' },
+  label: { fontSize: 13, fontWeight: '600', fontFamily: 'Inter_600SemiBold', marginBottom: 8 },
   input: {
     borderWidth: 1.5,
-    borderColor: '#E5E7EB',
     borderRadius: 14,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 13,
     fontSize: 16,
-    color: '#111827',
     marginBottom: 12,
     fontFamily: 'Inter_400Regular',
-    backgroundColor: '#F9FAFB',
   },
   otpInput: {
-    fontSize: 26,
+    fontSize: 24,
     letterSpacing: 8,
     textAlign: 'center',
     fontFamily: 'Inter_700Bold',
     fontWeight: '700',
-    paddingVertical: 16,
-  },
-  inputError: {
-    borderColor: '#EF4444',
-    backgroundColor: '#FEF2F2',
+    paddingVertical: 15,
   },
   errorRow: {
     flexDirection: 'row',
@@ -406,41 +341,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: -4,
   },
-  errorText: {
-    fontSize: 12,
-    color: '#EF4444',
-    fontFamily: 'Inter_400Regular',
-    flex: 1,
-  },
+  errorText: { fontSize: 12, fontFamily: 'Inter_400Regular', flex: 1 },
   button: {
-    backgroundColor: '#4F46E5',
     borderRadius: 14,
-    padding: 16,
+    padding: 15,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 8,
     marginTop: 4,
   },
-  buttonDisabled: { opacity: 0.45 },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    fontFamily: 'Inter_700Bold',
-  },
-  resendRow: {
-    alignItems: 'center',
-    marginTop: 16,
-    paddingVertical: 4,
-  },
-  resendText: {
-    fontSize: 13,
-    color: '#4F46E5',
-    fontFamily: 'Inter_500Medium',
-    fontWeight: '500',
-  },
-  resendTextMuted: {
-    color: '#9CA3AF',
-  },
+  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  resendRow: { alignItems: 'center', marginTop: 16, paddingVertical: 4 },
+  resendText: { fontSize: 13, fontFamily: 'Inter_500Medium', fontWeight: '500' },
 });

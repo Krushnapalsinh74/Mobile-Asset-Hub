@@ -5,7 +5,6 @@ import type { Subject } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import {
   ActivityIndicator,
@@ -19,17 +18,17 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const SUBJECT_THEMES: Array<{
-  colors: [string, string];
+  color: string;
   icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
 }> = [
-  { colors: ['#4F46E5', '#7C3AED'], icon: 'calculator-outline' },
-  { colors: ['#F59E0B', '#D97706'], icon: 'flask-outline' },
-  { colors: ['#10B981', '#059669'], icon: 'leaf-outline' },
-  { colors: ['#EF4444', '#DC2626'], icon: 'reader-outline' },
-  { colors: ['#06B6D4', '#0891B2'], icon: 'globe-outline' },
-  { colors: ['#8B5CF6', '#6D28D9'], icon: 'planet-outline' },
-  { colors: ['#F97316', '#EA580C'], icon: 'people-outline' },
-  { colors: ['#14B8A6', '#0D9488'], icon: 'code-outline' },
+  { color: '#6366F1', icon: 'calculator-outline' },
+  { color: '#F59E0B', icon: 'flask-outline' },
+  { color: '#10B981', icon: 'leaf-outline' },
+  { color: '#EF4444', icon: 'reader-outline' },
+  { color: '#06B6D4', icon: 'globe-outline' },
+  { color: '#8B5CF6', icon: 'planet-outline' },
+  { color: '#F97316', icon: 'people-outline' },
+  { color: '#14B8A6', icon: 'code-outline' },
 ];
 
 function getTheme(name: string, index: number) {
@@ -45,11 +44,22 @@ function getTheme(name: string, index: number) {
   return SUBJECT_THEMES[index % SUBJECT_THEMES.length];
 }
 
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
 function SubjectCard({ subject, index }: { subject: Subject; index: number }) {
+  const colors = useColors();
   const theme = getTheme(subject.name, index);
+  const bg = theme.color + '18';
+  const border = theme.color + '35';
+
   return (
     <Pressable
-      style={styles.cardWrap}
+      style={[styles.cardWrap]}
       onPress={() => {
         Haptics.selectionAsync();
         router.push({
@@ -58,14 +68,22 @@ function SubjectCard({ subject, index }: { subject: Subject; index: number }) {
         });
       }}
     >
-      <LinearGradient colors={theme.colors} style={styles.card}>
-        <View style={styles.cardIcon}>
-          <Ionicons name={theme.icon} size={30} color="rgba(255,255,255,0.92)" />
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: bg, borderColor: border },
+        ]}
+      >
+        <View style={[styles.iconWrap, { backgroundColor: theme.color + '28' }]}>
+          <Ionicons name={theme.icon} size={30} color={theme.color} />
         </View>
-        <Text style={styles.cardName} numberOfLines={3}>
+        <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={2}>
           {subject.name}
         </Text>
-      </LinearGradient>
+        <View style={[styles.goBtn, { backgroundColor: theme.color }]}>
+          <Ionicons name="arrow-forward" size={12} color="#FFFFFF" />
+        </View>
+      </View>
     </Pressable>
   );
 }
@@ -81,36 +99,55 @@ export default function SubjectsScreen() {
     enabled: !!boardId && !!standardId,
   });
 
+  const firstName = (studentName ?? 'Student').split(/[\s@_0-9]/)[0] || studentName?.charAt(0).toUpperCase() + (studentName?.slice(1, 12) ?? '');
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <LinearGradient
-        colors={['#312E81', '#4F46E5']}
+      {/* Header */}
+      <View
         style={[
           styles.header,
           {
-            paddingTop:
-              insets.top + (Platform.OS === 'web' ? 67 : 0) + 20,
+            paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 16,
+            backgroundColor: colors.card,
+            borderBottomColor: colors.border,
           },
         ]}
       >
-        <View style={styles.headerTop}>
+        <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
-            <Text style={styles.greeting}>Hello, {studentName?.split(' ')[0]}</Text>
-            <Text style={styles.breadcrumb}>
-              {boardName} • {standardName}
+            <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
+              {getGreeting()} 👋
+            </Text>
+            <Text style={[styles.studentName, { color: colors.text }]} numberOfLines={1}>
+              {firstName}
             </Text>
           </View>
-          <Pressable onPress={clearAll} style={styles.settingsBtn}>
-            <Ionicons name="settings-outline" size={20} color="rgba(255,255,255,0.8)" />
+          <Pressable onPress={clearAll} style={[styles.settingsBtn, { backgroundColor: colors.secondary }]}>
+            <Ionicons name="settings-outline" size={18} color={colors.mutedForeground} />
           </Pressable>
         </View>
-        <Text style={styles.headerSub}>What would you like to learn today?</Text>
-      </LinearGradient>
+
+        <View style={styles.metaRow}>
+          <View style={[styles.metaChip, { backgroundColor: colors.primaryLight }]}>
+            <Ionicons name="school-outline" size={12} color={colors.primary} />
+            <Text style={[styles.metaText, { color: colors.primary }]}>{boardName}</Text>
+          </View>
+          <View style={[styles.metaChip, { backgroundColor: colors.primaryLight }]}>
+            <Ionicons name="layers-outline" size={12} color={colors.primary} />
+            <Text style={[styles.metaText, { color: colors.primary }]}>{standardName}</Text>
+          </View>
+        </View>
+
+        <Text style={[styles.subheading, { color: colors.mutedForeground }]}>
+          Choose a subject to start studying
+        </Text>
+      </View>
 
       {subjectsQuery.isLoading && (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
+          <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
             Loading subjects...
           </Text>
         </View>
@@ -118,8 +155,10 @@ export default function SubjectsScreen() {
 
       {subjectsQuery.error && (
         <View style={styles.center}>
-          <Ionicons name="cloud-offline-outline" size={52} color={colors.destructive} />
-          <Text style={[styles.errorText, { color: colors.text }]}>Failed to load subjects</Text>
+          <View style={[styles.emptyIcon, { backgroundColor: colors.secondary }]}>
+            <Ionicons name="cloud-offline-outline" size={34} color={colors.destructive} />
+          </View>
+          <Text style={[styles.errorTitle, { color: colors.text }]}>Couldn't load subjects</Text>
           <Text style={[styles.errorSub, { color: colors.mutedForeground }]}>
             Check your internet connection
           </Text>
@@ -127,15 +166,17 @@ export default function SubjectsScreen() {
             onPress={() => subjectsQuery.refetch()}
             style={[styles.retryBtn, { backgroundColor: colors.primary }]}
           >
-            <Text style={styles.retryText}>Retry</Text>
+            <Text style={styles.retryText}>Try Again</Text>
           </Pressable>
         </View>
       )}
 
       {subjectsQuery.data && subjectsQuery.data.length === 0 && (
         <View style={styles.center}>
-          <Ionicons name="book-outline" size={52} color={colors.mutedForeground} />
-          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+          <View style={[styles.emptyIcon, { backgroundColor: colors.secondary }]}>
+            <Ionicons name="book-outline" size={34} color={colors.mutedForeground} />
+          </View>
+          <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
             No subjects found for this class
           </Text>
         </View>
@@ -148,17 +189,12 @@ export default function SubjectsScreen() {
           numColumns={2}
           contentContainerStyle={[
             styles.grid,
-            {
-              paddingBottom:
-                insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 16,
-            },
+            { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 16 },
           ]}
-          renderItem={({ item, index }) => (
-            <SubjectCard subject={item} index={index} />
-          )}
+          columnWrapperStyle={styles.row}
+          renderItem={({ item, index }) => <SubjectCard subject={item} index={index} />}
           refreshing={subjectsQuery.isFetching}
           onRefresh={() => subjectsQuery.refetch()}
-          scrollEnabled={!!subjectsQuery.data?.length}
           showsVerticalScrollIndicator={false}
         />
       )}
@@ -168,66 +204,113 @@ export default function SubjectsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 24, paddingBottom: 24 },
-  headerTop: {
+  header: {
+    paddingHorizontal: 20,
+    paddingBottom: 18,
+    borderBottomWidth: 1,
+  },
+  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  headerLeft: { flex: 1 },
+  headerLeft: { flex: 1, paddingRight: 12 },
   greeting: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    fontFamily: 'Inter_700Bold',
-  },
-  breadcrumb: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.68)',
+    fontSize: 13,
     fontFamily: 'Inter_400Regular',
-    marginTop: 3,
+    marginBottom: 2,
+  },
+  studentName: {
+    fontSize: 22,
+    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
   },
   settingsBtn: {
-    padding: 9,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    borderRadius: 11,
-  },
-  headerSub: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.75)',
-    fontFamily: 'Inter_400Regular',
-  },
-  grid: { padding: 10 },
-  cardWrap: { flex: 0.5, padding: 6 },
-  card: { borderRadius: 22, padding: 18, aspectRatio: 0.95, justifyContent: 'flex-end' },
-  cardIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 15,
-    backgroundColor: 'rgba(255,255,255,0.22)',
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
+  },
+  metaRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  metaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  metaText: {
+    fontSize: 11,
+    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
+  },
+  subheading: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+  },
+  grid: { padding: 12 },
+  row: { gap: 12, marginBottom: 12 },
+  cardWrap: { flex: 1 },
+  card: {
+    borderRadius: 24,
+    borderWidth: 1.5,
+    padding: 18,
+    paddingBottom: 16,
+    minHeight: 160,
+    justifyContent: 'space-between',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  iconWrap: {
+    width: 58,
+    height: 58,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
   },
   cardName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#FFFFFF',
     fontFamily: 'Inter_700Bold',
-    lineHeight: 22,
+    lineHeight: 21,
+    flex: 1,
+  },
+  goBtn: {
+    alignSelf: 'flex-end',
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
   },
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: 12,
     paddingHorizontal: 32,
   },
-  loadingText: { fontSize: 14, fontFamily: 'Inter_400Regular' },
-  errorText: { fontSize: 17, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  emptyIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  hintText: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center' },
+  errorTitle: { fontSize: 17, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
   errorSub: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center' },
-  emptyText: { fontSize: 15, fontFamily: 'Inter_400Regular', textAlign: 'center' },
-  retryBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 12, marginTop: 4 },
-  retryText: { color: '#FFFFFF', fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  retryBtn: {
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderRadius: 14,
+    marginTop: 4,
+  },
+  retryText: { color: '#FFFFFF', fontWeight: '700', fontFamily: 'Inter_700Bold', fontSize: 14 },
 });

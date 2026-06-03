@@ -5,7 +5,6 @@ import type { Board, Standard } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -64,24 +63,36 @@ export default function OnboardingScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <LinearGradient
-        colors={['#312E81', '#4F46E5']}
-        style={[styles.header, { paddingTop: topPad }]}
+      {/* Header */}
+      <View
+        style={[
+          styles.header,
+          { paddingTop: topPad, backgroundColor: colors.primary },
+        ]}
       >
+        <View style={styles.headerTop}>
+          <View style={[styles.headerIcon, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
+            <Ionicons
+              name={step === 'board' ? 'school-outline' : 'layers-outline'}
+              size={22}
+              color="#FFFFFF"
+            />
+          </View>
+          <View style={styles.stepIndicator}>
+            <View style={[styles.stepDot, styles.stepDotActive]} />
+            <View style={[styles.stepLine, step === 'standard' && styles.stepLineActive]} />
+            <View style={[styles.stepDot, step === 'standard' && styles.stepDotActive]} />
+          </View>
+        </View>
         <Text style={styles.headerTitle}>
           {step === 'board' ? 'Select Your Board' : 'Select Your Class'}
         </Text>
         <Text style={styles.headerSub}>
           {step === 'board'
-            ? 'Choose your education board'
+            ? 'Choose your education board to get started'
             : `Setting up for ${selectedBoard?.name}`}
         </Text>
-        <View style={styles.stepRow}>
-          <View style={[styles.stepDot, styles.stepDotActive]} />
-          <View style={[styles.stepLine, step === 'standard' && styles.stepLineActive]} />
-          <View style={[styles.stepDot, step === 'standard' && styles.stepDotActive]} />
-        </View>
-      </LinearGradient>
+      </View>
 
       <ScrollView
         style={styles.scroll}
@@ -89,6 +100,7 @@ export default function OnboardingScreen() {
           styles.scrollContent,
           { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 24 },
         ]}
+        showsVerticalScrollIndicator={false}
       >
         {step === 'board' && (
           <>
@@ -102,32 +114,33 @@ export default function OnboardingScreen() {
             )}
             {boardsQuery.error && (
               <View style={styles.errorWrap}>
-                <Ionicons name="cloud-offline-outline" size={44} color={colors.destructive} />
-                <Text style={[styles.errorText, { color: colors.destructive }]}>
+                <View style={[styles.errorIcon, { backgroundColor: colors.secondary }]}>
+                  <Ionicons name="cloud-offline-outline" size={32} color={colors.destructive} />
+                </View>
+                <Text style={[styles.errorText, { color: colors.text }]}>
                   Failed to load boards
                 </Text>
                 <Pressable
                   onPress={() => boardsQuery.refetch()}
                   style={[styles.retryBtn, { backgroundColor: colors.primary }]}
                 >
-                  <Text style={styles.retryText}>Retry</Text>
+                  <Text style={styles.retryText}>Try Again</Text>
                 </Pressable>
               </View>
             )}
             {boardsQuery.data?.map((board) => (
               <Pressable
                 key={getId(board)}
-                style={[
-                  styles.selCard,
-                  { backgroundColor: colors.card, borderColor: colors.border },
-                ]}
+                style={[styles.selCard, { backgroundColor: colors.card, borderColor: colors.border }]}
                 onPress={() => handleBoardSelect(board)}
               >
                 <View style={[styles.selIcon, { backgroundColor: colors.primaryLight }]}>
-                  <Ionicons name="school-outline" size={22} color={colors.primary} />
+                  <Ionicons name="school-outline" size={20} color={colors.primary} />
                 </View>
                 <Text style={[styles.selText, { color: colors.text }]}>{board.name}</Text>
-                <Ionicons name="chevron-forward" size={20} color={colors.mutedForeground} />
+                <View style={[styles.selChevron, { backgroundColor: colors.secondary }]}>
+                  <Ionicons name="chevron-forward" size={15} color={colors.mutedForeground} />
+                </View>
               </Pressable>
             ))}
           </>
@@ -139,8 +152,12 @@ export default function OnboardingScreen() {
               style={styles.backRow}
               onPress={() => { setStep('board'); setSelectedStandard(null); }}
             >
-              <Ionicons name="arrow-back" size={16} color={colors.primary} />
-              <Text style={[styles.backText, { color: colors.primary }]}>{selectedBoard?.name}</Text>
+              <View style={[styles.backCircle, { backgroundColor: colors.secondary }]}>
+                <Ionicons name="arrow-back" size={15} color={colors.primary} />
+              </View>
+              <Text style={[styles.backText, { color: colors.primary }]}>
+                {selectedBoard?.name}
+              </Text>
             </Pressable>
 
             {standardsQuery.isLoading && (
@@ -148,6 +165,7 @@ export default function OnboardingScreen() {
                 <ActivityIndicator size="large" color={colors.primary} />
               </View>
             )}
+
             {standardsQuery.data?.map((std) => {
               const isSelected = selectedStandard?.id === getId(std);
               return (
@@ -171,7 +189,7 @@ export default function OnboardingScreen() {
                   >
                     <Ionicons
                       name="layers-outline"
-                      size={22}
+                      size={20}
                       color={isSelected ? '#FFFFFF' : colors.primary}
                     />
                   </View>
@@ -187,8 +205,12 @@ export default function OnboardingScreen() {
                   >
                     {std.name}
                   </Text>
-                  {isSelected && (
-                    <Ionicons name="checkmark-circle" size={22} color={colors.primary} />
+                  {isSelected ? (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                  ) : (
+                    <View style={[styles.selChevron, { backgroundColor: colors.secondary }]}>
+                      <Ionicons name="chevron-forward" size={15} color={colors.mutedForeground} />
+                    </View>
                   )}
                 </Pressable>
               );
@@ -212,79 +234,103 @@ export default function OnboardingScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 24, paddingBottom: 28 },
+  header: { paddingHorizontal: 20, paddingBottom: 24 },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  headerIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepIndicator: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  stepDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+  },
+  stepDotActive: { backgroundColor: '#FFFFFF' },
+  stepLine: { width: 32, height: 2, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 2 },
+  stepLineActive: { backgroundColor: '#FFFFFF' },
   headerTitle: {
-    fontSize: 27,
+    fontSize: 24,
     fontWeight: '700',
     color: '#FFFFFF',
     fontFamily: 'Inter_700Bold',
     marginBottom: 6,
   },
   headerSub: {
-    fontSize: 14,
+    fontSize: 13,
     color: 'rgba(255,255,255,0.72)',
     fontFamily: 'Inter_400Regular',
-    marginBottom: 20,
   },
-  stepRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  stepDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: 'rgba(255,255,255,0.35)',
-  },
-  stepDotActive: { backgroundColor: '#FFFFFF' },
-  stepLine: { flex: 1, height: 2, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 2 },
-  stepLineActive: { backgroundColor: '#FFFFFF' },
   scroll: { flex: 1 },
-  scrollContent: { padding: 20, gap: 10 },
+  scrollContent: { padding: 16, gap: 10 },
   loaderWrap: { alignItems: 'center', paddingTop: 40, gap: 12 },
   loaderText: { fontSize: 14, fontFamily: 'Inter_400Regular' },
   errorWrap: { alignItems: 'center', paddingTop: 40, gap: 14 },
-  errorText: { fontSize: 15, fontFamily: 'Inter_500Medium' },
-  retryBtn: { paddingHorizontal: 24, paddingVertical: 11, borderRadius: 10 },
-  retryText: { color: '#FFFFFF', fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  errorIcon: {
+    width: 68,
+    height: 68,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  errorText: { fontSize: 15, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  retryBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, marginTop: 4 },
+  retryText: { color: '#FFFFFF', fontWeight: '700', fontFamily: 'Inter_700Bold', fontSize: 14 },
   selCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 16,
+    padding: 14,
+    borderRadius: 20,
     borderWidth: 1,
     gap: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 8,
     elevation: 1,
   },
   selIcon: {
     width: 44,
     height: 44,
-    borderRadius: 13,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  selText: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '500',
-    fontFamily: 'Inter_500Medium',
+  selText: { flex: 1, fontSize: 15, fontWeight: '500', fontFamily: 'Inter_500Medium' },
+  selChevron: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4, paddingVertical: 4 },
+  backRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4, paddingVertical: 4 },
+  backCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   backText: { fontSize: 14, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
   continueBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 16,
-    padding: 17,
+    borderRadius: 18,
+    padding: 16,
     gap: 8,
-    marginTop: 8,
+    marginTop: 6,
   },
-  continueBtnText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    fontFamily: 'Inter_700Bold',
-  },
+  continueBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', fontFamily: 'Inter_700Bold' },
 });

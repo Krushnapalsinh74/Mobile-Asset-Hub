@@ -36,31 +36,19 @@ export default function TopicsScreen() {
     enabled: !!boardId && !!standardId && !!subjectId && !!chapterId,
   });
 
+  const isExplanation = mode === 'explanation';
+
   const handleTopicPress = (topic: Topic) => {
     Haptics.selectionAsync();
-    if (mode === 'explanation') {
+    if (isExplanation) {
       router.push({
         pathname: '/explanation' as any,
-        params: {
-          subjectId,
-          subjectName,
-          chapterId,
-          chapterName,
-          topicId: getId(topic),
-          topicName: topic.name,
-        },
+        params: { subjectId, subjectName, chapterId, chapterName, topicId: getId(topic), topicName: topic.name },
       });
     } else {
       router.push({
         pathname: '/topic-dashboard' as any,
-        params: {
-          subjectId,
-          subjectName,
-          chapterId,
-          chapterName,
-          topicId: getId(topic),
-          topicName: topic.name,
-        },
+        params: { subjectId, subjectName, chapterId, chapterName, topicId: getId(topic), topicName: topic.name },
       });
     }
   };
@@ -70,11 +58,18 @@ export default function TopicsScreen() {
       <Stack.Screen options={{ title: chapterName || 'Topics' }} />
 
       {chapterName ? (
-        <View style={[styles.chapterBanner, { backgroundColor: colors.primaryLight }]}>
-          <Ionicons name="book-outline" size={15} color={colors.primary} />
+        <View style={[styles.chapterBanner, { backgroundColor: colors.primaryLight, borderBottomColor: colors.border }]}>
+          <View style={[styles.bannerIconWrap, { backgroundColor: colors.primary + '22' }]}>
+            <Ionicons name="book-outline" size={14} color={colors.primary} />
+          </View>
           <Text style={[styles.chapterText, { color: colors.primary }]} numberOfLines={1}>
             {chapterName}
           </Text>
+          {isExplanation && (
+            <View style={[styles.modePill, { backgroundColor: colors.primary }]}>
+              <Text style={styles.modeText}>Explanation</Text>
+            </View>
+          )}
         </View>
       ) : null}
 
@@ -86,21 +81,25 @@ export default function TopicsScreen() {
 
       {topicsQuery.error && (
         <View style={styles.center}>
-          <Ionicons name="cloud-offline-outline" size={48} color={colors.destructive} />
-          <Text style={[styles.errorText, { color: colors.text }]}>Failed to load topics</Text>
+          <View style={[styles.emptyIcon, { backgroundColor: colors.secondary }]}>
+            <Ionicons name="cloud-offline-outline" size={34} color={colors.destructive} />
+          </View>
+          <Text style={[styles.errorText, { color: colors.text }]}>Couldn't load topics</Text>
           <Pressable
             onPress={() => topicsQuery.refetch()}
             style={[styles.retryBtn, { backgroundColor: colors.primary }]}
           >
-            <Text style={styles.retryText}>Retry</Text>
+            <Text style={styles.retryText}>Try Again</Text>
           </Pressable>
         </View>
       )}
 
       {topicsQuery.data && topicsQuery.data.length === 0 && (
         <View style={styles.center}>
-          <Ionicons name="document-outline" size={48} color={colors.mutedForeground} />
-          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+          <View style={[styles.emptyIcon, { backgroundColor: colors.secondary }]}>
+            <Ionicons name="document-outline" size={34} color={colors.mutedForeground} />
+          </View>
+          <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
             No topics found for this chapter
           </Text>
         </View>
@@ -112,13 +111,15 @@ export default function TopicsScreen() {
           keyExtractor={(item) => getId(item)}
           contentContainerStyle={[
             styles.list,
-            {
-              paddingBottom:
-                insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 20,
-            },
+            { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 20 },
           ]}
           showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
+          ListHeaderComponent={
+            <Text style={[styles.listHeader, { color: colors.mutedForeground }]}>
+              {topicsQuery.data.length} topics
+            </Text>
+          }
+          renderItem={({ item, index }) => (
             <Pressable
               style={[
                 styles.topicCard,
@@ -126,15 +127,21 @@ export default function TopicsScreen() {
               ]}
               onPress={() => handleTopicPress(item)}
             >
-              <View style={[styles.topicDot, { backgroundColor: colors.accent }]} />
+              <View style={[styles.topicNum, { backgroundColor: colors.secondary }]}>
+                <Text style={[styles.topicNumText, { color: colors.mutedForeground }]}>
+                  {index + 1}
+                </Text>
+              </View>
               <Text style={[styles.topicName, { color: colors.text }]} numberOfLines={2}>
                 {item.name}
               </Text>
-              <Ionicons
-                name={mode === 'explanation' ? 'bulb-outline' : 'chevron-forward'}
-                size={18}
-                color={colors.mutedForeground}
-              />
+              <View style={[styles.topicAction, { backgroundColor: isExplanation ? colors.accentLight : colors.secondary }]}>
+                <Ionicons
+                  name={isExplanation ? 'bulb-outline' : 'chevron-forward'}
+                  size={15}
+                  color={isExplanation ? colors.accent : colors.mutedForeground}
+                />
+              </View>
             </Pressable>
           )}
           scrollEnabled={true}
@@ -150,29 +157,84 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderBottomWidth: 1,
   },
-  chapterText: { fontSize: 13, fontWeight: '600', fontFamily: 'Inter_600SemiBold', flex: 1 },
+  bannerIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chapterText: {
+    fontSize: 13,
+    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
+    flex: 1,
+  },
+  modePill: {
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 20,
+  },
+  modeText: { fontSize: 10, color: '#FFFFFF', fontFamily: 'Inter_700Bold', fontWeight: '700' },
   list: { padding: 16, gap: 8 },
+  listHeader: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    fontWeight: '600',
+    marginBottom: 8,
+    letterSpacing: 0.3,
+  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  emptyIcon: {
+    width: 68,
+    height: 68,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
   topicCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 15,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 18,
     borderWidth: 1,
     gap: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
+    shadowOpacity: 0.03,
     shadowRadius: 5,
     elevation: 1,
   },
-  topicDot: { width: 9, height: 9, borderRadius: 4.5 },
-  topicName: { flex: 1, fontSize: 15, fontWeight: '500', fontFamily: 'Inter_500Medium' },
+  topicNum: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topicNumText: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  topicName: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    fontFamily: 'Inter_500Medium',
+    lineHeight: 20,
+  },
+  topicAction: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hintText: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center' },
   errorText: { fontSize: 16, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
-  emptyText: { fontSize: 15, fontFamily: 'Inter_400Regular', textAlign: 'center' },
-  retryBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
-  retryText: { color: '#FFFFFF', fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  retryBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, marginTop: 4 },
+  retryText: { color: '#FFFFFF', fontWeight: '700', fontFamily: 'Inter_700Bold', fontSize: 14 },
 });
