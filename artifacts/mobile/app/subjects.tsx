@@ -138,7 +138,7 @@ export default function SubjectsScreen() {
       >
 
         {/* ── TOP BAR ── */}
-        <View style={[styles.topBar, { paddingTop: topPad + 14 }]}>
+        <View style={[styles.topBar, { paddingTop: topPad + 4 }]}>
           <View>
             <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
               {getGreeting()} {getGreetingEmoji()}
@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
   px: { paddingHorizontal: 20 },
 
   /* ── Top bar ── */
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 20, paddingBottom: 10 },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 20, paddingBottom: 4 },
   greeting: { fontSize: 12, fontFamily: 'Inter_400Regular', marginBottom: 3 },
   heroName: { fontSize: 26, fontWeight: '800', fontFamily: 'Inter_700Bold' },
   topRight: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold', color: '#FFF' },
 
   /* ── Tags ── */
-  tagRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 20 },
+  tagRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 12 },
   tag: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   tagText: { fontSize: 11, fontFamily: 'Inter_500Medium', fontWeight: '500' },
 

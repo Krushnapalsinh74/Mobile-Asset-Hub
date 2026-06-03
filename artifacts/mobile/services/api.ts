@@ -141,7 +141,7 @@ export const eduApi = {
     topic: string;
   }) => req<Record<string, unknown>>('/curriculum/topic-details', {
     method: 'POST',
-    body: JSON.stringify(params),
+    body: JSON.stringify({ ...params, freshQuestions: true }),
   }),
   chat: (params: {
     message: string;
@@ -156,10 +156,11 @@ export const eduApi = {
     standard: string;
     subject: string;
     chapter: string;
-    options: { mode: string; count: number };
+    options: { mode: string; count: number; seed?: number };
+    freshQuestions?: boolean;
   }) => req<Record<string, unknown>>('/generate-questions', {
     method: 'POST',
-    body: JSON.stringify(params),
+    body: JSON.stringify({ ...params, freshQuestions: true }),
   }),
   submitTest: (params: {
     studentName: string;

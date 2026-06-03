@@ -154,7 +154,7 @@ export default function ExplanationScreen() {
   const progressAnim = useRef(new Animated.Value(0)).current;
 
   const query = useQuery({
-    queryKey: ['topic-details', subjectId, chapterId, topicId],
+    queryKey: ['topic-details', subjectId, chapterId, topicId, Date.now()],
     queryFn: () =>
       eduApi.getTopicDetails({
         board: boardId ?? boardName ?? '',
@@ -163,6 +163,8 @@ export default function ExplanationScreen() {
         chapter: chapterName,
         topic: topicName,
       }),
+    staleTime: 0,
+    gcTime: 0,
   });
 
   const rawContent: string =
