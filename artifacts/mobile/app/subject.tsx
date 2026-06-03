@@ -75,7 +75,7 @@ export default function SubjectScreen() {
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </Pressable>
         <View style={styles.headerIconWrap}>
-          <Ionicons name="book-open-outline" size={38} color="rgba(255,255,255,0.92)" />
+          <Ionicons name="reader-outline" size={38} color="rgba(255,255,255,0.92)" />
         </View>
         <Text style={styles.subjectName}>{subjectName}</Text>
         <Text style={styles.breadcrumb}>

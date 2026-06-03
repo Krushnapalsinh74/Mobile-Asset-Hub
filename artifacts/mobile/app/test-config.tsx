@@ -121,7 +121,7 @@ export default function TestConfigScreen() {
       <Stack.Screen options={{ title: 'Live Test' }} />
 
       <View style={[styles.infoCard, { backgroundColor: colors.primaryLight }]}>
-        <Ionicons name="book-open-outline" size={20} color={colors.primary} />
+        <Ionicons name="reader-outline" size={20} color={colors.primary} />
         <View style={styles.infoRight}>
           <Text style={[styles.infoSubject, { color: colors.primary }]}>{subjectName}</Text>
           {selectedChapter ? (

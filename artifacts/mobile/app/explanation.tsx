@@ -96,7 +96,8 @@ export default function ExplanationScreen() {
   const rawContent: string =
     typeof query.data === 'string'
       ? query.data
-      : ((query.data as any)?.explanation ??
+      : ((query.data as any)?.studyGuide ??
+        (query.data as any)?.explanation ??
         (query.data as any)?.content ??
         (query.data as any)?.text ??
         (query.data ? JSON.stringify(query.data, null, 2) : ''));
