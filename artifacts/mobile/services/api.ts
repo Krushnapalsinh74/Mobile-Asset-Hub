@@ -81,10 +81,13 @@ export interface ChatMessage {
   content: string;
 }
 export interface Question {
+  id?: string;
   question: string;
   options?: string[];
-  answer: string;
+  answer?: string;
+  solution?: string;
   explanation?: string;
+  tip?: string;
   type?: string;
 }
 

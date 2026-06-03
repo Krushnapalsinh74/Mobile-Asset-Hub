@@ -87,11 +87,20 @@ export default function TestConfigScreen() {
         standard: standardId ?? standardName ?? '',
         subject: subjectName,
         chapter: selectedChapter.name,
-        options: { mode, count },
+        options: { mode, count, seed: Date.now() },
       });
-      const questions =
-        (res as any)?.questions ??
-        (Array.isArray(res) ? res : []);
+      const r = res as any;
+      const questions: unknown[] =
+        r?.questions ??
+        r?.data?.questions ??
+        r?.result?.questions ??
+        (Array.isArray(r) ? r : []);
+      if (questions.length === 0) {
+        setError(
+          'The server could not generate questions for this chapter. Please try a different chapter or question type.',
+        );
+        return;
+      }
       router.push({
         pathname: '/test-quiz' as any,
         params: {
