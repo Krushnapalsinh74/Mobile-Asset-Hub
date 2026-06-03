@@ -6,7 +6,7 @@ import type { Language } from '@/services/translate';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -211,31 +211,40 @@ export default function ExplanationScreen() {
 
   const displayContent = selectedLang.code === 'en' ? rawContent : (translatedText ?? rawContent);
 
+  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0) + 8;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.topicBanner, { backgroundColor: colors.success + '1A' }]}>
-        <Ionicons name="bulb-outline" size={17} color={colors.success} />
-        <View style={styles.bannerText}>
-          <Text style={[styles.bannerTopic, { color: colors.success }]} numberOfLines={2}>
-            {topicName}
-          </Text>
-          <Text style={[styles.bannerSub, { color: colors.mutedForeground }]}>
-            {subjectName} • {chapterName}
-          </Text>
+      {/* ── Header ── */}
+      <View style={[styles.header, { paddingTop: topPad, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        <View style={styles.headerRow}>
+          <Pressable
+            style={[styles.backBtn, { backgroundColor: colors.secondary }]}
+            onPress={() => { Haptics.selectionAsync(); router.back(); }}
+          >
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+          </Pressable>
+          <View style={styles.headerTitle}>
+            <Text style={[styles.headerTopicName, { color: colors.text }]} numberOfLines={1}>
+              {topicName}
+            </Text>
+            <Text style={[styles.headerSub, { color: colors.mutedForeground }]} numberOfLines={1}>
+              {subjectName} · {chapterName}
+            </Text>
+          </View>
+          <Pressable
+            style={[styles.langBtn, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '40' }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setPickerVisible(true);
+            }}
+          >
+            <Ionicons name="language-outline" size={15} color={colors.primary} />
+            <Text style={[styles.langBtnText, { color: colors.primary }]}>
+              {selectedLang.native}
+            </Text>
+          </Pressable>
         </View>
-
-        <Pressable
-          style={[styles.langBtn, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '40' }]}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setPickerVisible(true);
-          }}
-        >
-          <Ionicons name="language-outline" size={15} color={colors.primary} />
-          <Text style={[styles.langBtnText, { color: colors.primary }]}>
-            {selectedLang.native}
-          </Text>
-        </Pressable>
       </View>
 
       {translating && (
@@ -325,16 +334,26 @@ export default function ExplanationScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topicBanner: {
+  header: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+  },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
   },
-  bannerText: { flex: 1 },
-  bannerTopic: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  bannerSub: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: { flex: 1 },
+  headerTopicName: { fontSize: 15, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  headerSub: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
   langBtn: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -252,9 +252,109 @@ export default function SubjectsScreen() {
           </View>
         </View>
 
+        {/* ── Combined Progress Card ── */}
+        <View style={styles.section}>
+          <View style={[styles.combinedCard, { backgroundColor: colors.primary }]}>
+            {/* Decorative blobs */}
+            <View style={styles.blob1} />
+            <View style={styles.blob2} />
+
+            <View style={styles.combinedLeft}>
+              <Text style={styles.combinedLabel}>
+                {standardName} · Combined Progress
+              </Text>
+              <Text style={styles.combinedPct}>
+                {overallPct}<Text style={styles.combinedPctSign}>%</Text>
+              </Text>
+              <View style={styles.combinedTrackWrap}>
+                <View style={styles.combinedTrack}>
+                  <View style={[styles.combinedFill, { width: `${overallPct}%` as any }]} />
+                </View>
+              </View>
+              <Text style={styles.combinedSub}>
+                {totalExplored > 0
+                  ? `${totalExplored} of ${totalTopics || '?'} topics explored`
+                  : total > 0
+                  ? `${total} subjects · start exploring to track`
+                  : 'Loading subjects...'}
+              </Text>
+            </View>
+
+            <View style={styles.combinedRight}>
+              <View style={styles.combinedRing}>
+                <Text style={styles.combinedRingPct}>{overallPct}%</Text>
+                <Text style={styles.combinedRingLabel}>done</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* ── Subject Overview Strip ── */}
+        {subjectsQuery.data && subjectsQuery.data.length > 0 && (
+          <View style={{ paddingTop: 16 }}>
+            <View style={[styles.sectionHeader, { paddingHorizontal: 16, marginBottom: 10 }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text, fontSize: 15 }]}>
+                Subject Overview
+              </Text>
+              <Text style={[styles.sectionCount, { color: colors.mutedForeground }]}>
+                {subjectsQuery.data.length} subjects
+              </Text>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
+            >
+              {subjectsQuery.data.map((item, index) => {
+                const theme = getTheme(item.name, index);
+                const sid = getId(item);
+                const prog = subjectProgress[sid];
+                const explored = prog?.explored ?? 0;
+                const topicTotal = prog?.total ?? 0;
+                const pct = topicTotal > 0 ? Math.min(100, Math.round((explored / topicTotal) * 100)) : 0;
+                const started = explored > 0;
+                return (
+                  <Pressable
+                    key={sid}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      router.push({ pathname: '/subject' as any, params: { subjectId: sid, subjectName: item.name } });
+                    }}
+                    style={[styles.overviewCard, { backgroundColor: colors.card, borderColor: started ? theme.color + '50' : colors.border }]}
+                  >
+                    <View style={[styles.overviewIconWrap, { backgroundColor: theme.color + '20' }]}>
+                      <Ionicons name={theme.icon} size={18} color={theme.color} />
+                    </View>
+                    <Text style={[styles.overviewName, { color: colors.text }]} numberOfLines={2}>
+                      {item.name}
+                    </Text>
+                    <View style={[styles.overviewTrack, { backgroundColor: theme.color + '20' }]}>
+                      <View style={[styles.overviewFill, { backgroundColor: theme.color, width: started ? `${pct}%` as any : '0%' }]} />
+                    </View>
+                    <View style={styles.overviewBottom}>
+                      {started ? (
+                        <>
+                          <Text style={[styles.overviewPct, { color: theme.color }]}>{pct}%</Text>
+                          <Text style={[styles.overviewTopics, { color: colors.mutedForeground }]}>
+                            {explored}/{topicTotal || '?'}
+                          </Text>
+                        </>
+                      ) : (
+                        <Text style={[styles.overviewNotStarted, { color: colors.mutedForeground }]}>
+                          Not started
+                        </Text>
+                      )}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
         {/* ── Continue Learning ── */}
         {lastStudied && (
-          <View style={styles.section}>
+          <View style={[styles.section, { paddingTop: 16 }]}>
             <ContinueLearning last={lastStudied} colors={colors} />
           </View>
         )}
@@ -520,6 +620,130 @@ const styles = StyleSheet.create({
   },
   tipLabel: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   tipSub: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 1 },
+
+  /* Subject overview strip */
+  overviewCard: {
+    width: 120,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    padding: 14,
+    gap: 8,
+  },
+  overviewIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  overviewName: {
+    fontSize: 12,
+    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
+    lineHeight: 16,
+    minHeight: 32,
+  },
+  overviewTrack: {
+    height: 5,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  overviewFill: { height: 5, borderRadius: 3, minWidth: 4 },
+  overviewBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  overviewPct: { fontSize: 13, fontWeight: '800', fontFamily: 'Inter_700Bold' },
+  overviewTopics: { fontSize: 10, fontFamily: 'Inter_400Regular' },
+  overviewNotStarted: { fontSize: 10, fontFamily: 'Inter_400Regular' },
+
+  /* Combined progress card */
+  combinedCard: {
+    borderRadius: 28,
+    padding: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+    minHeight: 150,
+  },
+  blob1: {
+    position: 'absolute',
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    top: -40,
+    right: -30,
+  },
+  blob2: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    bottom: -30,
+    left: 60,
+  },
+  combinedLeft: { flex: 1, zIndex: 1 },
+  combinedLabel: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.75)',
+    fontFamily: 'Inter_500Medium',
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  combinedPct: {
+    fontSize: 52,
+    fontWeight: '800',
+    fontFamily: 'Inter_700Bold',
+    color: '#FFFFFF',
+    lineHeight: 58,
+  },
+  combinedPctSign: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.8)',
+  },
+  combinedTrackWrap: { marginTop: 10, marginBottom: 8 },
+  combinedTrack: {
+    height: 6,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderRadius: 3,
+    overflow: 'hidden',
+    width: '90%',
+  },
+  combinedFill: {
+    height: 6,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 3,
+    minWidth: 6,
+  },
+  combinedSub: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.7)',
+    fontFamily: 'Inter_400Regular',
+  },
+  combinedRight: { zIndex: 1, paddingLeft: 12 },
+  combinedRing: {
+    width: 78,
+    height: 78,
+    borderRadius: 39,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  combinedRingPct: {
+    fontSize: 18,
+    fontWeight: '800',
+    fontFamily: 'Inter_700Bold',
+    color: '#FFFFFF',
+  },
+  combinedRingLabel: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.7)',
+    fontFamily: 'Inter_400Regular',
+    marginTop: -2,
+  },
 
   /* Overall progress card */
   overallCard: {

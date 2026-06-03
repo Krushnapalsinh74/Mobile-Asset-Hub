@@ -72,30 +72,40 @@ export default function SubjectScreen() {
     }
   }, [subjectId]);
 
+  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0) + 12;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View
         style={[
           styles.header,
           {
-            paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 16,
+            paddingTop: topPad,
             backgroundColor: colors.card,
             borderBottomColor: colors.border,
           },
         ]}
       >
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <View style={[styles.backCircle, { backgroundColor: colors.secondary }]}>
+        {/* Row: back + title */}
+        <View style={styles.headerRow}>
+          <Pressable
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
+            style={[styles.backCircle, { backgroundColor: colors.secondary }]}
+          >
             <Ionicons name="arrow-back" size={20} color={colors.text} />
+          </Pressable>
+          <View style={[styles.subjectIconWrap, { backgroundColor: colors.primaryLight }]}>
+            <Ionicons name="reader-outline" size={22} color={colors.primary} />
           </View>
-        </Pressable>
-        <View style={[styles.subjectIconWrap, { backgroundColor: colors.primaryLight }]}>
-          <Ionicons name="reader-outline" size={28} color={colors.primary} />
+          <View style={styles.titleBlock}>
+            <Text style={[styles.subjectName, { color: colors.text }]} numberOfLines={1}>
+              {subjectName}
+            </Text>
+            <Text style={[styles.breadcrumb, { color: colors.mutedForeground }]}>
+              {boardName} · {standardName}
+            </Text>
+          </View>
         </View>
-        <Text style={[styles.subjectName, { color: colors.text }]}>{subjectName}</Text>
-        <Text style={[styles.breadcrumb, { color: colors.mutedForeground }]}>
-          {boardName} • {standardName}
-        </Text>
       </View>
 
       <ScrollView
@@ -149,12 +159,15 @@ export default function SubjectScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 14,
     borderBottomWidth: 1,
   },
-  backBtn: { alignSelf: 'flex-start', marginBottom: 20 },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   backCircle: {
     width: 38,
     height: 38,
@@ -163,21 +176,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   subjectIconWrap: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
   },
+  titleBlock: { flex: 1 },
   subjectName: {
-    fontSize: 22,
+    fontSize: 17,
     fontWeight: '700',
     fontFamily: 'Inter_700Bold',
-    textAlign: 'center',
-    marginBottom: 6,
   },
-  breadcrumb: { fontSize: 13, fontFamily: 'Inter_400Regular' },
+  breadcrumb: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
   content: { padding: 20, gap: 10 },
   sectionLabel: {
     fontSize: 12,
