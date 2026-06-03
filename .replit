@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-20", "web", "bash"]
 
 [deployment]
 router = "application"
@@ -33,7 +33,7 @@ args = "pnpm --filter @workspace/mobile run dev"
 waitForPort = 18115
 
 [agent]
-stack = "PNPM_WORKSPACE"
+stack = "BEST_EFFORT_FALLBACK"
 expertMode = true
 
 [postMerge]
@@ -55,3 +55,6 @@ externalPort = 3000
 [[ports]]
 localPort = 18116
 externalPort = 3001
+
+[nix]
+channel = "stable-25_05"
