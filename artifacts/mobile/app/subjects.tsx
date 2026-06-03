@@ -25,7 +25,7 @@ const SUBJECT_THEMES: Array<{
   { colors: ['#4F46E5', '#7C3AED'], icon: 'calculator-outline' },
   { colors: ['#F59E0B', '#D97706'], icon: 'flask-outline' },
   { colors: ['#10B981', '#059669'], icon: 'leaf-outline' },
-  { colors: ['#EF4444', '#DC2626'], icon: 'book-open-outline' },
+  { colors: ['#EF4444', '#DC2626'], icon: 'reader-outline' },
   { colors: ['#06B6D4', '#0891B2'], icon: 'globe-outline' },
   { colors: ['#8B5CF6', '#6D28D9'], icon: 'planet-outline' },
   { colors: ['#F97316', '#EA580C'], icon: 'people-outline' },
