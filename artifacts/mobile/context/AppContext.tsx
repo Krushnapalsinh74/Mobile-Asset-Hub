@@ -16,6 +16,23 @@ export interface SubjectProgress {
   total: number;
 }
 
+export interface TestResult {
+  subjectName: string;
+  chapterName?: string;
+  mode: string;
+  score: number;
+  total: number;
+  percentage: number | null;
+  timestamp: number;
+}
+
+export interface ChatSession {
+  subjectName: string;
+  topicName?: string;
+  chapterName?: string;
+  timestamp: number;
+}
+
 interface AppState {
   studentName: string | null;
   studentEmail: string | null;
@@ -25,6 +42,8 @@ interface AppState {
   standardName: string | null;
   lastStudied: LastStudied | null;
   subjectProgress: Record<string, SubjectProgress>;
+  testHistory: TestResult[];
+  chatHistory: ChatSession[];
   isLoaded: boolean;
 }
 
@@ -35,6 +54,8 @@ interface AppContextValue extends AppState {
   setLastStudied: (data: LastStudied) => Promise<void>;
   setSubjectTotal: (subjectId: string, total: number) => Promise<void>;
   incrementExplored: (subjectId: string) => Promise<void>;
+  addTestResult: (result: TestResult) => Promise<void>;
+  addChatSession: (session: ChatSession) => Promise<void>;
   clearAll: () => Promise<void>;
 }
 
@@ -49,6 +70,8 @@ const KEYS = {
   standardName: '@edu:standardName',
   lastStudied: '@edu:lastStudied',
   subjectProgress: '@edu:subjectProgress',
+  testHistory: '@edu:testHistory',
+  chatHistory: '@edu:chatHistory',
 };
 
 function parse<T>(s: string | null, fallback: T): T {
@@ -65,6 +88,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     standardName: null,
     lastStudied: null,
     subjectProgress: {},
+    testHistory: [],
+    chatHistory: [],
     isLoaded: false,
   });
 
@@ -81,6 +106,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         standardName: map[KEYS.standardName],
         lastStudied: parse(map[KEYS.lastStudied], null),
         subjectProgress: parse(map[KEYS.subjectProgress], {}),
+        testHistory: parse(map[KEYS.testHistory], []),
+        chatHistory: parse(map[KEYS.chatHistory], []),
         isLoaded: true,
       });
     });
@@ -129,18 +156,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const addTestResult = async (result: TestResult) => {
+    setState(s => {
+      const next = [result, ...s.testHistory].slice(0, 50);
+      AsyncStorage.setItem(KEYS.testHistory, JSON.stringify(next));
+      return { ...s, testHistory: next };
+    });
+  };
+
+  const addChatSession = async (session: ChatSession) => {
+    setState(s => {
+      const next = [session, ...s.chatHistory].slice(0, 50);
+      AsyncStorage.setItem(KEYS.chatHistory, JSON.stringify(next));
+      return { ...s, chatHistory: next };
+    });
+  };
+
   const clearAll = async () => {
     await AsyncStorage.multiRemove(Object.values(KEYS));
     setState({
       studentName: null, studentEmail: null, boardId: null, boardName: null,
-      standardId: null, standardName: null, lastStudied: null, subjectProgress: {}, isLoaded: true,
+      standardId: null, standardName: null, lastStudied: null, subjectProgress: {},
+      testHistory: [], chatHistory: [], isLoaded: true,
     });
   };
 
   return (
     <AppContext.Provider value={{
       ...state, setStudent, setBoard, setStandard, setLastStudied,
-      setSubjectTotal, incrementExplored, clearAll,
+      setSubjectTotal, incrementExplored, addTestResult, addChatSession, clearAll,
     }}>
       {children}
     </AppContext.Provider>

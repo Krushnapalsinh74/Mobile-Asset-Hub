@@ -68,7 +68,7 @@ export default function TestQuizScreen() {
     chapterName: string;
     mode: string;
   }>();
-  const { studentName, boardId, boardName, standardId, standardName } = useApp();
+  const { studentName, boardId, boardName, standardId, standardName, addTestResult } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
@@ -108,6 +108,8 @@ export default function TestQuizScreen() {
     }
     setScore(correct);
 
+    const pct = mode === 'mcq' ? Math.round((correct / questions.length) * 100) : null;
+
     try {
       await eduApi.submitTest({
         studentName: studentName ?? 'Student',
@@ -121,6 +123,16 @@ export default function TestQuizScreen() {
     } catch {
       // silently handle submit errors
     }
+
+    addTestResult({
+      subjectName,
+      chapterName,
+      mode,
+      score: mode === 'mcq' ? correct : answeredCount,
+      total: questions.length,
+      percentage: pct,
+      timestamp: Date.now(),
+    }).catch(() => {});
 
     setSubmitted(true);
     setSubmitting(false);

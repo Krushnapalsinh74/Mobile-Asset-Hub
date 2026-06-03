@@ -1,5 +1,5 @@
 import { useApp } from '@/context/AppContext';
-import type { LastStudied, SubjectProgress } from '@/context/AppContext';
+import type { SubjectProgress } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { eduApi, getId } from '@/services/api';
 import type { Subject } from '@/services/api';
@@ -9,7 +9,6 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import {
   ActivityIndicator,
-  FlatList,
   Platform,
   Pressable,
   ScrollView,
@@ -19,10 +18,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const SUBJECT_THEMES: Array<{
-  color: string;
-  icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
-}> = [
+const SUBJECT_THEMES: Array<{ color: string; icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap }> = [
   { color: '#6366F1', icon: 'calculator-outline' },
   { color: '#F59E0B', icon: 'flask-outline' },
   { color: '#10B981', icon: 'leaf-outline' },
@@ -46,10 +42,6 @@ function getTheme(name: string, index: number) {
   return SUBJECT_THEMES[index % SUBJECT_THEMES.length];
 }
 
-function getThemeByName(name: string) {
-  return getTheme(name, 0);
-}
-
 function getGreeting() {
   const h = new Date().getHours();
   if (h < 12) return 'Good morning';
@@ -57,11 +49,25 @@ function getGreeting() {
   return 'Good evening';
 }
 
+function getGreetingEmoji() {
+  const h = new Date().getHours();
+  if (h < 12) return '☀️';
+  if (h < 17) return '🌤️';
+  return '🌙';
+}
+
 function getFirstName(name: string | null) {
   if (!name) return 'Student';
   const cleaned = name.replace(/[0-9_]/g, ' ').trim();
   const first = cleaned.split(/\s+/)[0];
   return first.charAt(0).toUpperCase() + first.slice(1, 14);
+}
+
+function getInitials(name: string | null): string {
+  if (!name) return 'S';
+  const words = name.trim().split(/\s+/);
+  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
 }
 
 function timeAgo(ts: number): string {
@@ -74,112 +80,18 @@ function timeAgo(ts: number): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function ContinueLearning({ last, colors }: { last: LastStudied; colors: ReturnType<typeof useColors> }) {
-  const theme = getThemeByName(last.subjectName);
-  return (
-    <View style={[styles.continueWrap, { backgroundColor: theme.color + '12', borderColor: theme.color + '30' }]}>
-      <View style={styles.continueLeft}>
-        <View style={[styles.continueIconWrap, { backgroundColor: theme.color + '22' }]}>
-          <Ionicons name={theme.icon} size={22} color={theme.color} />
-        </View>
-        <View style={styles.continueText}>
-          <Text style={[styles.continueLabel, { color: colors.mutedForeground }]}>
-            Continue learning
-          </Text>
-          <Text style={[styles.continueSubject, { color: colors.text }]} numberOfLines={1}>
-            {last.subjectName}
-          </Text>
-          {(last.topicName || last.chapterName) && (
-            <Text style={[styles.continueTopic, { color: colors.mutedForeground }]} numberOfLines={1}>
-              {last.topicName ?? last.chapterName}
-            </Text>
-          )}
-        </View>
-      </View>
-      <Pressable
-        style={[styles.resumeBtn, { backgroundColor: theme.color }]}
-        onPress={() => {
-          Haptics.selectionAsync();
-          if (last.topicId && last.topicName) {
-            router.push({
-              pathname: '/topic-dashboard' as any,
-              params: {
-                subjectId: last.subjectId,
-                subjectName: last.subjectName,
-                chapterId: last.chapterId ?? '',
-                chapterName: last.chapterName ?? '',
-                topicId: last.topicId,
-                topicName: last.topicName,
-              },
-            });
-          } else {
-            router.push({
-              pathname: '/subject' as any,
-              params: { subjectId: last.subjectId, subjectName: last.subjectName },
-            });
-          }
-        }}
-      >
-        <Text style={styles.resumeBtnText}>Resume</Text>
-        <Ionicons name="play" size={12} color="#FFFFFF" />
-      </Pressable>
-    </View>
-  );
-}
-
-function MiniProgressBar({ progress, color }: { progress: SubjectProgress | undefined; color: string }) {
-  const explored = progress?.explored ?? 0;
-  const total = progress?.total ?? 0;
-  const pct = total > 0 ? Math.min(1, explored / total) : 0;
-  const label = total > 0
-    ? `${Math.round(pct * 100)}%`
-    : explored > 0 ? `${explored} topics` : null;
-
-  if (!label) return null;
-
-  return (
-    <View style={styles.progressWrap}>
-      <View style={[styles.progressTrack, { backgroundColor: color + '20' }]}>
-        <View style={[styles.progressFill, { backgroundColor: color, width: `${Math.round(pct * 100)}%` as any }]} />
-      </View>
-      <Text style={[styles.progressLabel, { color }]}>{label}</Text>
-    </View>
-  );
-}
-
-function SubjectCard({ subject, index, colors, progress }: { subject: Subject; index: number; colors: ReturnType<typeof useColors>; progress?: SubjectProgress }) {
-  const theme = getTheme(subject.name, index);
-  return (
-    <Pressable
-      style={styles.cardWrap}
-      onPress={() => {
-        Haptics.selectionAsync();
-        router.push({
-          pathname: '/subject' as any,
-          params: { subjectId: getId(subject), subjectName: subject.name },
-        });
-      }}
-    >
-      <View style={[styles.card, { backgroundColor: theme.color + '14', borderColor: theme.color + '30' }]}>
-        <View style={[styles.cardCircle, { backgroundColor: theme.color + '10' }]} />
-        <View style={[styles.iconWrap, { backgroundColor: theme.color + '28' }]}>
-          <Ionicons name={theme.icon} size={28} color={theme.color} />
-        </View>
-        <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={2}>
-          {subject.name}
-        </Text>
-        <MiniProgressBar progress={progress} color={theme.color} />
-        <View style={[styles.goChip, { backgroundColor: theme.color }]}>
-          <Text style={styles.goChipText}>Open</Text>
-          <Ionicons name="arrow-forward" size={11} color="#FFF" />
-        </View>
-      </View>
-    </Pressable>
-  );
-}
+const QUICK_ACTIONS = [
+  { key: 'chapters', label: 'Chapters', icon: 'layers-outline' as const, color: '#6366F1' },
+  { key: 'test', label: 'Test', icon: 'trophy-outline' as const, color: '#F59E0B' },
+  { key: 'ai', label: 'AI Tutor', icon: 'chatbubbles-outline' as const, color: '#8B5CF6' },
+  { key: 'explain', label: 'Explain', icon: 'bulb-outline' as const, color: '#10B981' },
+];
 
 export default function SubjectsScreen() {
-  const { studentName, boardId, standardId, boardName, standardName, lastStudied, subjectProgress } = useApp();
+  const {
+    studentName, boardId, standardId, boardName, standardName,
+    lastStudied, subjectProgress, testHistory, chatHistory,
+  } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
@@ -189,612 +101,427 @@ export default function SubjectsScreen() {
     enabled: !!boardId && !!standardId,
   });
 
+  const subjects = subjectsQuery.data ?? [];
   const firstName = getFirstName(studentName);
-  const total = subjectsQuery.data?.length ?? 0;
+  const initials = getInitials(studentName);
 
   const totalExplored = Object.values(subjectProgress).reduce((s, p) => s + (p.explored ?? 0), 0);
   const totalTopics = Object.values(subjectProgress).reduce((s, p) => s + (p.total ?? 0), 0);
   const overallPct = totalTopics > 0 ? Math.min(100, Math.round((totalExplored / totalTopics) * 100)) : 0;
 
+  const mcqTests = testHistory.filter(t => t.mode === 'mcq');
+  const avgScore = mcqTests.length > 0
+    ? Math.round(mcqTests.reduce((s, t) => s + (t.percentage ?? 0), 0) / mcqTests.length)
+    : null;
+
+  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
+
+  function handleQuickAction(key: string) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const sid = lastStudied?.subjectId ?? (subjects[0] ? getId(subjects[0]) : null);
+    const sname = lastStudied?.subjectName ?? subjects[0]?.name ?? '';
+    if (!sid) return;
+    if (key === 'chapters' || key === 'explain') {
+      router.push({ pathname: '/chapters' as any, params: { subjectId: sid, subjectName: sname } });
+    } else if (key === 'test') {
+      router.push({ pathname: '/test-config' as any, params: { subjectId: sid, subjectName: sname } });
+    } else {
+      router.push({ pathname: '/chat' as any, params: { subjectId: sid, subjectName: sname } });
+    }
+  }
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 24 }}
-        refreshControl={undefined}
+        contentContainerStyle={{ paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 40 }}
       >
-        {/* ── Header ── */}
-        <View
-          style={[
-            styles.header,
-            {
-              paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 18,
-              backgroundColor: colors.card,
-              borderBottomColor: colors.border,
-            },
-          ]}
-        >
-          <View style={styles.headerRow}>
-            <View style={styles.headerLeft}>
-              <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
-                {getGreeting()} 👋
-              </Text>
-              <Text style={[styles.studentName, { color: colors.text }]} numberOfLines={1}>
-                {firstName}
-              </Text>
-            </View>
+
+        {/* ── TOP BAR ── */}
+        <View style={[styles.topBar, { paddingTop: topPad + 14 }]}>
+          <View>
+            <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
+              {getGreeting()} {getGreetingEmoji()}
+            </Text>
+            <Text style={[styles.heroName, { color: colors.text }]}>{firstName}</Text>
+          </View>
+          <View style={styles.topRight}>
             <Pressable
+              style={[styles.settingsBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
               onPress={() => { Haptics.selectionAsync(); router.push('/settings' as any); }}
-              style={[styles.settingsBtn, { backgroundColor: colors.secondary }]}
             >
               <Ionicons name="settings-outline" size={18} color={colors.mutedForeground} />
             </Pressable>
+            <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
           </View>
+        </View>
 
-          {/* Board + class pills */}
-          <View style={styles.metaRow}>
-            <View style={[styles.metaChip, { backgroundColor: colors.primaryLight }]}>
-              <Ionicons name="school-outline" size={12} color={colors.primary} />
-              <Text style={[styles.metaText, { color: colors.primary }]}>{boardName}</Text>
+        {/* ── BOARD + CLASS TAG ── */}
+        <View style={styles.tagRow}>
+          <View style={[styles.tag, { backgroundColor: colors.primaryLight }]}>
+            <Ionicons name="school-outline" size={11} color={colors.primary} />
+            <Text style={[styles.tagText, { color: colors.primary }]}>{boardName}</Text>
+          </View>
+          <View style={[styles.tag, { backgroundColor: colors.primaryLight }]}>
+            <Ionicons name="layers-outline" size={11} color={colors.primary} />
+            <Text style={[styles.tagText, { color: colors.primary }]}>{standardName}</Text>
+          </View>
+        </View>
+
+        {/* ── PROGRESS CARD ── */}
+        <View style={styles.px}>
+          <View style={[styles.progressCard, { backgroundColor: colors.primary }]}>
+            <View style={styles.progressCardLeft}>
+              <Text style={styles.progressCardLabel}>Overall Progress</Text>
+              <Text style={styles.progressCardPct}>{overallPct}%</Text>
+              <Text style={styles.progressCardSub}>
+                {totalExplored} of {totalTopics || '–'} topics covered
+              </Text>
             </View>
-            <View style={[styles.metaChip, { backgroundColor: colors.primaryLight }]}>
-              <Ionicons name="layers-outline" size={12} color={colors.primary} />
-              <Text style={[styles.metaText, { color: colors.primary }]}>{standardName}</Text>
-            </View>
-            {total > 0 && (
-              <View style={[styles.metaChip, { backgroundColor: colors.secondary }]}>
-                <Ionicons name="book-outline" size={12} color={colors.mutedForeground} />
-                <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
-                  {total} subjects
-                </Text>
+            <View style={styles.progressCardRight}>
+              <View style={styles.pctCircle}>
+                <Text style={styles.pctCircleNum}>{overallPct}</Text>
+                <Text style={styles.pctCircleSymbol}>%</Text>
               </View>
+            </View>
+            <View style={[styles.progressBarTrack, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+              <View style={[styles.progressBarFill, {
+                backgroundColor: '#FFFFFF',
+                width: `${overallPct}%` as any,
+              }]} />
+            </View>
+          </View>
+        </View>
+
+        {/* ── STAT ROW ── */}
+        <View style={[styles.statRow, styles.px]}>
+          {[
+            { icon: 'trophy-outline' as const, color: '#F59E0B', val: testHistory.length, label: 'Tests', sub: avgScore !== null ? `avg ${avgScore}%` : null },
+            { icon: 'chatbubbles-outline' as const, color: '#8B5CF6', val: chatHistory.length, label: 'AI Chats', sub: null },
+            { icon: 'book-outline' as const, color: '#10B981', val: totalExplored, label: 'Topics', sub: null },
+          ].map((s, i) => (
+            <View key={i} style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={[styles.statIcon, { backgroundColor: s.color + '15' }]}>
+                <Ionicons name={s.icon} size={16} color={s.color} />
+              </View>
+              <Text style={[styles.statVal, { color: colors.text }]}>{s.val}</Text>
+              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
+              {s.sub && <Text style={[styles.statSub, { color: s.color }]}>{s.sub}</Text>}
+            </View>
+          ))}
+        </View>
+
+        {/* ── QUICK ACTIONS ── */}
+        <View style={{ paddingTop: 24 }}>
+          <View style={[styles.sectionHeader, styles.px]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Jump In</Text>
+            {lastStudied && (
+              <Text style={[styles.sectionHint, { color: colors.mutedForeground }]}>
+                with {lastStudied.subjectName}
+              </Text>
             )}
           </View>
-        </View>
-
-        {/* ── Combined Progress Card ── */}
-        <View style={styles.section}>
-          <View style={[styles.combinedCard, { backgroundColor: colors.primary }]}>
-            {/* Decorative blobs */}
-            <View style={styles.blob1} />
-            <View style={styles.blob2} />
-
-            <View style={styles.combinedLeft}>
-              <Text style={styles.combinedLabel}>
-                {standardName} · Combined Progress
-              </Text>
-              <Text style={styles.combinedPct}>
-                {overallPct}<Text style={styles.combinedPctSign}>%</Text>
-              </Text>
-              <View style={styles.combinedTrackWrap}>
-                <View style={styles.combinedTrack}>
-                  <View style={[styles.combinedFill, { width: `${overallPct}%` as any }]} />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 10, gap: 10 }}
+          >
+            {QUICK_ACTIONS.map(a => (
+              <Pressable
+                key={a.key}
+                style={[styles.actionPill, { backgroundColor: a.color + '12', borderColor: a.color + '35' }]}
+                onPress={() => handleQuickAction(a.key)}
+              >
+                <View style={[styles.actionPillIcon, { backgroundColor: a.color + '20' }]}>
+                  <Ionicons name={a.icon} size={20} color={a.color} />
                 </View>
-              </View>
-              <Text style={styles.combinedSub}>
-                {totalExplored > 0
-                  ? `${totalExplored} of ${totalTopics || '?'} topics explored`
-                  : total > 0
-                  ? `${total} subjects · start exploring to track`
-                  : 'Loading subjects...'}
-              </Text>
-            </View>
-
-            <View style={styles.combinedRight}>
-              <View style={styles.combinedRing}>
-                <Text style={styles.combinedRingPct}>{overallPct}%</Text>
-                <Text style={styles.combinedRingLabel}>done</Text>
-              </View>
-            </View>
-          </View>
+                <Text style={[styles.actionPillLabel, { color: a.color }]}>{a.label}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
         </View>
 
-        {/* ── Subject Overview Strip ── */}
-        {subjectsQuery.data && subjectsQuery.data.length > 0 && (
-          <View style={{ paddingTop: 16 }}>
-            <View style={[styles.sectionHeader, { paddingHorizontal: 16, marginBottom: 10 }]}>
-              <Text style={[styles.sectionTitle, { color: colors.text, fontSize: 15 }]}>
-                Subject Overview
-              </Text>
-              <Text style={[styles.sectionCount, { color: colors.mutedForeground }]}>
-                {subjectsQuery.data.length} subjects
-              </Text>
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
-            >
-              {subjectsQuery.data.map((item, index) => {
-                const theme = getTheme(item.name, index);
-                const sid = getId(item);
-                const prog = subjectProgress[sid];
-                const explored = prog?.explored ?? 0;
-                const topicTotal = prog?.total ?? 0;
-                const pct = topicTotal > 0 ? Math.min(100, Math.round((explored / topicTotal) * 100)) : 0;
-                const started = explored > 0;
-                return (
-                  <Pressable
-                    key={sid}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      router.push({ pathname: '/subject' as any, params: { subjectId: sid, subjectName: item.name } });
-                    }}
-                    style={[styles.overviewCard, { backgroundColor: colors.card, borderColor: started ? theme.color + '50' : colors.border }]}
-                  >
-                    <View style={[styles.overviewIconWrap, { backgroundColor: theme.color + '20' }]}>
-                      <Ionicons name={theme.icon} size={18} color={theme.color} />
-                    </View>
-                    <Text style={[styles.overviewName, { color: colors.text }]} numberOfLines={2}>
-                      {item.name}
+        {/* ── CONTINUE LEARNING ── */}
+        {lastStudied && (() => {
+          const theme = getTheme(lastStudied.subjectName, 0);
+          return (
+            <View style={[styles.section, styles.px]}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Continue Learning</Text>
+              <Pressable
+                style={[styles.continueCard, { backgroundColor: theme.color + '0E', borderColor: theme.color + '35' }]}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  if (lastStudied.topicId) {
+                    router.push({ pathname: '/topic-dashboard' as any, params: {
+                      subjectId: lastStudied.subjectId, subjectName: lastStudied.subjectName,
+                      chapterId: lastStudied.chapterId ?? '', chapterName: lastStudied.chapterName ?? '',
+                      topicId: lastStudied.topicId, topicName: lastStudied.topicName,
+                    }});
+                  } else {
+                    router.push({ pathname: '/subject' as any, params: { subjectId: lastStudied.subjectId, subjectName: lastStudied.subjectName } });
+                  }
+                }}
+              >
+                <View style={[styles.continueLeft, { borderRightColor: theme.color + '30' }]}>
+                  <View style={[styles.continueIcon, { backgroundColor: theme.color + '20' }]}>
+                    <Ionicons name={theme.icon} size={22} color={theme.color} />
+                  </View>
+                  <View style={styles.continueInfo}>
+                    <Text style={[styles.continueSubject, { color: colors.text }]} numberOfLines={1}>
+                      {lastStudied.subjectName}
                     </Text>
-                    <View style={[styles.overviewTrack, { backgroundColor: theme.color + '20' }]}>
-                      <View style={[styles.overviewFill, { backgroundColor: theme.color, width: started ? `${pct}%` as any : '0%' }]} />
-                    </View>
-                    <View style={styles.overviewBottom}>
-                      {started ? (
-                        <>
-                          <Text style={[styles.overviewPct, { color: theme.color }]}>{pct}%</Text>
-                          <Text style={[styles.overviewTopics, { color: colors.mutedForeground }]}>
-                            {explored}/{topicTotal || '?'}
-                          </Text>
-                        </>
-                      ) : (
-                        <Text style={[styles.overviewNotStarted, { color: colors.mutedForeground }]}>
-                          Not started
-                        </Text>
-                      )}
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-        )}
+                    <Text style={[styles.continueTopic, { color: colors.mutedForeground }]} numberOfLines={1}>
+                      {lastStudied.topicName ?? lastStudied.chapterName ?? 'Open subject'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={[styles.resumeBtn, { backgroundColor: theme.color }]}>
+                  <Ionicons name="play" size={13} color="#FFF" />
+                  <Text style={styles.resumeText}>Resume</Text>
+                </View>
+              </Pressable>
+            </View>
+          );
+        })()}
 
-        {/* ── Continue Learning ── */}
-        {lastStudied && (
-          <View style={[styles.section, { paddingTop: 16 }]}>
-            <ContinueLearning last={lastStudied} colors={colors} />
-          </View>
-        )}
-
-        {/* ── Subjects ── */}
-        <View style={styles.section}>
+        {/* ── SUBJECTS LIST ── */}
+        <View style={[styles.section, styles.px]}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Subjects</Text>
-            {total > 0 && (
-              <Text style={[styles.sectionCount, { color: colors.mutedForeground }]}>
-                {total} available
-              </Text>
+            {subjects.length > 0 && (
+              <View style={[styles.badge, { backgroundColor: colors.primaryLight }]}>
+                <Text style={[styles.badgeText, { color: colors.primary }]}>{subjects.length}</Text>
+              </View>
             )}
           </View>
 
           {subjectsQuery.isLoading && (
-            <View style={styles.center}>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
-                Loading subjects...
-              </Text>
+            <View style={styles.loadRow}>
+              <ActivityIndicator color={colors.primary} size="small" />
+              <Text style={[styles.loadText, { color: colors.mutedForeground }]}>Loading…</Text>
             </View>
           )}
 
-          {subjectsQuery.error && (
-            <View style={styles.center}>
-              <View style={[styles.emptyIcon, { backgroundColor: colors.secondary }]}>
-                <Ionicons name="cloud-offline-outline" size={32} color={colors.destructive} />
-              </View>
-              <Text style={[styles.errorTitle, { color: colors.text }]}>Couldn't load subjects</Text>
-              <Text style={[styles.errorSub, { color: colors.mutedForeground }]}>
-                Check your internet connection
-              </Text>
-              <Pressable
-                onPress={() => subjectsQuery.refetch()}
-                style={[styles.retryBtn, { backgroundColor: colors.primary }]}
-              >
-                <Text style={styles.retryText}>Try Again</Text>
-              </Pressable>
-            </View>
-          )}
+          {subjects.length > 0 && (
+            <View style={[styles.subjectsList, { borderColor: colors.border }]}>
+              {subjects.map((item, index) => {
+                const theme = getTheme(item.name, index);
+                const sid = getId(item);
+                const prog = subjectProgress[sid];
+                const explored = prog?.explored ?? 0;
+                const total = prog?.total ?? 0;
+                const pct = total > 0 ? Math.min(100, Math.round((explored / total) * 100)) : 0;
+                const isLast = index === subjects.length - 1;
+                return (
+                  <Pressable
+                    key={sid}
+                    style={[styles.subjectRow, !isLast && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      router.push({ pathname: '/subject' as any, params: { subjectId: sid, subjectName: item.name } });
+                    }}
+                  >
+                    {/* Color accent */}
+                    <View style={[styles.subjectAccent, { backgroundColor: theme.color }]} />
 
-          {subjectsQuery.data && subjectsQuery.data.length === 0 && (
-            <View style={styles.center}>
-              <View style={[styles.emptyIcon, { backgroundColor: colors.secondary }]}>
-                <Ionicons name="book-outline" size={32} color={colors.mutedForeground} />
-              </View>
-              <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
-                No subjects found for this class
-              </Text>
-            </View>
-          )}
-
-          {subjectsQuery.data && subjectsQuery.data.length > 0 && (
-            <>
-              {totalExplored > 0 && (
-                <View style={[styles.overallCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={styles.overallRow}>
-                    <View style={[styles.overallIcon, { backgroundColor: colors.primaryLight }]}>
-                      <Ionicons name="stats-chart" size={16} color={colors.primary} />
+                    {/* Icon */}
+                    <View style={[styles.subjectIcon, { backgroundColor: theme.color + '18' }]}>
+                      <Ionicons name={theme.icon} size={18} color={theme.color} />
                     </View>
-                    <View style={styles.overallText}>
-                      <Text style={[styles.overallLabel, { color: colors.mutedForeground }]}>
-                        Overall progress
-                      </Text>
-                      <Text style={[styles.overallValue, { color: colors.text }]}>
-                        {totalExplored} topics explored
-                        {totalTopics > 0 ? ` · ${overallPct}%` : ''}
+
+                    {/* Info */}
+                    <View style={styles.subjectInfo}>
+                      <View style={styles.subjectTopRow}>
+                        <Text style={[styles.subjectName, { color: colors.text }]} numberOfLines={1}>
+                          {item.name}
+                        </Text>
+                        <Text style={[styles.subjectPct, { color: pct > 0 ? theme.color : colors.mutedForeground }]}>
+                          {pct > 0 ? `${pct}%` : 'New'}
+                        </Text>
+                      </View>
+                      <View style={[styles.subjectBar, { backgroundColor: theme.color + '18' }]}>
+                        <View style={[styles.subjectBarFill, {
+                          backgroundColor: theme.color,
+                          width: pct > 0 ? `${pct}%` as any : '2%',
+                          opacity: pct > 0 ? 1 : 0.3,
+                        }]} />
+                      </View>
+                      <Text style={[styles.subjectTopicText, { color: colors.mutedForeground }]}>
+                        {explored > 0 ? `${explored} of ${total || '?'} topics` : 'Not started yet'}
                       </Text>
                     </View>
-                    {totalTopics > 0 && (
-                      <Text style={[styles.overallPct, { color: colors.primary }]}>
-                        {overallPct}%
+
+                    {/* Arrow */}
+                    <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+        </View>
+
+        {/* ── RECENT TESTS ── */}
+        {testHistory.length > 0 && (
+          <View style={[styles.section, styles.px]}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Tests</Text>
+              <Text style={[styles.sectionHint, { color: colors.mutedForeground }]}>{testHistory.length} total</Text>
+            </View>
+            <View style={styles.testList}>
+              {testHistory.slice(0, 5).map((t, i) => {
+                const theme = getTheme(t.subjectName, 0);
+                const isPass = (t.percentage ?? 0) >= 40;
+                return (
+                  <View key={i} style={[styles.testItem, { borderBottomColor: colors.border, borderBottomWidth: i < Math.min(testHistory.length, 5) - 1 ? 1 : 0 }]}>
+                    <View style={[styles.testDot, { backgroundColor: theme.color }]} />
+                    <View style={styles.testBody}>
+                      <Text style={[styles.testSubject, { color: colors.text }]}>{t.subjectName}</Text>
+                      <Text style={[styles.testMeta, { color: colors.mutedForeground }]}>
+                        {t.mode.toUpperCase()} · {timeAgo(t.timestamp)}
                       </Text>
+                    </View>
+                    {t.percentage !== null ? (
+                      <View style={[styles.testBadge, {
+                        backgroundColor: t.percentage >= 70 ? '#10B98115' : t.percentage >= 40 ? '#F59E0B15' : '#EF444415',
+                      }]}>
+                        <Text style={[styles.testBadgeText, {
+                          color: t.percentage >= 70 ? '#10B981' : t.percentage >= 40 ? '#D97706' : '#EF4444',
+                        }]}>{t.percentage}%</Text>
+                      </View>
+                    ) : (
+                      <Text style={[styles.testScore, { color: colors.mutedForeground }]}>{t.score}/{t.total}</Text>
                     )}
                   </View>
-                  {totalTopics > 0 && (
-                    <View style={[styles.overallTrack, { backgroundColor: colors.primaryLight }]}>
-                      <View style={[styles.overallFill, { backgroundColor: colors.primary, width: `${overallPct}%` as any }]} />
-                    </View>
-                  )}
-                </View>
-              )}
-              <View style={styles.grid}>
-                {subjectsQuery.data.map((item, index) => (
-                  <SubjectCard
-                    key={getId(item)}
-                    subject={item}
-                    index={index}
-                    colors={colors}
-                    progress={subjectProgress[getId(item)]}
-                  />
-                ))}
-              </View>
-            </>
-          )}
-        </View>
-
-        {/* ── Quick actions strip ── */}
-        <View style={[styles.section, styles.tipsRow]}>
-          {[
-            { icon: 'chatbubbles-outline' as const, label: 'Need help?', sub: 'Ask AI Tutor', color: '#6366F1' },
-            { icon: 'trophy-outline' as const, label: 'Test yourself', sub: 'Live Quiz', color: '#F59E0B' },
-          ].map((tip) => (
-            <View key={tip.label} style={[styles.tipCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={[styles.tipIcon, { backgroundColor: tip.color + '18' }]}>
-                <Ionicons name={tip.icon} size={18} color={tip.color} />
-              </View>
-              <View>
-                <Text style={[styles.tipLabel, { color: colors.text }]}>{tip.label}</Text>
-                <Text style={[styles.tipSub, { color: colors.mutedForeground }]}>{tip.sub}</Text>
-              </View>
+                );
+              })}
             </View>
-          ))}
-        </View>
+          </View>
+        )}
+
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    paddingHorizontal: 20,
-    paddingBottom: 18,
-    borderBottomWidth: 1,
+  root: { flex: 1 },
+  px: { paddingHorizontal: 20 },
+
+  /* ── Top bar ── */
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 20, paddingBottom: 10 },
+  greeting: { fontSize: 12, fontFamily: 'Inter_400Regular', marginBottom: 3 },
+  heroName: { fontSize: 26, fontWeight: '800', fontFamily: 'Inter_700Bold' },
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  settingsBtn: { width: 36, height: 36, borderRadius: 11, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold', color: '#FFF' },
+
+  /* ── Tags ── */
+  tagRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 20 },
+  tag: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  tagText: { fontSize: 11, fontFamily: 'Inter_500Medium', fontWeight: '500' },
+
+  /* ── Progress card ── */
+  progressCard: {
+    borderRadius: 24, padding: 22, overflow: 'hidden',
+    position: 'relative',
   },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+  progressCardLeft: { flex: 1 },
+  progressCardLabel: { fontSize: 12, color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter_400Regular', marginBottom: 6 },
+  progressCardPct: { fontSize: 42, fontWeight: '900', fontFamily: 'Inter_700Bold', color: '#FFFFFF', lineHeight: 46 },
+  progressCardSub: { fontSize: 11, color: 'rgba(255,255,255,0.65)', fontFamily: 'Inter_400Regular', marginTop: 6, marginBottom: 16 },
+  progressCardRight: {
+    position: 'absolute', right: 22, top: 22,
+    width: 80, height: 80, borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center', justifyContent: 'center',
   },
-  headerLeft: { flex: 1, paddingRight: 12 },
-  greeting: { fontSize: 13, fontFamily: 'Inter_400Regular', marginBottom: 2 },
-  studentName: { fontSize: 22, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  settingsBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+  pctCircle: { alignItems: 'center' },
+  pctCircleNum: { fontSize: 26, fontWeight: '900', fontFamily: 'Inter_700Bold', color: 'rgba(255,255,255,0.9)' },
+  pctCircleSymbol: { fontSize: 12, color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_400Regular', marginTop: -4 },
+  progressBarTrack: { height: 6, borderRadius: 3, overflow: 'hidden', marginTop: 0 },
+  progressBarFill: { height: 6, borderRadius: 3 },
+
+  /* ── Stat row ── */
+  statRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  statCard: {
+    flex: 1, borderRadius: 18, borderWidth: 1,
+    padding: 14, alignItems: 'flex-start', gap: 6,
   },
-  metaRow: { flexDirection: 'row', gap: 7, flexWrap: 'wrap' },
-  metaChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-  },
-  metaText: { fontSize: 11, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
-  section: { paddingHorizontal: 16, paddingTop: 20 },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-  },
+  statIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  statVal: { fontSize: 22, fontWeight: '800', fontFamily: 'Inter_700Bold', marginTop: 4 },
+  statLabel: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  statSub: { fontSize: 10, fontFamily: 'Inter_600SemiBold', fontWeight: '600', marginTop: -2 },
+
+  /* ── Section ── */
+  section: { paddingTop: 24 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   sectionTitle: { fontSize: 17, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  sectionCount: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  sectionHint: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  badge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
+  badgeText: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold' },
 
-  /* Continue Learning */
-  continueWrap: {
-    borderRadius: 22,
-    borderWidth: 1.5,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  /* ── Quick actions ── */
+  actionPill: {
+    flexDirection: 'column', alignItems: 'center',
+    gap: 8, paddingHorizontal: 18, paddingVertical: 14,
+    borderRadius: 20, borderWidth: 1.5, minWidth: 90,
   },
-  continueLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  continueIconWrap: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+  actionPillIcon: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  actionPillLabel: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+
+  /* ── Continue learning ── */
+  continueCard: {
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: 20, borderWidth: 1.5, overflow: 'hidden',
+    gap: 0,
   },
-  continueText: { flex: 1 },
-  continueLabel: { fontSize: 11, fontFamily: 'Inter_400Regular', marginBottom: 2 },
+  continueLeft: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    gap: 12, padding: 14,
+    borderRightWidth: 1,
+  },
+  continueIcon: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  continueInfo: { flex: 1 },
   continueSubject: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  continueTopic: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  continueTopic: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
   resumeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 16, alignSelf: 'stretch', justifyContent: 'center', minWidth: 90,
   },
-  resumeBtnText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF', fontFamily: 'Inter_700Bold' },
+  resumeText: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold', color: '#FFF' },
 
-  /* Subject grid */
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  cardWrap: { width: '47.5%' },
-  card: {
-    borderRadius: 24,
-    borderWidth: 1.5,
-    padding: 18,
-    minHeight: 168,
-    justifyContent: 'space-between',
-    overflow: 'hidden',
-    position: 'relative',
+  /* ── Subjects list ── */
+  loadRow: { flexDirection: 'row', gap: 10, alignItems: 'center', paddingVertical: 10 },
+  loadText: { fontSize: 13, fontFamily: 'Inter_400Regular' },
+  subjectsList: { borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
+  subjectRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingRight: 14, paddingVertical: 14, gap: 12, overflow: 'hidden',
   },
-  cardCircle: {
-    position: 'absolute',
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    bottom: -24,
-    right: -24,
+  subjectAccent: { width: 4, alignSelf: 'stretch', borderRadius: 2, marginLeft: 0 },
+  subjectIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center', marginLeft: 8,
   },
-  iconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  cardName: {
-    fontSize: 15,
-    fontWeight: '700',
-    fontFamily: 'Inter_700Bold',
-    lineHeight: 21,
-    flex: 1,
-  },
-  goChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    marginTop: 10,
-  },
-  goChipText: { fontSize: 11, fontWeight: '700', color: '#FFFFFF', fontFamily: 'Inter_700Bold' },
+  subjectInfo: { flex: 1 },
+  subjectTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  subjectName: { fontSize: 14, fontWeight: '600', fontFamily: 'Inter_600SemiBold', flex: 1, marginRight: 8 },
+  subjectPct: { fontSize: 13, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  subjectBar: { height: 5, borderRadius: 3, overflow: 'hidden', marginBottom: 5 },
+  subjectBarFill: { height: 5, borderRadius: 3 },
+  subjectTopicText: { fontSize: 11, fontFamily: 'Inter_400Regular' },
 
-  /* Quick tips strip */
-  tipsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingBottom: 4,
-  },
-  tipCard: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 14,
-    borderRadius: 18,
-    borderWidth: 1,
-  },
-  tipIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tipLabel: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  tipSub: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 1 },
-
-  /* Subject overview strip */
-  overviewCard: {
-    width: 120,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    padding: 14,
-    gap: 8,
-  },
-  overviewIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  overviewName: {
-    fontSize: 12,
-    fontWeight: '700',
-    fontFamily: 'Inter_700Bold',
-    lineHeight: 16,
-    minHeight: 32,
-  },
-  overviewTrack: {
-    height: 5,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  overviewFill: { height: 5, borderRadius: 3, minWidth: 4 },
-  overviewBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  overviewPct: { fontSize: 13, fontWeight: '800', fontFamily: 'Inter_700Bold' },
-  overviewTopics: { fontSize: 10, fontFamily: 'Inter_400Regular' },
-  overviewNotStarted: { fontSize: 10, fontFamily: 'Inter_400Regular' },
-
-  /* Combined progress card */
-  combinedCard: {
-    borderRadius: 28,
-    padding: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    overflow: 'hidden',
-    position: 'relative',
-    minHeight: 150,
-  },
-  blob1: {
-    position: 'absolute',
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    top: -40,
-    right: -30,
-  },
-  blob2: {
-    position: 'absolute',
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    bottom: -30,
-    left: 60,
-  },
-  combinedLeft: { flex: 1, zIndex: 1 },
-  combinedLabel: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.75)',
-    fontFamily: 'Inter_500Medium',
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  combinedPct: {
-    fontSize: 52,
-    fontWeight: '800',
-    fontFamily: 'Inter_700Bold',
-    color: '#FFFFFF',
-    lineHeight: 58,
-  },
-  combinedPctSign: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.8)',
-  },
-  combinedTrackWrap: { marginTop: 10, marginBottom: 8 },
-  combinedTrack: {
-    height: 6,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    borderRadius: 3,
-    overflow: 'hidden',
-    width: '90%',
-  },
-  combinedFill: {
-    height: 6,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 3,
-    minWidth: 6,
-  },
-  combinedSub: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.7)',
-    fontFamily: 'Inter_400Regular',
-  },
-  combinedRight: { zIndex: 1, paddingLeft: 12 },
-  combinedRing: {
-    width: 78,
-    height: 78,
-    borderRadius: 39,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  combinedRingPct: {
-    fontSize: 18,
-    fontWeight: '800',
-    fontFamily: 'Inter_700Bold',
-    color: '#FFFFFF',
-  },
-  combinedRingLabel: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.7)',
-    fontFamily: 'Inter_400Regular',
-    marginTop: -2,
-  },
-
-  /* Overall progress card */
-  overallCard: {
-    borderRadius: 20,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 14,
-    gap: 10,
-  },
-  overallRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  overallIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  overallText: { flex: 1 },
-  overallLabel: { fontSize: 11, fontFamily: 'Inter_400Regular' },
-  overallValue: { fontSize: 13, fontWeight: '600', fontFamily: 'Inter_600SemiBold', marginTop: 1 },
-  overallPct: { fontSize: 20, fontWeight: '800', fontFamily: 'Inter_700Bold' },
-  overallTrack: {
-    height: 6,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  overallFill: { height: 6, borderRadius: 3 },
-
-  /* Mini progress bar on cards */
-  progressWrap: { gap: 4, marginBottom: 2 },
-  progressTrack: {
-    height: 4,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: { height: 4, borderRadius: 2 },
-  progressLabel: { fontSize: 10, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-
-  /* States */
-  center: { alignItems: 'center', justifyContent: 'center', gap: 12, paddingVertical: 40 },
-  emptyIcon: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  hintText: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center' },
-  errorTitle: { fontSize: 17, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
-  errorSub: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center' },
-  retryBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 14, marginTop: 4 },
-  retryText: { color: '#FFFFFF', fontWeight: '700', fontFamily: 'Inter_700Bold', fontSize: 14 },
+  /* ── Recent tests ── */
+  testList: { borderRadius: 20, borderWidth: 1, overflow: 'hidden', borderColor: 'transparent' },
+  testItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 16 },
+  testDot: { width: 10, height: 10, borderRadius: 5 },
+  testBody: { flex: 1 },
+  testSubject: { fontSize: 13, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  testMeta: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  testBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+  testBadgeText: { fontSize: 12, fontWeight: '800', fontFamily: 'Inter_700Bold' },
+  testScore: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
 });

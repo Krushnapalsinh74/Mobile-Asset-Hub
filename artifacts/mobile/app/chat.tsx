@@ -41,7 +41,7 @@ export default function ChatScreen() {
     topicId?: string;
     topicName?: string;
   }>();
-  const { boardId, boardName, standardId, standardName } = useApp();
+  const { boardId, boardName, standardId, standardName, addChatSession } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
@@ -100,7 +100,17 @@ export default function ChatScreen() {
         role: 'assistant',
         content: String(responseText),
       };
-      setMessages((prev) => [aiMsg, ...prev]);
+      setMessages((prev) => {
+        if (prev.length === 0) {
+          addChatSession({
+            subjectName,
+            chapterName,
+            topicName,
+            timestamp: Date.now(),
+          }).catch(() => {});
+        }
+        return [aiMsg, ...prev];
+      });
     } catch {
       const errMsg: Message = {
         id: Date.now().toString() + 'e',
