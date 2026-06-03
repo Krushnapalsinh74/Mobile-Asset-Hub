@@ -1,8 +1,8 @@
 const OTP_BASE = 'https://otp.kparkit.com';
 
 const BASE_URLS = [
-  'https://dalalifree.com/edu/api',
   'https://kparkit.com/edu/api',
+  'https://dalalifree.com/edu/api',
 ];
 
 let activeBaseIndex = 0;
