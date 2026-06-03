@@ -142,7 +142,7 @@ export default function ExplanationScreen() {
       topicId: string;
       topicName: string;
     }>();
-  const { boardName, standardName } = useApp();
+  const { boardId, boardName, standardId, standardName } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
@@ -157,8 +157,8 @@ export default function ExplanationScreen() {
     queryKey: ['topic-details', subjectId, chapterId, topicId],
     queryFn: () =>
       eduApi.getTopicDetails({
-        board: boardName ?? '',
-        standard: standardName ?? '',
+        board: boardId ?? boardName ?? '',
+        standard: standardId ?? standardName ?? '',
         subject: subjectName,
         chapter: chapterName,
         topic: topicName,

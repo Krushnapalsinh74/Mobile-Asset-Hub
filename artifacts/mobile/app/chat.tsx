@@ -41,7 +41,7 @@ export default function ChatScreen() {
     topicId?: string;
     topicName?: string;
   }>();
-  const { boardName, standardName } = useApp();
+  const { boardId, boardName, standardId, standardName } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
@@ -81,8 +81,8 @@ export default function ChatScreen() {
         message: text,
         history,
         context: {
-          board: boardName ?? '',
-          standard: standardName ?? '',
+          board: boardId ?? boardName ?? '',
+          standard: standardId ?? standardName ?? '',
           subject: subjectName,
           chapter: chapterName,
         },

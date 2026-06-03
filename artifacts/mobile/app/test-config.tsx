@@ -55,6 +55,7 @@ export default function TestConfigScreen() {
       chapterName?: string;
     }>();
   const { boardId, standardId, boardName, standardName } = useApp();
+  // use IDs for API calls, names only for display
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
@@ -82,8 +83,8 @@ export default function TestConfigScreen() {
     setError('');
     try {
       const res = await eduApi.generateQuestions({
-        board: boardName ?? '',
-        standard: standardName ?? '',
+        board: boardId ?? boardName ?? '',
+        standard: standardId ?? standardName ?? '',
         subject: subjectName,
         chapter: selectedChapter.name,
         options: { mode, count },
