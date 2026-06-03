@@ -5,7 +5,8 @@ import type { Topic } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -26,7 +27,7 @@ export default function TopicsScreen() {
       chapterName: string;
       mode?: string;
     }>();
-  const { boardId, standardId } = useApp();
+  const { boardId, standardId, setSubjectTotal } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
@@ -35,6 +36,12 @@ export default function TopicsScreen() {
     queryFn: () => eduApi.getTopics(boardId!, standardId!, subjectId, chapterId),
     enabled: !!boardId && !!standardId && !!subjectId && !!chapterId,
   });
+
+  useEffect(() => {
+    if (topicsQuery.data && subjectId) {
+      setSubjectTotal(subjectId, (topicsQuery.data.length));
+    }
+  }, [topicsQuery.data, subjectId]);
 
   const isExplanation = mode === 'explanation';
 
@@ -55,7 +62,35 @@ export default function TopicsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen options={{ title: chapterName || 'Topics' }} />
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 14,
+            backgroundColor: colors.card,
+            borderBottomColor: colors.border,
+          },
+        ]}
+      >
+        <Pressable onPress={() => router.back()}>
+          <View style={[styles.backCircle, { backgroundColor: colors.secondary }]}>
+            <Ionicons name="arrow-back" size={20} color={colors.text} />
+          </View>
+        </Pressable>
+        <View style={styles.headerText}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Topics</Text>
+          {chapterName ? (
+            <Text style={[styles.headerSub, { color: colors.mutedForeground }]} numberOfLines={1}>
+              {chapterName}
+            </Text>
+          ) : null}
+        </View>
+        {isExplanation && (
+          <View style={[styles.modePill, { backgroundColor: colors.accent }]}>
+            <Text style={styles.modePillText}>Explanation</Text>
+          </View>
+        )}
+      </View>
 
       {chapterName ? (
         <View style={[styles.chapterBanner, { backgroundColor: colors.primaryLight, borderBottomColor: colors.border }]}>
@@ -153,6 +188,30 @@ export default function TopicsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+  },
+  backCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerText: { flex: 1 },
+  headerTitle: { fontSize: 18, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  headerSub: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  modePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  modePillText: { fontSize: 11, color: '#FFFFFF', fontFamily: 'Inter_700Bold', fontWeight: '700' },
   chapterBanner: {
     flexDirection: 'row',
     alignItems: 'center',

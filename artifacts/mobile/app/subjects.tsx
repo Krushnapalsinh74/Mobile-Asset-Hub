@@ -1,5 +1,5 @@
 import { useApp } from '@/context/AppContext';
-import type { LastStudied } from '@/context/AppContext';
+import type { LastStudied, SubjectProgress } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { eduApi, getId } from '@/services/api';
 import type { Subject } from '@/services/api';
@@ -127,7 +127,27 @@ function ContinueLearning({ last, colors }: { last: LastStudied; colors: ReturnT
   );
 }
 
-function SubjectCard({ subject, index, colors }: { subject: Subject; index: number; colors: ReturnType<typeof useColors> }) {
+function MiniProgressBar({ progress, color }: { progress: SubjectProgress | undefined; color: string }) {
+  const explored = progress?.explored ?? 0;
+  const total = progress?.total ?? 0;
+  const pct = total > 0 ? Math.min(1, explored / total) : 0;
+  const label = total > 0
+    ? `${Math.round(pct * 100)}%`
+    : explored > 0 ? `${explored} topics` : null;
+
+  if (!label) return null;
+
+  return (
+    <View style={styles.progressWrap}>
+      <View style={[styles.progressTrack, { backgroundColor: color + '20' }]}>
+        <View style={[styles.progressFill, { backgroundColor: color, width: `${Math.round(pct * 100)}%` as any }]} />
+      </View>
+      <Text style={[styles.progressLabel, { color }]}>{label}</Text>
+    </View>
+  );
+}
+
+function SubjectCard({ subject, index, colors, progress }: { subject: Subject; index: number; colors: ReturnType<typeof useColors>; progress?: SubjectProgress }) {
   const theme = getTheme(subject.name, index);
   return (
     <Pressable
@@ -141,17 +161,14 @@ function SubjectCard({ subject, index, colors }: { subject: Subject; index: numb
       }}
     >
       <View style={[styles.card, { backgroundColor: theme.color + '14', borderColor: theme.color + '30' }]}>
-        {/* Decorative circle */}
         <View style={[styles.cardCircle, { backgroundColor: theme.color + '10' }]} />
-
         <View style={[styles.iconWrap, { backgroundColor: theme.color + '28' }]}>
           <Ionicons name={theme.icon} size={28} color={theme.color} />
         </View>
-
         <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={2}>
           {subject.name}
         </Text>
-
+        <MiniProgressBar progress={progress} color={theme.color} />
         <View style={[styles.goChip, { backgroundColor: theme.color }]}>
           <Text style={styles.goChipText}>Open</Text>
           <Ionicons name="arrow-forward" size={11} color="#FFF" />
@@ -162,7 +179,7 @@ function SubjectCard({ subject, index, colors }: { subject: Subject; index: numb
 }
 
 export default function SubjectsScreen() {
-  const { studentName, boardId, standardId, boardName, standardName, lastStudied, clearAll } = useApp();
+  const { studentName, boardId, standardId, boardName, standardName, lastStudied, subjectProgress } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
@@ -174,6 +191,10 @@ export default function SubjectsScreen() {
 
   const firstName = getFirstName(studentName);
   const total = subjectsQuery.data?.length ?? 0;
+
+  const totalExplored = Object.values(subjectProgress).reduce((s, p) => s + (p.explored ?? 0), 0);
+  const totalTopics = Object.values(subjectProgress).reduce((s, p) => s + (p.total ?? 0), 0);
+  const overallPct = totalTopics > 0 ? Math.min(100, Math.round((totalExplored / totalTopics) * 100)) : 0;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -203,7 +224,7 @@ export default function SubjectsScreen() {
               </Text>
             </View>
             <Pressable
-              onPress={clearAll}
+              onPress={() => { Haptics.selectionAsync(); router.push('/settings' as any); }}
               style={[styles.settingsBtn, { backgroundColor: colors.secondary }]}
             >
               <Ionicons name="settings-outline" size={18} color={colors.mutedForeground} />
@@ -288,11 +309,47 @@ export default function SubjectsScreen() {
           )}
 
           {subjectsQuery.data && subjectsQuery.data.length > 0 && (
-            <View style={styles.grid}>
-              {subjectsQuery.data.map((item, index) => (
-                <SubjectCard key={getId(item)} subject={item} index={index} colors={colors} />
-              ))}
-            </View>
+            <>
+              {totalExplored > 0 && (
+                <View style={[styles.overallCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <View style={styles.overallRow}>
+                    <View style={[styles.overallIcon, { backgroundColor: colors.primaryLight }]}>
+                      <Ionicons name="stats-chart" size={16} color={colors.primary} />
+                    </View>
+                    <View style={styles.overallText}>
+                      <Text style={[styles.overallLabel, { color: colors.mutedForeground }]}>
+                        Overall progress
+                      </Text>
+                      <Text style={[styles.overallValue, { color: colors.text }]}>
+                        {totalExplored} topics explored
+                        {totalTopics > 0 ? ` · ${overallPct}%` : ''}
+                      </Text>
+                    </View>
+                    {totalTopics > 0 && (
+                      <Text style={[styles.overallPct, { color: colors.primary }]}>
+                        {overallPct}%
+                      </Text>
+                    )}
+                  </View>
+                  {totalTopics > 0 && (
+                    <View style={[styles.overallTrack, { backgroundColor: colors.primaryLight }]}>
+                      <View style={[styles.overallFill, { backgroundColor: colors.primary, width: `${overallPct}%` as any }]} />
+                    </View>
+                  )}
+                </View>
+              )}
+              <View style={styles.grid}>
+                {subjectsQuery.data.map((item, index) => (
+                  <SubjectCard
+                    key={getId(item)}
+                    subject={item}
+                    index={index}
+                    colors={colors}
+                    progress={subjectProgress[getId(item)]}
+                  />
+                ))}
+              </View>
+            </>
           )}
         </View>
 
@@ -463,6 +520,43 @@ const styles = StyleSheet.create({
   },
   tipLabel: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   tipSub: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 1 },
+
+  /* Overall progress card */
+  overallCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 14,
+    gap: 10,
+  },
+  overallRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  overallIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  overallText: { flex: 1 },
+  overallLabel: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  overallValue: { fontSize: 13, fontWeight: '600', fontFamily: 'Inter_600SemiBold', marginTop: 1 },
+  overallPct: { fontSize: 20, fontWeight: '800', fontFamily: 'Inter_700Bold' },
+  overallTrack: {
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  overallFill: { height: 6, borderRadius: 3 },
+
+  /* Mini progress bar on cards */
+  progressWrap: { gap: 4, marginBottom: 2 },
+  progressTrack: {
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: { height: 4, borderRadius: 2 },
+  progressLabel: { fontSize: 10, fontWeight: '700', fontFamily: 'Inter_700Bold' },
 
   /* States */
   center: { alignItems: 'center', justifyContent: 'center', gap: 12, paddingVertical: 40 },

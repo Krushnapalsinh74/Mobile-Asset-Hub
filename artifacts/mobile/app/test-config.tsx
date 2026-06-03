@@ -5,7 +5,7 @@ import type { Chapter } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -112,6 +112,13 @@ export default function TestConfigScreen() {
           mode,
         },
       });
+      eduApi.saveQuestions({
+        boardId: boardId ?? '',
+        standardId: standardId ?? '',
+        subjectId,
+        chapterId: getId(selectedChapter),
+        questions: questions as any[],
+      }).catch(() => {});
     } catch {
       setError('Failed to generate questions. Please check your connection and try again.');
     } finally {
@@ -119,17 +126,26 @@ export default function TestConfigScreen() {
     }
   };
 
-  return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={[
-        styles.content,
-        { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 24 },
-      ]}
-      showsVerticalScrollIndicator={false}
-    >
-      <Stack.Screen options={{ title: 'Live Test' }} />
+  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0) + 14;
 
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <View style={{ paddingTop: topPad, paddingBottom: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        <Pressable onPress={() => router.back()}>
+          <View style={{ width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.secondary }}>
+            <Ionicons name="arrow-back" size={20} color={colors.text} />
+          </View>
+        </Pressable>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 18, fontWeight: '700', fontFamily: 'Inter_700Bold', color: colors.text }}>Live Test</Text>
+          <Text style={{ fontSize: 12, fontFamily: 'Inter_400Regular', color: colors.mutedForeground, marginTop: 1 }}>{subjectName}</Text>
+        </View>
+      </View>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 24 }]}
+        showsVerticalScrollIndicator={false}
+      >
       <View style={[styles.infoCard, { backgroundColor: colors.primaryLight }]}>
         <Ionicons name="reader-outline" size={20} color={colors.primary} />
         <View style={styles.infoRight}>
@@ -274,6 +290,7 @@ export default function TestConfigScreen() {
         )}
       </Pressable>
     </ScrollView>
+    </View>
   );
 }
 

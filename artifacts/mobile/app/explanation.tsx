@@ -6,7 +6,7 @@ import type { Language } from '@/services/translate';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -213,8 +213,6 @@ export default function ExplanationScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen options={{ title: topicName || 'Explanation' }} />
-
       <View style={[styles.topicBanner, { backgroundColor: colors.success + '1A' }]}>
         <Ionicons name="bulb-outline" size={17} color={colors.success} />
         <View style={styles.bannerText}>

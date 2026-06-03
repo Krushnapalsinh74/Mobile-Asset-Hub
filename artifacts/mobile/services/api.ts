@@ -173,4 +173,21 @@ export const eduApi = {
     method: 'POST',
     body: JSON.stringify(params),
   }),
+  saveQuestions: (params: {
+    boardId: string;
+    standardId: string;
+    subjectId: string;
+    chapterId: string;
+    topicId?: string;
+    questions: Question[];
+  }) => req<void>('/questions/save', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  }),
+  getSavedQuestions: (filters?: { topicId?: string; chapterId?: string }) => {
+    const qs = filters
+      ? '?' + Object.entries(filters).filter(([, v]) => !!v).map(([k, v]) => `${k}=${encodeURIComponent(v!)}`).join('&')
+      : '';
+    return req<Question[]>(`/questions${qs}`);
+  },
 };

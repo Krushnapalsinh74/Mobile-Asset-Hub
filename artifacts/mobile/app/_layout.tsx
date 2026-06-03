@@ -43,13 +43,14 @@ function RootLayoutNav() {
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       <Stack.Screen name="subjects" options={{ headerShown: false }} />
       <Stack.Screen name="subject" options={{ headerShown: false }} />
-      <Stack.Screen name="chapters" options={{ title: 'Chapters' }} />
-      <Stack.Screen name="topics" options={{ title: 'Topics' }} />
+      <Stack.Screen name="chapters" options={{ headerShown: false }} />
+      <Stack.Screen name="topics" options={{ headerShown: false }} />
       <Stack.Screen name="topic-dashboard" options={{ headerShown: false }} />
       <Stack.Screen name="chat" options={{ headerShown: false }} />
-      <Stack.Screen name="test-config" options={{ title: 'Live Test' }} />
+      <Stack.Screen name="test-config" options={{ headerShown: false }} />
       <Stack.Screen name="test-quiz" options={{ headerShown: false }} />
-      <Stack.Screen name="explanation" options={{ title: 'Explanation' }} />
+      <Stack.Screen name="explanation" options={{ headerShown: false }} />
+      <Stack.Screen name="settings" options={{ headerShown: false }} />
     </Stack>
   );
 }

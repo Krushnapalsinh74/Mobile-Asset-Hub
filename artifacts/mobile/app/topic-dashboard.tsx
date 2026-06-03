@@ -62,7 +62,7 @@ export default function TopicDashboardScreen() {
       topicId: string;
       topicName: string;
     }>();
-  const { boardName, standardName, setLastStudied } = useApp();
+  const { boardName, standardName, setLastStudied, incrementExplored } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
@@ -77,6 +77,7 @@ export default function TopicDashboardScreen() {
         topicName,
         timestamp: Date.now(),
       });
+      incrementExplored(subjectId);
     }
   }, [topicId]);
 

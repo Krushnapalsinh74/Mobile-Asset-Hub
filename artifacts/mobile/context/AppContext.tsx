@@ -11,6 +11,11 @@ export interface LastStudied {
   timestamp: number;
 }
 
+export interface SubjectProgress {
+  explored: number;
+  total: number;
+}
+
 interface AppState {
   studentName: string | null;
   studentEmail: string | null;
@@ -19,6 +24,7 @@ interface AppState {
   standardId: string | null;
   standardName: string | null;
   lastStudied: LastStudied | null;
+  subjectProgress: Record<string, SubjectProgress>;
   isLoaded: boolean;
 }
 
@@ -27,6 +33,8 @@ interface AppContextValue extends AppState {
   setBoard: (id: string, name: string) => Promise<void>;
   setStandard: (id: string, name: string) => Promise<void>;
   setLastStudied: (data: LastStudied) => Promise<void>;
+  setSubjectTotal: (subjectId: string, total: number) => Promise<void>;
+  incrementExplored: (subjectId: string) => Promise<void>;
   clearAll: () => Promise<void>;
 }
 
@@ -40,7 +48,12 @@ const KEYS = {
   standardId: '@edu:standardId',
   standardName: '@edu:standardName',
   lastStudied: '@edu:lastStudied',
+  subjectProgress: '@edu:subjectProgress',
 };
+
+function parse<T>(s: string | null, fallback: T): T {
+  try { return s ? JSON.parse(s) : fallback; } catch { return fallback; }
+}
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AppState>({
@@ -51,6 +64,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     standardId: null,
     standardName: null,
     lastStudied: null,
+    subjectProgress: {},
     isLoaded: false,
   });
 
@@ -58,10 +72,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.multiGet(Object.values(KEYS)).then((pairs) => {
       const map: Record<string, string | null> = {};
       pairs.forEach(([k, v]) => { map[k] = v; });
-      let lastStudied: LastStudied | null = null;
-      try {
-        if (map[KEYS.lastStudied]) lastStudied = JSON.parse(map[KEYS.lastStudied]!);
-      } catch {}
       setState({
         studentName: map[KEYS.studentName],
         studentEmail: map[KEYS.studentEmail],
@@ -69,7 +79,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         boardName: map[KEYS.boardName],
         standardId: map[KEYS.standardId],
         standardName: map[KEYS.standardName],
-        lastStudied,
+        lastStudied: parse(map[KEYS.lastStudied], null),
+        subjectProgress: parse(map[KEYS.subjectProgress], {}),
         isLoaded: true,
       });
     });
@@ -95,13 +106,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setState(s => ({ ...s, lastStudied: data }));
   };
 
+  const setSubjectTotal = async (subjectId: string, total: number) => {
+    setState(s => {
+      const next = {
+        ...s.subjectProgress,
+        [subjectId]: { explored: s.subjectProgress[subjectId]?.explored ?? 0, total },
+      };
+      AsyncStorage.setItem(KEYS.subjectProgress, JSON.stringify(next));
+      return { ...s, subjectProgress: next };
+    });
+  };
+
+  const incrementExplored = async (subjectId: string) => {
+    setState(s => {
+      const cur = s.subjectProgress[subjectId] ?? { explored: 0, total: 0 };
+      const next = {
+        ...s.subjectProgress,
+        [subjectId]: { explored: cur.explored + 1, total: cur.total },
+      };
+      AsyncStorage.setItem(KEYS.subjectProgress, JSON.stringify(next));
+      return { ...s, subjectProgress: next };
+    });
+  };
+
   const clearAll = async () => {
     await AsyncStorage.multiRemove(Object.values(KEYS));
-    setState({ studentName: null, studentEmail: null, boardId: null, boardName: null, standardId: null, standardName: null, lastStudied: null, isLoaded: true });
+    setState({
+      studentName: null, studentEmail: null, boardId: null, boardName: null,
+      standardId: null, standardName: null, lastStudied: null, subjectProgress: {}, isLoaded: true,
+    });
   };
 
   return (
-    <AppContext.Provider value={{ ...state, setStudent, setBoard, setStandard, setLastStudied, clearAll }}>
+    <AppContext.Provider value={{
+      ...state, setStudent, setBoard, setStandard, setLastStudied,
+      setSubjectTotal, incrementExplored, clearAll,
+    }}>
       {children}
     </AppContext.Provider>
   );
