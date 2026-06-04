@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -17,6 +17,9 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// Module-level cache so selections survive navigation (back button)
+const _selectionCache: Record<string, { selectMode: boolean; selected: string[] }> = {};
 
 type TaggedChapter = Chapter & { _subjectId: string; _subjectName: string };
 
@@ -30,13 +33,22 @@ export default function ChaptersScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
-  const [selectMode, setSelectMode] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-
   // Support comma-separated subject IDs (from subjects multi-select)
   const subjectIds = useMemo(() => (subjectId ?? '').split(',').filter(Boolean), [subjectId]);
   const subjectNames = useMemo(() => (subjectName ?? '').split('|||').filter(Boolean), [subjectName]);
   const isMultiSubject = subjectIds.length > 1;
+  const cacheKey = subjectIds.join(',');
+
+  // Restore selections from cache when navigating back
+  const [selectMode, setSelectMode] = useState(() => _selectionCache[cacheKey]?.selectMode ?? false);
+  const [selected, setSelected] = useState<Set<string>>(() =>
+    new Set(_selectionCache[cacheKey]?.selected ?? [])
+  );
+
+  // Persist selections to cache whenever they change
+  useEffect(() => {
+    _selectionCache[cacheKey] = { selectMode, selected: [...selected] };
+  }, [cacheKey, selectMode, selected]);
 
   // Single-subject fetch
   const singleQuery = useQuery({
@@ -80,17 +92,61 @@ export default function ChaptersScreen() {
     }));
   }, [isMultiSubject, multiQueries, singleQuery.data, subjectIds, subjectNames]);
 
+  // Group chapters by subject (stable memo, used for auto-select)
+  const chaptersBySubject = useMemo(() => {
+    const map: Record<string, TaggedChapter[]> = {};
+    for (const ch of allChapters) {
+      if (!map[ch._subjectId]) map[ch._subjectId] = [];
+      map[ch._subjectId]!.push(ch);
+    }
+    return map;
+  }, [allChapters]);
+
   function toggleSelectMode() {
     Haptics.selectionAsync();
-    if (selectMode) { setSelected(new Set()); setSelectMode(false); }
-    else setSelectMode(true);
+    if (selectMode) {
+      setSelected(new Set());
+      setSelectMode(false);
+      delete _selectionCache[cacheKey];
+    } else {
+      setSelectMode(true);
+    }
   }
 
   function toggleItem(id: string) {
     Haptics.selectionAsync();
+
+    if (!isMultiSubject) {
+      // Single subject: plain toggle
+      setSelected(prev => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        return next;
+      });
+      return;
+    }
+
+    // Multi-subject: auto-select same-position chapter across ALL subjects
+    const chapter = allChapters.find(c => getId(c) === id);
+    if (!chapter) return;
+
+    const subjectChapters = chaptersBySubject[chapter._subjectId] ?? [];
+    const chapterIndex = subjectChapters.findIndex(c => getId(c) === id);
+
+    // Collect same-index chapter from every subject
+    const toToggle = new Set<string>([id]);
+    for (const [sid, chapters] of Object.entries(chaptersBySubject)) {
+      if (sid === chapter._subjectId) continue;
+      const sameIndex = chapters[chapterIndex];
+      if (sameIndex) toToggle.add(getId(sameIndex));
+    }
+
     setSelected(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      const isSelected = next.has(id);
+      for (const cId of toToggle) {
+        if (isSelected) next.delete(cId); else next.add(cId);
+      }
       return next;
     });
   }
