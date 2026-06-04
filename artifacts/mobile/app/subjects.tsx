@@ -304,6 +304,36 @@ export default function SubjectsScreen() {
             </View>
           )}
 
+          {subjectsQuery.isError && !subjectsQuery.isLoading && (
+            <View style={[styles.errorCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={[styles.errorIcon, { backgroundColor: '#EF444415' }]}>
+                <Ionicons name="cloud-offline-outline" size={28} color="#EF4444" />
+              </View>
+              <View style={styles.errorBody}>
+                <Text style={[styles.errorTitle, { color: colors.text }]}>Couldn't load subjects</Text>
+                <Text style={[styles.errorSub, { color: colors.mutedForeground }]}>
+                  Check your internet connection and try again.
+                </Text>
+              </View>
+              <Pressable
+                style={[styles.retryBtn, { backgroundColor: colors.primary }]}
+                onPress={() => { Haptics.selectionAsync(); subjectsQuery.refetch(); }}
+              >
+                <Ionicons name="refresh-outline" size={15} color="#FFF" />
+                <Text style={styles.retryText}>Retry</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {!subjectsQuery.isLoading && !subjectsQuery.isError && subjects.length === 0 && (
+            <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Ionicons name="book-outline" size={26} color={colors.mutedForeground} />
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                No subjects found for your class. Try a different board or standard in Settings.
+              </Text>
+            </View>
+          )}
+
           {subjects.length > 0 && (
             <View style={[styles.subjectsList, { borderColor: colors.border }]}>
               {subjects.map((item, index) => {
@@ -496,6 +526,21 @@ const styles = StyleSheet.create({
   /* ── Subjects list ── */
   loadRow: { flexDirection: 'row', gap: 10, alignItems: 'center', paddingVertical: 10 },
   loadText: { fontSize: 13, fontFamily: 'Inter_400Regular' },
+  errorCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 14, borderRadius: 18, borderWidth: 1, flexWrap: 'wrap',
+  },
+  errorIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  errorBody: { flex: 1 },
+  errorTitle: { fontSize: 14, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  errorSub: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  retryBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12 },
+  retryText: { color: '#FFF', fontSize: 13, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  emptyCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    padding: 16, borderRadius: 18, borderWidth: 1,
+  },
+  emptyText: { flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 19 },
   subjectsList: { borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
   subjectRow: {
     flexDirection: 'row', alignItems: 'center',
