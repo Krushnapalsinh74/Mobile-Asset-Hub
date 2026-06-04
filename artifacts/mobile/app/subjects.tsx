@@ -110,10 +110,24 @@ export default function SubjectsScreen() {
   const totalTopics = Object.values(subjectProgress).reduce((s, p) => s + (p.total ?? 0), 0);
   const overallPct = totalTopics > 0 ? Math.min(100, Math.round((totalExplored / totalTopics) * 100)) : 0;
 
-  const mcqTests = testHistory.filter(t => t.mode === 'mcq');
+  const mcqTests = testHistory.filter(t => t.mode === 'mcq' && t.percentage !== null);
   const avgScore = mcqTests.length > 0
     ? Math.round(mcqTests.reduce((s, t) => s + (t.percentage ?? 0), 0) / mcqTests.length)
     : null;
+
+  const latestPct = mcqTests[0]?.percentage ?? null;
+  const prevPct = mcqTests[1]?.percentage ?? null;
+  const improvement = latestPct !== null && prevPct !== null ? latestPct - prevPct : null;
+  const bestScore = mcqTests.length > 0 ? Math.max(...mcqTests.map(t => t.percentage ?? 0)) : null;
+
+  // Streak: how many consecutive tests where score improved or stayed same
+  let improvingStreak = 0;
+  for (let i = 0; i < mcqTests.length - 1; i++) {
+    if ((mcqTests[i].percentage ?? 0) >= (mcqTests[i + 1].percentage ?? 0)) improvingStreak++;
+    else break;
+  }
+
+  const recentBars = mcqTests.slice(0, 6).reverse(); // oldest→newest for bar chart
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
 
@@ -253,6 +267,101 @@ export default function SubjectsScreen() {
             </View>
           ))}
         </View>
+
+        {/* ── IMPROVEMENT CARD ── */}
+        {mcqTests.length > 0 && (
+          <View style={[styles.section, styles.px]}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Improvement</Text>
+              {improvement !== null && (
+                <View style={[styles.trendPill, {
+                  backgroundColor: improvement > 0 ? '#10B98115' : improvement < 0 ? '#EF444415' : '#6366F115',
+                }]}>
+                  <Ionicons
+                    name={improvement > 0 ? 'trending-up' : improvement < 0 ? 'trending-down' : 'remove'}
+                    size={13}
+                    color={improvement > 0 ? '#10B981' : improvement < 0 ? '#EF4444' : '#6366F1'}
+                  />
+                  <Text style={[styles.trendPillText, {
+                    color: improvement > 0 ? '#10B981' : improvement < 0 ? '#EF4444' : '#6366F1',
+                  }]}>
+                    {improvement > 0 ? '+' : ''}{improvement}% vs last
+                  </Text>
+                </View>
+              )}
+            </View>
+            <View style={[styles.improvementCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              {/* Score bars row */}
+              {recentBars.length > 0 && (
+                <View style={styles.barsSection}>
+                  <Text style={[styles.barsLabel, { color: colors.mutedForeground }]}>
+                    Last {recentBars.length} test{recentBars.length > 1 ? 's' : ''}
+                  </Text>
+                  <View style={styles.barsRow}>
+                    {recentBars.map((t, i) => {
+                      const pct = t.percentage ?? 0;
+                      const isLatest = i === recentBars.length - 1;
+                      const barColor = pct >= 70 ? '#10B981' : pct >= 40 ? '#F59E0B' : '#EF4444';
+                      return (
+                        <View key={i} style={styles.barCol}>
+                          <View style={styles.barTrack}>
+                            <View style={[styles.barFill, {
+                              height: `${Math.max(8, pct)}%` as any,
+                              backgroundColor: isLatest ? barColor : barColor + '70',
+                            }]} />
+                          </View>
+                          <Text style={[styles.barPct, {
+                            color: isLatest ? colors.text : colors.mutedForeground,
+                            fontFamily: isLatest ? 'Inter_700Bold' : 'Inter_400Regular',
+                          }]}>{pct}%</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
+              {/* Stats row */}
+              <View style={[styles.impStatsRow, { borderTopColor: colors.border }]}>
+                <View style={styles.impStat}>
+                  <Text style={[styles.impStatVal, { color: colors.text }]}>
+                    {latestPct !== null ? `${latestPct}%` : '–'}
+                  </Text>
+                  <Text style={[styles.impStatLabel, { color: colors.mutedForeground }]}>Latest</Text>
+                </View>
+                <View style={[styles.impStatDivider, { backgroundColor: colors.border }]} />
+                <View style={styles.impStat}>
+                  <Text style={[styles.impStatVal, { color: colors.text }]}>
+                    {avgScore !== null ? `${avgScore}%` : '–'}
+                  </Text>
+                  <Text style={[styles.impStatLabel, { color: colors.mutedForeground }]}>Average</Text>
+                </View>
+                <View style={[styles.impStatDivider, { backgroundColor: colors.border }]} />
+                <View style={styles.impStat}>
+                  <Text style={[styles.impStatVal, { color: '#F59E0B' }]}>
+                    {bestScore !== null ? `${bestScore}%` : '–'}
+                  </Text>
+                  <Text style={[styles.impStatLabel, { color: colors.mutedForeground }]}>Best</Text>
+                </View>
+                <View style={[styles.impStatDivider, { backgroundColor: colors.border }]} />
+                <View style={styles.impStat}>
+                  <Text style={[styles.impStatVal, { color: '#8B5CF6' }]}>{mcqTests.length}</Text>
+                  <Text style={[styles.impStatLabel, { color: colors.mutedForeground }]}>Tests</Text>
+                </View>
+              </View>
+
+              {/* Streak message */}
+              {improvingStreak >= 2 && (
+                <View style={[styles.streakBanner, { backgroundColor: '#10B98110' }]}>
+                  <Ionicons name="flame" size={14} color="#10B981" />
+                  <Text style={[styles.streakText, { color: '#10B981' }]}>
+                    {improvingStreak} test streak — keep it up!
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* ── QUICK ACTIONS ── */}
         <View style={{ paddingTop: 24 }}>
@@ -496,30 +605,46 @@ export default function SubjectsScreen() {
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Tests</Text>
               <Text style={[styles.sectionHint, { color: colors.mutedForeground }]}>{testHistory.length} total</Text>
             </View>
-            <View style={styles.testList}>
-              {testHistory.slice(0, 5).map((t, i) => {
+            <View style={[styles.testList, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
+              {testHistory.slice(0, 6).map((t, i) => {
                 const theme = getTheme(t.subjectName, 0);
-                const isPass = (t.percentage ?? 0) >= 40;
+                const pct = t.percentage ?? null;
+                const barColor = pct !== null ? (pct >= 70 ? '#10B981' : pct >= 40 ? '#F59E0B' : '#EF4444') : theme.color;
+                const scoreLabel = pct !== null
+                  ? (pct >= 90 ? '🏆' : pct >= 70 ? '✅' : pct >= 40 ? '📈' : '📚')
+                  : null;
                 return (
-                  <View key={i} style={[styles.testItem, { borderBottomColor: colors.border, borderBottomWidth: i < Math.min(testHistory.length, 5) - 1 ? 1 : 0 }]}>
-                    <View style={[styles.testDot, { backgroundColor: theme.color }]} />
-                    <View style={styles.testBody}>
-                      <Text style={[styles.testSubject, { color: colors.text }]}>{t.subjectName}</Text>
-                      <Text style={[styles.testMeta, { color: colors.mutedForeground }]}>
-                        {t.mode.toUpperCase()} · {timeAgo(t.timestamp)}
-                      </Text>
+                  <View key={i} style={[
+                    styles.testItem,
+                    { borderBottomColor: colors.border, borderBottomWidth: i < Math.min(testHistory.length, 6) - 1 ? 1 : 0 },
+                  ]}>
+                    <View style={[styles.testIconWrap, { backgroundColor: theme.color + '15' }]}>
+                      <Ionicons name={theme.icon} size={16} color={theme.color} />
                     </View>
-                    {t.percentage !== null ? (
-                      <View style={[styles.testBadge, {
-                        backgroundColor: t.percentage >= 70 ? '#10B98115' : t.percentage >= 40 ? '#F59E0B15' : '#EF444415',
-                      }]}>
-                        <Text style={[styles.testBadgeText, {
-                          color: t.percentage >= 70 ? '#10B981' : t.percentage >= 40 ? '#D97706' : '#EF4444',
-                        }]}>{t.percentage}%</Text>
+                    <View style={styles.testBody}>
+                      <View style={styles.testTopRow}>
+                        <Text style={[styles.testSubject, { color: colors.text, flex: 1 }]} numberOfLines={1}>
+                          {t.subjectName}
+                        </Text>
+                        {pct !== null ? (
+                          <View style={[styles.testBadge, { backgroundColor: barColor + '18' }]}>
+                            <Text style={[styles.testBadgeText, { color: barColor }]}>
+                              {scoreLabel} {pct}%
+                            </Text>
+                          </View>
+                        ) : (
+                          <Text style={[styles.testScore, { color: colors.mutedForeground }]}>{t.score}/{t.total}</Text>
+                        )}
                       </View>
-                    ) : (
-                      <Text style={[styles.testScore, { color: colors.mutedForeground }]}>{t.score}/{t.total}</Text>
-                    )}
+                      <Text style={[styles.testMeta, { color: colors.mutedForeground }]}>
+                        {t.chapterName ? `${t.chapterName} · ` : ''}{t.mode.toUpperCase()} · {timeAgo(t.timestamp)}
+                      </Text>
+                      {pct !== null && (
+                        <View style={[styles.testScoreBar, { backgroundColor: barColor + '20' }]}>
+                          <View style={[styles.testScoreBarFill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
+                        </View>
+                      )}
+                    </View>
                   </View>
                 );
               })}
@@ -726,4 +851,42 @@ const styles = StyleSheet.create({
   testBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
   testBadgeText: { fontSize: 12, fontWeight: '800', fontFamily: 'Inter_700Bold' },
   testScore: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
+  testScoreBar: { height: 4, borderRadius: 2, marginTop: 5, overflow: 'hidden' },
+  testScoreBarFill: { height: 4, borderRadius: 2 },
+  testIconWrap: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  testTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+
+  /* ── Improvement card ── */
+  trendPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+  },
+  trendPillText: { fontSize: 11, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  improvementCard: {
+    borderRadius: 22, borderWidth: 1, overflow: 'hidden',
+  },
+  barsSection: { paddingHorizontal: 18, paddingTop: 18, paddingBottom: 4 },
+  barsLabel: { fontSize: 11, fontFamily: 'Inter_400Regular', marginBottom: 10 },
+  barsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, height: 80 },
+  barCol: { flex: 1, alignItems: 'center', gap: 5 },
+  barTrack: {
+    flex: 1, width: '100%', borderRadius: 6,
+    backgroundColor: 'rgba(0,0,0,0.06)', overflow: 'hidden',
+    justifyContent: 'flex-end',
+  },
+  barFill: { borderRadius: 6, width: '100%' },
+  barPct: { fontSize: 10, textAlign: 'center' },
+  impStatsRow: {
+    flexDirection: 'row', alignItems: 'center',
+    borderTopWidth: 1, paddingVertical: 14, paddingHorizontal: 18,
+  },
+  impStat: { flex: 1, alignItems: 'center', gap: 3 },
+  impStatVal: { fontSize: 18, fontWeight: '800', fontFamily: 'Inter_700Bold' },
+  impStatLabel: { fontSize: 10, fontFamily: 'Inter_400Regular' },
+  impStatDivider: { width: 1, height: 32, marginHorizontal: 2 },
+  streakBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    paddingHorizontal: 18, paddingVertical: 10,
+  },
+  streakText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
 });
