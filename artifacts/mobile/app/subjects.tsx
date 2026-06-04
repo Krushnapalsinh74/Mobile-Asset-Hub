@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -115,6 +116,44 @@ export default function SubjectsScreen() {
     : null;
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
+
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  function toggleSelectMode() {
+    Haptics.selectionAsync();
+    if (selectMode) { setSelected(new Set()); setSelectMode(false); }
+    else setSelectMode(true);
+  }
+
+  function toggleItem(id: string) {
+    Haptics.selectionAsync();
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllSubjects() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (selected.size === subjects.length) setSelected(new Set());
+    else setSelected(new Set(subjects.map(s => getId(s))));
+  }
+
+  function handleViewChapters() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const sel = subjects.filter(s => selected.has(getId(s)));
+    if (sel.length === 0) return;
+    router.push({
+      pathname: '/chapters' as any,
+      params: {
+        subjectId: sel.map(s => getId(s)).join(','),
+        subjectName: sel.map(s => s.name).join('|||'),
+        multiSelect: 'true',
+      },
+    });
+  }
 
   function handleQuickAction(key: string) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -289,10 +328,36 @@ export default function SubjectsScreen() {
         {/* ── SUBJECTS LIST ── */}
         <View style={[styles.section, styles.px]}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Subjects</Text>
-            {subjects.length > 0 && (
-              <View style={[styles.badge, { backgroundColor: colors.primaryLight }]}>
-                <Text style={[styles.badgeText, { color: colors.primary }]}>{subjects.length}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                {selectMode && selected.size > 0 ? `${selected.size} selected` : 'Your Subjects'}
+              </Text>
+              {subjects.length > 0 && !selectMode && (
+                <View style={[styles.badge, { backgroundColor: colors.primaryLight }]}>
+                  <Text style={[styles.badgeText, { color: colors.primary }]}>{subjects.length}</Text>
+                </View>
+              )}
+            </View>
+            {subjects.length > 1 && (
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                {selectMode && (
+                  <Pressable
+                    style={[styles.selAllBtn, { backgroundColor: selected.size === subjects.length ? colors.primaryLight : colors.secondary }]}
+                    onPress={selectAllSubjects}
+                  >
+                    <Ionicons name={selected.size === subjects.length ? 'checkmark-circle' : 'ellipse-outline'} size={13} color={selected.size === subjects.length ? colors.primary : colors.mutedForeground} />
+                    <Text style={[styles.selAllText, { color: selected.size === subjects.length ? colors.primary : colors.mutedForeground }]}>All</Text>
+                  </Pressable>
+                )}
+                <Pressable
+                  style={[styles.selToggle, { backgroundColor: selectMode ? colors.primary + '18' : colors.secondary, borderColor: selectMode ? colors.primary : colors.border }]}
+                  onPress={toggleSelectMode}
+                >
+                  <Ionicons name={selectMode ? 'close' : 'checkmark-done-outline'} size={13} color={selectMode ? colors.primary : colors.mutedForeground} />
+                  <Text style={[styles.selToggleText, { color: selectMode ? colors.primary : colors.mutedForeground }]}>
+                    {selectMode ? 'Cancel' : 'Select'}
+                  </Text>
+                </Pressable>
               </View>
             )}
           </View>
@@ -335,7 +400,7 @@ export default function SubjectsScreen() {
           )}
 
           {subjects.length > 0 && (
-            <View style={[styles.subjectsList, { borderColor: colors.border }]}>
+            <View style={[styles.subjectsList, { borderColor: selectMode ? colors.primary + '30' : colors.border, borderWidth: selectMode ? 1.5 : 1 }]}>
               {subjects.map((item, index) => {
                 const theme = getTheme(item.name, index);
                 const sid = getId(item);
@@ -344,47 +409,77 @@ export default function SubjectsScreen() {
                 const total = prog?.total ?? 0;
                 const pct = total > 0 ? Math.min(100, Math.round((explored / total) * 100)) : 0;
                 const isLast = index === subjects.length - 1;
+                const isSelected = selected.has(sid);
                 return (
                   <Pressable
                     key={sid}
-                    style={[styles.subjectRow, !isLast && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+                    style={[
+                      styles.subjectRow,
+                      !isLast && { borderBottomWidth: 1, borderBottomColor: colors.border },
+                      isSelected && { backgroundColor: colors.primaryLight },
+                    ]}
                     onPress={() => {
+                      if (selectMode) { toggleItem(sid); return; }
                       Haptics.selectionAsync();
                       router.push({ pathname: '/subject' as any, params: { subjectId: sid, subjectName: item.name } });
                     }}
+                    onLongPress={() => {
+                      if (!selectMode) {
+                        setSelectMode(true);
+                        setSelected(new Set([sid]));
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      }
+                    }}
                   >
-                    {/* Color accent */}
-                    <View style={[styles.subjectAccent, { backgroundColor: theme.color }]} />
+                    {/* Left: checkbox in select mode, accent bar otherwise */}
+                    {selectMode ? (
+                      <View style={[styles.subjectCheckbox, { backgroundColor: isSelected ? colors.primary : 'transparent', borderColor: isSelected ? colors.primary : colors.border }]}>
+                        {isSelected && <Ionicons name="checkmark" size={12} color="#FFF" />}
+                      </View>
+                    ) : (
+                      <View style={[styles.subjectAccent, { backgroundColor: theme.color }]} />
+                    )}
 
                     {/* Icon */}
-                    <View style={[styles.subjectIcon, { backgroundColor: theme.color + '18' }]}>
-                      <Ionicons name={theme.icon} size={18} color={theme.color} />
+                    <View style={[styles.subjectIcon, { backgroundColor: isSelected ? colors.primary + '25' : theme.color + '18' }]}>
+                      <Ionicons name={theme.icon} size={18} color={isSelected ? colors.primary : theme.color} />
                     </View>
 
                     {/* Info */}
                     <View style={styles.subjectInfo}>
                       <View style={styles.subjectTopRow}>
-                        <Text style={[styles.subjectName, { color: colors.text }]} numberOfLines={1}>
+                        <Text style={[styles.subjectName, { color: isSelected ? colors.primary : colors.text }]} numberOfLines={1}>
                           {item.name}
                         </Text>
-                        <Text style={[styles.subjectPct, { color: pct > 0 ? theme.color : colors.mutedForeground }]}>
-                          {pct > 0 ? `${pct}%` : 'New'}
+                        <Text style={[styles.subjectPct, { color: pct > 0 ? (isSelected ? colors.primary : theme.color) : colors.mutedForeground }]}>
+                          {pct > 0 ? `${pct}%` : selectMode ? '' : 'New'}
                         </Text>
                       </View>
-                      <View style={[styles.subjectBar, { backgroundColor: theme.color + '18' }]}>
-                        <View style={[styles.subjectBarFill, {
-                          backgroundColor: theme.color,
-                          width: pct > 0 ? `${pct}%` as any : '2%',
-                          opacity: pct > 0 ? 1 : 0.3,
-                        }]} />
-                      </View>
-                      <Text style={[styles.subjectTopicText, { color: colors.mutedForeground }]}>
-                        {explored > 0 ? `${explored} of ${total || '?'} topics` : 'Not started yet'}
-                      </Text>
+                      {!selectMode && (
+                        <>
+                          <View style={[styles.subjectBar, { backgroundColor: theme.color + '18' }]}>
+                            <View style={[styles.subjectBarFill, {
+                              backgroundColor: theme.color,
+                              width: pct > 0 ? `${pct}%` as any : '2%',
+                              opacity: pct > 0 ? 1 : 0.3,
+                            }]} />
+                          </View>
+                          <Text style={[styles.subjectTopicText, { color: colors.mutedForeground }]}>
+                            {explored > 0 ? `${explored} of ${total || '?'} topics` : 'Not started yet'}
+                          </Text>
+                        </>
+                      )}
+                      {selectMode && (
+                        <Text style={[styles.subjectTopicText, { color: isSelected ? colors.primary : colors.mutedForeground }]}>
+                          {isSelected ? 'Selected — chapters will be included' : 'Tap to select'}
+                        </Text>
+                      )}
                     </View>
 
-                    {/* Arrow */}
-                    <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
+                    {/* Right indicator */}
+                    {selectMode ? null : (
+                      <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
+                    )}
                   </Pressable>
                 );
               })}
@@ -431,6 +526,31 @@ export default function SubjectsScreen() {
         )}
 
       </ScrollView>
+
+      {/* ── BOTTOM ACTION BAR (multi-select) ── */}
+      {selectMode && selected.size > 0 && (
+        <View style={[
+          styles.bottomBar,
+          {
+            backgroundColor: colors.card,
+            borderTopColor: colors.border,
+            paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 8,
+          },
+        ]}>
+          <View style={styles.bottomBarLeft}>
+            <View style={[styles.countBubble, { backgroundColor: colors.primary }]}>
+              <Text style={styles.countBubbleText}>{selected.size}</Text>
+            </View>
+            <Text style={[styles.bottomBarLabel, { color: colors.text }]}>
+              {selected.size === subjects.length ? 'All subjects' : selected.size === 1 ? 'subject selected' : 'subjects selected'}
+            </Text>
+          </View>
+          <Pressable style={[styles.viewChaptersBtn, { backgroundColor: colors.primary }]} onPress={handleViewChapters}>
+            <Text style={styles.viewChaptersBtnText}>View Chapters</Text>
+            <Ionicons name="arrow-forward" size={16} color="#FFF" />
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
@@ -558,6 +678,37 @@ const styles = StyleSheet.create({
   subjectBar: { height: 5, borderRadius: 3, overflow: 'hidden', marginBottom: 5 },
   subjectBarFill: { height: 5, borderRadius: 3 },
   subjectTopicText: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  subjectCheckbox: {
+    width: 22, height: 22, borderRadius: 6, borderWidth: 2,
+    alignItems: 'center', justifyContent: 'center', marginLeft: 12,
+  },
+
+  /* ── Multi-select controls ── */
+  selAllBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 9, paddingVertical: 5, borderRadius: 20,
+  },
+  selAllText: { fontSize: 11, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
+  selToggle: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 9, paddingVertical: 5, borderRadius: 20, borderWidth: 1,
+  },
+  selToggleText: { fontSize: 11, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
+
+  /* ── Bottom action bar ── */
+  bottomBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, gap: 12,
+  },
+  bottomBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  countBubble: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  countBubbleText: { fontSize: 13, fontWeight: '700', fontFamily: 'Inter_700Bold', color: '#FFF' },
+  bottomBarLabel: { fontSize: 13, fontFamily: 'Inter_500Medium', fontWeight: '500' },
+  viewChaptersBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14,
+  },
+  viewChaptersBtnText: { color: '#FFF', fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold' },
 
   /* ── Recent tests ── */
   testList: { borderRadius: 20, borderWidth: 1, overflow: 'hidden', borderColor: 'transparent' },

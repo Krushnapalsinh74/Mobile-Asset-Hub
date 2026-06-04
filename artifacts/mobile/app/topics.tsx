@@ -18,16 +18,31 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+type TaggedTopic = Topic & {
+  _chapterId: string;
+  _chapterName: string;
+  _subjectId: string;
+  _subjectName: string;
+};
+
 export default function TopicsScreen() {
-  const { subjectId, subjectName, chapterId, chapterName, mode, multiSelect } =
-    useLocalSearchParams<{
-      subjectId: string;
-      subjectName: string;
-      chapterId: string;
-      chapterName: string;
-      mode?: string;
-      multiSelect?: string;
-    }>();
+  const {
+    subjectId,
+    subjectName,
+    subjectIds: rawSubjectIds,
+    subjectNames: rawSubjectNames,
+    chapterId,
+    chapterName,
+    mode,
+  } = useLocalSearchParams<{
+    subjectId?: string;
+    subjectName?: string;
+    subjectIds?: string;      // comma-sep, aligned with chapterId (multi-subject path)
+    subjectNames?: string;    // pipe-sep, aligned with chapterId
+    chapterId: string;
+    chapterName: string;
+    mode?: string;
+  }>();
   const { boardId, standardId, setSubjectTotal } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -35,24 +50,37 @@ export default function TopicsScreen() {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // Support comma-separated chapter IDs (multi-chapter select from chapters screen)
+  // Parse chapter params (always comma/pipe-sep)
   const chapterIds = useMemo(() => (chapterId ?? '').split(',').filter(Boolean), [chapterId]);
   const chapterNames = useMemo(() => (chapterName ?? '').split('|||').filter(Boolean), [chapterName]);
+
+  // Per-chapter subject info — from multi-subject path OR fall back to single subjectId
+  const perChapterSubjectIds = useMemo(() => {
+    if (rawSubjectIds) return rawSubjectIds.split(',').filter(Boolean);
+    // Single subject: replicate for all chapters
+    return chapterIds.map(() => subjectId ?? '');
+  }, [rawSubjectIds, subjectId, chapterIds]);
+
+  const perChapterSubjectNames = useMemo(() => {
+    if (rawSubjectNames) return rawSubjectNames.split('|||').filter(Boolean);
+    return chapterIds.map(() => subjectName ?? '');
+  }, [rawSubjectNames, subjectName, chapterIds]);
+
   const isMultiChapter = chapterIds.length > 1;
 
-  // Single chapter fetch
+  // Single chapter fetch (single chapter, single subject)
   const singleQuery = useQuery({
-    queryKey: ['topics', boardId, standardId, subjectId, chapterIds[0]],
-    queryFn: () => eduApi.getTopics(boardId!, standardId!, subjectId, chapterIds[0]!),
-    enabled: !!boardId && !!standardId && !!subjectId && chapterIds.length === 1,
+    queryKey: ['topics', boardId, standardId, perChapterSubjectIds[0], chapterIds[0]],
+    queryFn: () => eduApi.getTopics(boardId!, standardId!, perChapterSubjectIds[0]!, chapterIds[0]!),
+    enabled: !!boardId && !!standardId && !!perChapterSubjectIds[0] && chapterIds.length === 1,
   });
 
-  // Multi-chapter fetch — parallel queries
+  // Multi-chapter parallel fetch — each with its own subjectId
   const multiQueries = useQueries({
-    queries: chapterIds.map((cid) => ({
-      queryKey: ['topics', boardId, standardId, subjectId, cid],
-      queryFn: () => eduApi.getTopics(boardId!, standardId!, subjectId, cid!),
-      enabled: !!boardId && !!standardId && !!subjectId && chapterIds.length > 1,
+    queries: chapterIds.map((cid, i) => ({
+      queryKey: ['topics', boardId, standardId, perChapterSubjectIds[i], cid],
+      queryFn: () => eduApi.getTopics(boardId!, standardId!, perChapterSubjectIds[i]!, cid),
+      enabled: !!boardId && !!standardId && !!perChapterSubjectIds[i] && chapterIds.length > 1,
     })),
   });
 
@@ -64,108 +92,94 @@ export default function TopicsScreen() {
     ? multiQueries.every(q => q.isError)
     : !!singleQuery.error;
 
-  // Flatten topics from all chapters, tagging each with its chapter info
-  const allTopics: Array<Topic & { _chapterId: string; _chapterName: string }> = useMemo(() => {
+  // Flatten topics with full context tags
+  const allTopics: TaggedTopic[] = useMemo(() => {
     if (isMultiChapter) {
       return multiQueries.flatMap((q, i) =>
         (q.data ?? []).map(t => ({
           ...t,
           _chapterId: chapterIds[i]!,
           _chapterName: chapterNames[i] ?? chapterIds[i]!,
+          _subjectId: perChapterSubjectIds[i]!,
+          _subjectName: perChapterSubjectNames[i] ?? perChapterSubjectIds[i]!,
         }))
       );
     }
     return (singleQuery.data ?? []).map(t => ({
       ...t,
       _chapterId: chapterIds[0]!,
-      _chapterName: chapterNames[0] ?? chapterNames[0] ?? chapterName,
+      _chapterName: chapterNames[0] ?? chapterName,
+      _subjectId: perChapterSubjectIds[0]!,
+      _subjectName: perChapterSubjectNames[0] ?? subjectName ?? '',
     }));
-  }, [isMultiChapter, multiQueries, singleQuery.data, chapterIds, chapterNames]);
+  }, [isMultiChapter, multiQueries, singleQuery.data, chapterIds, chapterNames, perChapterSubjectIds, perChapterSubjectNames]);
 
   useEffect(() => {
-    if (allTopics.length > 0 && subjectId && !isMultiChapter) {
-      setSubjectTotal(subjectId, allTopics.length);
+    if (allTopics.length > 0 && !isMultiChapter && perChapterSubjectIds[0]) {
+      setSubjectTotal(perChapterSubjectIds[0], allTopics.length);
     }
-  }, [allTopics.length, subjectId]);
+  }, [allTopics.length]);
 
   const isExplanation = mode === 'explanation';
+  const isMultiSubject = (rawSubjectIds?.split(',') ?? []).filter(Boolean).length > 1;
 
   function toggleSelectMode() {
     Haptics.selectionAsync();
-    if (selectMode) {
-      setSelected(new Set());
-      setSelectMode(false);
-    } else {
-      setSelectMode(true);
-    }
+    if (selectMode) { setSelected(new Set()); setSelectMode(false); }
+    else setSelectMode(true);
   }
 
   function toggleItem(id: string) {
     Haptics.selectionAsync();
     setSelected(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   }
 
   function selectAll() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (selected.size === allTopics.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(allTopics.map(t => getId(t))));
-    }
+    if (selected.size === allTopics.length) setSelected(new Set());
+    else setSelected(new Set(allTopics.map(t => getId(t))));
   }
 
-  function handleTopicPress(topic: Topic & { _chapterId: string; _chapterName: string }) {
-    if (selectMode) {
-      toggleItem(getId(topic));
-      return;
-    }
+  function handleTopicPress(topic: TaggedTopic) {
+    if (selectMode) { toggleItem(getId(topic)); return; }
     Haptics.selectionAsync();
     if (isExplanation) {
       router.push({
         pathname: '/explanation' as any,
         params: {
-          subjectId, subjectName,
-          chapterId: topic._chapterId,
-          chapterName: topic._chapterName,
-          topicId: getId(topic),
-          topicName: topic.name,
+          subjectId: topic._subjectId, subjectName: topic._subjectName,
+          chapterId: topic._chapterId, chapterName: topic._chapterName,
+          topicId: getId(topic), topicName: topic.name,
         },
       });
     } else {
       router.push({
         pathname: '/topic-dashboard' as any,
         params: {
-          subjectId, subjectName,
-          chapterId: topic._chapterId,
-          chapterName: topic._chapterName,
-          topicId: getId(topic),
-          topicName: topic.name,
+          subjectId: topic._subjectId, subjectName: topic._subjectName,
+          chapterId: topic._chapterId, chapterName: topic._chapterName,
+          topicId: getId(topic), topicName: topic.name,
         },
       });
     }
   }
 
-  function getSelectedTopics() {
-    return allTopics.filter(t => selected.has(getId(t)));
-  }
-
   function handleAction(action: 'test' | 'chat' | 'explanation') {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const topics = getSelectedTopics();
+    const topics = allTopics.filter(t => selected.has(getId(t)));
     if (topics.length === 0) return;
+    const first = topics[0]!;
 
     if (action === 'test') {
-      // Use first selected topic's chapter for test generation
-      const first = topics[0]!;
       router.push({
         pathname: '/test-config' as any,
         params: {
-          subjectId, subjectName,
+          subjectId: first._subjectId,
+          subjectName: first._subjectName,
           chapterId: first._chapterId,
           chapterName: first._chapterName,
           topicIds: topics.map(t => getId(t)).join(','),
@@ -173,38 +187,37 @@ export default function TopicsScreen() {
         },
       });
     } else if (action === 'chat') {
-      const topicNamesStr = topics.map(t => t.name).join(', ');
-      const first = topics[0]!;
       router.push({
         pathname: '/chat' as any,
         params: {
-          subjectId, subjectName,
+          subjectId: first._subjectId,
+          subjectName: first._subjectName,
           chapterId: first._chapterId,
           chapterName: first._chapterName,
           topicId: getId(first),
-          topicName: topicNamesStr,
+          topicName: topics.map(t => t.name).join(', '),
         },
       });
     } else {
-      // explanation — open first selected topic
-      const first = topics[0]!;
       router.push({
         pathname: '/explanation' as any,
         params: {
-          subjectId, subjectName,
-          chapterId: first._chapterId,
-          chapterName: first._chapterName,
-          topicId: getId(first),
-          topicName: first.name,
+          subjectId: first._subjectId, subjectName: first._subjectName,
+          chapterId: first._chapterId, chapterName: first._chapterName,
+          topicId: getId(first), topicName: first.name,
         },
       });
     }
   }
 
   const allSelected = allTopics.length > 0 && selected.size === allTopics.length;
-  const displayChapterName = isMultiChapter
-    ? `${chapterIds.length} chapters`
-    : (chapterNames[0] ?? chapterName);
+
+  // Display label for the header sub-text
+  const displaySubtitle = useMemo(() => {
+    if (isMultiSubject) return `${perChapterSubjectIds.length} subjects`;
+    if (isMultiChapter) return `${chapterIds.length} chapters`;
+    return chapterNames[0] ?? chapterName ?? '';
+  }, [isMultiSubject, isMultiChapter, perChapterSubjectIds, chapterIds, chapterNames, chapterName]);
 
   const refetchAll = () => {
     if (isMultiChapter) multiQueries.forEach(q => q.refetch());
@@ -239,9 +252,9 @@ export default function TopicsScreen() {
               ? selected.size === 0 ? 'Select Topics' : `${selected.size} selected`
               : 'Topics'}
           </Text>
-          {!selectMode && displayChapterName ? (
+          {!selectMode && displaySubtitle ? (
             <Text style={[styles.headerSub, { color: colors.mutedForeground }]} numberOfLines={1}>
-              {displayChapterName}
+              {displaySubtitle}
             </Text>
           ) : null}
         </View>
@@ -281,19 +294,23 @@ export default function TopicsScreen() {
         )}
       </View>
 
-      {/* ── CHAPTER BANNER ── */}
-      {!selectMode && displayChapterName ? (
-        <View style={[styles.chapterBanner, { backgroundColor: colors.primaryLight, borderBottomColor: colors.border }]}>
+      {/* ── CONTEXT BANNER ── */}
+      {!selectMode && displaySubtitle ? (
+        <View style={[styles.contextBanner, { backgroundColor: colors.primaryLight, borderBottomColor: colors.border }]}>
           <View style={[styles.bannerIconWrap, { backgroundColor: colors.primary + '22' }]}>
-            <Ionicons name={isMultiChapter ? 'layers-outline' : 'book-outline'} size={14} color={colors.primary} />
+            <Ionicons
+              name={isMultiSubject ? 'school-outline' : isMultiChapter ? 'layers-outline' : 'book-outline'}
+              size={14}
+              color={colors.primary}
+            />
           </View>
-          <Text style={[styles.chapterText, { color: colors.primary }]} numberOfLines={1}>
-            {displayChapterName}
+          <Text style={[styles.bannerText, { color: colors.primary }]} numberOfLines={1}>
+            {displaySubtitle}
           </Text>
         </View>
       ) : null}
 
-      {/* ── LOADING / ERROR ── */}
+      {/* ── LOADING / ERROR / EMPTY ── */}
       {isLoading && (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -302,10 +319,10 @@ export default function TopicsScreen() {
 
       {isError && !isLoading && (
         <View style={styles.center}>
-          <View style={[styles.emptyIcon, { backgroundColor: colors.secondary }]}>
+          <View style={[styles.stateIcon, { backgroundColor: colors.secondary }]}>
             <Ionicons name="cloud-offline-outline" size={34} color={colors.destructive} />
           </View>
-          <Text style={[styles.errorText, { color: colors.text }]}>Couldn't load topics</Text>
+          <Text style={[styles.stateText, { color: colors.text }]}>Couldn't load topics</Text>
           <Pressable onPress={refetchAll} style={[styles.retryBtn, { backgroundColor: colors.primary }]}>
             <Text style={styles.retryText}>Try Again</Text>
           </Pressable>
@@ -314,19 +331,18 @@ export default function TopicsScreen() {
 
       {!isLoading && !isError && allTopics.length === 0 && (
         <View style={styles.center}>
-          <View style={[styles.emptyIcon, { backgroundColor: colors.secondary }]}>
+          <View style={[styles.stateIcon, { backgroundColor: colors.secondary }]}>
             <Ionicons name="document-outline" size={34} color={colors.mutedForeground} />
           </View>
-          <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
-            No topics found
-          </Text>
+          <Text style={[styles.stateText, { color: colors.mutedForeground }]}>No topics found</Text>
         </View>
       )}
 
+      {/* ── TOPIC LIST ── */}
       {!isLoading && allTopics.length > 0 && (
         <FlatList
           data={allTopics}
-          keyExtractor={(item) => `${item._chapterId}-${getId(item)}`}
+          keyExtractor={(item) => `${item._subjectId}-${item._chapterId}-${getId(item)}`}
           contentContainerStyle={[
             styles.list,
             { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + (selectMode && selected.size > 0 ? 120 : 20) },
@@ -336,18 +352,17 @@ export default function TopicsScreen() {
             <View style={styles.listHeaderRow}>
               <Text style={[styles.listHeader, { color: colors.mutedForeground }]}>
                 {allTopics.length} topic{allTopics.length !== 1 ? 's' : ''}
-                {isMultiChapter ? ` across ${chapterIds.length} chapters` : ''}
+                {isMultiSubject ? ` · ${perChapterSubjectIds.length} subjects` : isMultiChapter ? ` · ${chapterIds.length} chapters` : ''}
               </Text>
               {selectMode && (
-                <Text style={[styles.selectHint, { color: colors.mutedForeground }]}>
-                  Tap to select
-                </Text>
+                <Text style={[styles.selectHint, { color: colors.mutedForeground }]}>Tap to select</Text>
               )}
             </View>
           }
           renderItem={({ item, index }) => {
             const id = getId(item);
             const isSelected = selected.has(id);
+            const showTag = isMultiChapter || isMultiSubject;
             return (
               <Pressable
                 style={[
@@ -370,18 +385,13 @@ export default function TopicsScreen() {
                 {selectMode ? (
                   <View style={[
                     styles.checkbox,
-                    {
-                      backgroundColor: isSelected ? colors.primary : 'transparent',
-                      borderColor: isSelected ? colors.primary : colors.border,
-                    },
+                    { backgroundColor: isSelected ? colors.primary : 'transparent', borderColor: isSelected ? colors.primary : colors.border },
                   ]}>
                     {isSelected && <Ionicons name="checkmark" size={13} color="#FFF" />}
                   </View>
                 ) : (
                   <View style={[styles.topicNum, { backgroundColor: colors.secondary }]}>
-                    <Text style={[styles.topicNumText, { color: colors.mutedForeground }]}>
-                      {index + 1}
-                    </Text>
+                    <Text style={[styles.topicNumText, { color: colors.mutedForeground }]}>{index + 1}</Text>
                   </View>
                 )}
 
@@ -389,9 +399,9 @@ export default function TopicsScreen() {
                   <Text style={[styles.topicName, { color: isSelected ? colors.primary : colors.text }]} numberOfLines={2}>
                     {item.name}
                   </Text>
-                  {isMultiChapter && (
-                    <Text style={[styles.topicChapterTag, { color: colors.mutedForeground }]} numberOfLines={1}>
-                      {item._chapterName}
+                  {showTag && (
+                    <Text style={[styles.topicTag, { color: colors.mutedForeground }]} numberOfLines={1}>
+                      {isMultiSubject ? `${item._subjectName} · ${item._chapterName}` : item._chapterName}
                     </Text>
                   )}
                 </View>
@@ -408,7 +418,7 @@ export default function TopicsScreen() {
               </Pressable>
             );
           }}
-          scrollEnabled={true}
+          scrollEnabled
         />
       )}
 
@@ -422,17 +432,15 @@ export default function TopicsScreen() {
             paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 8,
           },
         ]}>
-          {/* Count label */}
           <View style={styles.bottomCount}>
             <View style={[styles.countBubble, { backgroundColor: colors.primary }]}>
               <Text style={styles.countBubbleText}>{selected.size}</Text>
             </View>
             <Text style={[styles.bottomCountLabel, { color: colors.mutedForeground }]}>
-              {selected.size === allTopics.length ? 'All' : selected.size === 1 ? '1 topic' : `${selected.size} topics`}
+              {selected.size === allTopics.length ? 'All topics' : selected.size === 1 ? '1 topic' : `${selected.size} topics`}
             </Text>
           </View>
 
-          {/* Action buttons */}
           <View style={styles.bottomActions}>
             <Pressable
               style={[styles.actionBtn, { backgroundColor: '#10B981' + '18', borderColor: '#10B981' + '40' }]}
@@ -467,12 +475,8 @@ export default function TopicsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1,
   },
   backCircle: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   headerText: { flex: 1 },
@@ -490,18 +494,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1,
   },
   selectToggleText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
-  chapterBanner: {
+  contextBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 16, paddingVertical: 11, borderBottomWidth: 1,
+    paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1,
   },
   bannerIconWrap: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  chapterText: { fontSize: 13, fontWeight: '600', fontFamily: 'Inter_600SemiBold', flex: 1 },
+  bannerText: { fontSize: 13, fontWeight: '600', fontFamily: 'Inter_600SemiBold', flex: 1 },
   list: { padding: 16, gap: 8 },
   listHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   listHeader: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600', letterSpacing: 0.3 },
   selectHint: { fontSize: 11, fontFamily: 'Inter_400Regular' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  emptyIcon: { width: 68, height: 68, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  stateIcon: { width: 68, height: 68, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  stateText: { fontSize: 15, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  retryBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, marginTop: 4 },
+  retryText: { color: '#FFFFFF', fontWeight: '700', fontFamily: 'Inter_700Bold', fontSize: 14 },
   topicCard: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: 14, paddingHorizontal: 14,
@@ -517,17 +524,10 @@ const styles = StyleSheet.create({
   topicNumText: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   topicBody: { flex: 1 },
   topicName: { fontSize: 14, fontWeight: '500', fontFamily: 'Inter_500Medium', lineHeight: 20 },
-  topicChapterTag: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  topicTag: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
   topicAction: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  hintText: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center' },
-  errorText: { fontSize: 16, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
-  retryBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, marginTop: 4 },
-  retryText: { color: '#FFFFFF', fontWeight: '700', fontFamily: 'Inter_700Bold', fontSize: 14 },
   bottomBar: {
-    borderTopWidth: 1,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    gap: 10,
+    borderTopWidth: 1, paddingHorizontal: 16, paddingTop: 12, gap: 10,
   },
   bottomCount: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   countBubble: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
