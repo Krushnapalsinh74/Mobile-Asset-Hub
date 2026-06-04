@@ -59,12 +59,20 @@ patchAppJson();
 
 function startProxy() {
   const server = http.createServer((clientReq, clientRes) => {
+    const forwardedHeaders = { ...clientReq.headers };
+    const expoDomain = process.env.REPLIT_EXPO_DEV_DOMAIN || "";
+    if (expoDomain && forwardedHeaders["origin"]) {
+      forwardedHeaders["origin"] = `https://${expoDomain.replace(/^https?:\/\//, "")}`;
+    }
+    if (expoDomain && forwardedHeaders["referer"]) {
+      forwardedHeaders["referer"] = `https://${expoDomain.replace(/^https?:\/\//, "")}/`;
+    }
     const options = {
       hostname: "127.0.0.1",
       port: EXPO_PORT,
       path: clientReq.url,
       method: clientReq.method,
-      headers: clientReq.headers,
+      headers: forwardedHeaders,
     };
 
     const proxyReq = http.request(options, (proxyRes) => {
@@ -129,9 +137,11 @@ function startExpo() {
 
   console.log(`[dev] Starting Expo on port ${EXPO_PORT}...`);
 
+  const expoBin = path.join(projectRoot, "node_modules", ".bin", "expo");
+
   const proc = spawn(
-    "pnpm",
-    ["exec", "expo", "start", "--localhost", "--port", String(EXPO_PORT)],
+    expoBin,
+    ["start", "--localhost", "--port", String(EXPO_PORT)],
     {
       stdio: "inherit",
       cwd: projectRoot,
