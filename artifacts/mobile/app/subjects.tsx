@@ -173,7 +173,9 @@ export default function SubjectsScreen() {
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 40 }}
+        contentContainerStyle={{
+          paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + (selectMode && selected.size > 0 ? 100 : 40),
+        }}
       >
 
         {/* ── TOP BAR ── */}
@@ -535,6 +537,10 @@ export default function SubjectsScreen() {
             backgroundColor: colors.card,
             borderTopColor: colors.border,
             paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 8,
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
           },
         ]}>
           <View style={styles.bottomBarLeft}>
