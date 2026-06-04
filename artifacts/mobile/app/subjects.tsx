@@ -1,6 +1,8 @@
 import { useApp } from '@/context/AppContext';
+import type { SubjectProgress } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { eduApi, getId } from '@/services/api';
+import type { Subject } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
@@ -80,10 +82,10 @@ function timeAgo(ts: number): string {
 }
 
 const QUICK_ACTIONS = [
-  { key: 'chapters', label: 'Chapters', icon: 'layers-outline' as const, color: '#6366F1', desc: 'Browse topics' },
-  { key: 'test', label: 'Take Test', icon: 'trophy-outline' as const, color: '#F59E0B', desc: 'Practice MCQs' },
-  { key: 'ai', label: 'AI Tutor', icon: 'chatbubbles-outline' as const, color: '#8B5CF6', desc: 'Ask anything' },
-  { key: 'explain', label: 'Explain', icon: 'bulb-outline' as const, color: '#10B981', desc: 'Get concepts' },
+  { key: 'chapters', label: 'Chapters', icon: 'layers-outline' as const, color: '#6366F1' },
+  { key: 'test', label: 'Test', icon: 'trophy-outline' as const, color: '#F59E0B' },
+  { key: 'ai', label: 'AI Tutor', icon: 'chatbubbles-outline' as const, color: '#8B5CF6' },
+  { key: 'explain', label: 'Explain', icon: 'bulb-outline' as const, color: '#10B981' },
 ];
 
 export default function SubjectsScreen() {
@@ -118,13 +120,14 @@ export default function SubjectsScreen() {
   const improvement = latestPct !== null && prevPct !== null ? latestPct - prevPct : null;
   const bestScore = mcqTests.length > 0 ? Math.max(...mcqTests.map(t => t.percentage ?? 0)) : null;
 
+  // Streak: how many consecutive tests where score improved or stayed same
   let improvingStreak = 0;
   for (let i = 0; i < mcqTests.length - 1; i++) {
     if ((mcqTests[i].percentage ?? 0) >= (mcqTests[i + 1].percentage ?? 0)) improvingStreak++;
     else break;
   }
 
-  const recentBars = mcqTests.slice(0, 6).reverse();
+  const recentBars = mcqTests.slice(0, 6).reverse(); // oldest→newest for bar chart
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
 
@@ -189,113 +192,205 @@ export default function SubjectsScreen() {
         }}
       >
 
-        {/* ── HERO HEADER ── */}
-        <View style={[styles.hero, { paddingTop: topPad + 20 }]}>
-          {/* Decorative circles */}
-          <View style={styles.heroDeco1} />
-          <View style={styles.heroDeco2} />
-
-          {/* Top row */}
-          <View style={styles.heroRow}>
-            <View style={styles.heroLeft}>
-              <Text style={styles.heroGreeting}>{getGreeting()} {getGreetingEmoji()}</Text>
-              <Text style={styles.heroName}>{firstName}</Text>
-            </View>
-            <View style={styles.heroActions}>
-              <Pressable
-                style={styles.heroSettingsBtn}
-                onPress={() => { Haptics.selectionAsync(); router.push('/settings' as any); }}
-              >
-                <Ionicons name="settings-outline" size={17} color="rgba(255,255,255,0.75)" />
-              </Pressable>
-              <View style={styles.heroAvatar}>
-                <Text style={styles.heroAvatarText}>{initials}</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Board + class tags */}
-          <View style={styles.heroTags}>
-            {boardName ? (
-              <View style={styles.heroTag}>
-                <Ionicons name="school-outline" size={10} color="rgba(255,255,255,0.85)" />
-                <Text style={styles.heroTagText}>{boardName}</Text>
-              </View>
-            ) : null}
-            {standardName ? (
-              <View style={styles.heroTag}>
-                <Ionicons name="layers-outline" size={10} color="rgba(255,255,255,0.85)" />
-                <Text style={styles.heroTagText}>{standardName}</Text>
-              </View>
-            ) : null}
-          </View>
-
-          {/* Progress strip */}
-          <View style={styles.heroProgressWrap}>
-            <View style={styles.heroProgressTop}>
-              <Text style={styles.heroProgressLabel}>Overall Progress</Text>
-              <Text style={styles.heroProgressPct}>{overallPct}%</Text>
-            </View>
-            <View style={styles.heroProgressTrack}>
-              <View style={[styles.heroProgressFill, { width: `${Math.max(2, overallPct)}%` as any }]} />
-            </View>
-            <Text style={styles.heroProgressSub}>
-              {totalExplored > 0 ? `${totalExplored} of ${totalTopics || '?'} topics covered` : 'Start exploring topics to track progress'}
+        {/* ── TOP BAR ── */}
+        <View style={[styles.topBar, { paddingTop: topPad + 4 }]}>
+          <View>
+            <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
+              {getGreeting()} {getGreetingEmoji()}
             </Text>
+            <Text style={[styles.heroName, { color: colors.text }]}>{firstName}</Text>
+          </View>
+          <View style={styles.topRight}>
+            <Pressable
+              style={[styles.settingsBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => { Haptics.selectionAsync(); router.push('/settings' as any); }}
+            >
+              <Ionicons name="settings-outline" size={18} color={colors.mutedForeground} />
+            </Pressable>
+            <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
           </View>
         </View>
 
-        {/* ── STATS CHIPS ── */}
-        <View style={styles.statsStrip}>
+        {/* ── BOARD + CLASS TAG ── */}
+        <View style={styles.tagRow}>
+          <View style={[styles.tag, { backgroundColor: colors.primaryLight }]}>
+            <Ionicons name="school-outline" size={11} color={colors.primary} />
+            <Text style={[styles.tagText, { color: colors.primary }]}>{boardName}</Text>
+          </View>
+          <View style={[styles.tag, { backgroundColor: colors.primaryLight }]}>
+            <Ionicons name="layers-outline" size={11} color={colors.primary} />
+            <Text style={[styles.tagText, { color: colors.primary }]}>{standardName}</Text>
+          </View>
+        </View>
+
+        {/* ── PROGRESS CARD ── */}
+        <View style={styles.px}>
+          <View style={[styles.progressCard, { backgroundColor: colors.primary }]}>
+            <View style={styles.progressCardLeft}>
+              <Text style={styles.progressCardLabel}>Overall Progress</Text>
+              <Text style={styles.progressCardPct}>{overallPct}%</Text>
+              <Text style={styles.progressCardSub}>
+                {totalExplored} of {totalTopics || '–'} topics covered
+              </Text>
+            </View>
+            <View style={styles.progressCardRight}>
+              <View style={styles.pctCircle}>
+                <Text style={styles.pctCircleNum}>{overallPct}</Text>
+                <Text style={styles.pctCircleSymbol}>%</Text>
+              </View>
+            </View>
+            <View style={[styles.progressBarTrack, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+              <View style={[styles.progressBarFill, {
+                backgroundColor: '#FFFFFF',
+                width: `${overallPct}%` as any,
+              }]} />
+            </View>
+          </View>
+        </View>
+
+        {/* ── STAT ROW ── */}
+        <View style={[styles.statRow, styles.px]}>
           {[
-            { icon: 'trophy-outline' as const, color: '#F59E0B', val: testHistory.length, label: 'Tests', sub: avgScore !== null ? `avg ${avgScore}%` : 'none yet' },
+            { icon: 'trophy-outline' as const, color: '#F59E0B', val: testHistory.length, label: 'Tests', sub: avgScore !== null ? `avg ${avgScore}%` : null },
             { icon: 'chatbubbles-outline' as const, color: '#8B5CF6', val: chatHistory.length, label: 'AI Chats', sub: null },
-            { icon: 'book-outline' as const, color: '#10B981', val: totalExplored, label: 'Topics Done', sub: null },
+            { icon: 'book-outline' as const, color: '#10B981', val: totalExplored, label: 'Topics', sub: null },
           ].map((s, i) => (
-            <View key={i} style={[styles.statChip, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={[styles.statChipIcon, { backgroundColor: s.color + '18' }]}>
-                <Ionicons name={s.icon} size={15} color={s.color} />
+            <View key={i} style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={[styles.statIcon, { backgroundColor: s.color + '15' }]}>
+                <Ionicons name={s.icon} size={16} color={s.color} />
               </View>
-              <View style={styles.statChipBody}>
-                <Text style={[styles.statChipVal, { color: colors.text }]}>{s.val}</Text>
-                <Text style={[styles.statChipLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
-                {s.sub && <Text style={[styles.statChipSub, { color: s.color }]}>{s.sub}</Text>}
-              </View>
+              <Text style={[styles.statVal, { color: colors.text }]}>{s.val}</Text>
+              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
+              {s.sub && <Text style={[styles.statSub, { color: s.color }]}>{s.sub}</Text>}
             </View>
           ))}
         </View>
 
-        {/* ── QUICK ACTIONS 2×2 GRID ── */}
-        <View style={[styles.section, styles.px]}>
-          <View style={styles.sectionHeader}>
+        {/* ── IMPROVEMENT CARD ── */}
+        {mcqTests.length > 0 && (
+          <View style={[styles.section, styles.px]}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Improvement</Text>
+              {improvement !== null && (
+                <View style={[styles.trendPill, {
+                  backgroundColor: improvement > 0 ? '#10B98115' : improvement < 0 ? '#EF444415' : '#6366F115',
+                }]}>
+                  <Ionicons
+                    name={improvement > 0 ? 'trending-up' : improvement < 0 ? 'trending-down' : 'remove'}
+                    size={13}
+                    color={improvement > 0 ? '#10B981' : improvement < 0 ? '#EF4444' : '#6366F1'}
+                  />
+                  <Text style={[styles.trendPillText, {
+                    color: improvement > 0 ? '#10B981' : improvement < 0 ? '#EF4444' : '#6366F1',
+                  }]}>
+                    {improvement > 0 ? '+' : ''}{improvement}% vs last
+                  </Text>
+                </View>
+              )}
+            </View>
+            <View style={[styles.improvementCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              {/* Score bars row */}
+              {recentBars.length > 0 && (
+                <View style={styles.barsSection}>
+                  <Text style={[styles.barsLabel, { color: colors.mutedForeground }]}>
+                    Last {recentBars.length} test{recentBars.length > 1 ? 's' : ''}
+                  </Text>
+                  <View style={styles.barsRow}>
+                    {recentBars.map((t, i) => {
+                      const pct = t.percentage ?? 0;
+                      const isLatest = i === recentBars.length - 1;
+                      const barColor = pct >= 70 ? '#10B981' : pct >= 40 ? '#F59E0B' : '#EF4444';
+                      return (
+                        <View key={i} style={styles.barCol}>
+                          <View style={styles.barTrack}>
+                            <View style={[styles.barFill, {
+                              height: `${Math.max(8, pct)}%` as any,
+                              backgroundColor: isLatest ? barColor : barColor + '70',
+                            }]} />
+                          </View>
+                          <Text style={[styles.barPct, {
+                            color: isLatest ? colors.text : colors.mutedForeground,
+                            fontFamily: isLatest ? 'Inter_700Bold' : 'Inter_400Regular',
+                          }]}>{pct}%</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
+              {/* Stats row */}
+              <View style={[styles.impStatsRow, { borderTopColor: colors.border }]}>
+                <View style={styles.impStat}>
+                  <Text style={[styles.impStatVal, { color: colors.text }]}>
+                    {latestPct !== null ? `${latestPct}%` : '–'}
+                  </Text>
+                  <Text style={[styles.impStatLabel, { color: colors.mutedForeground }]}>Latest</Text>
+                </View>
+                <View style={[styles.impStatDivider, { backgroundColor: colors.border }]} />
+                <View style={styles.impStat}>
+                  <Text style={[styles.impStatVal, { color: colors.text }]}>
+                    {avgScore !== null ? `${avgScore}%` : '–'}
+                  </Text>
+                  <Text style={[styles.impStatLabel, { color: colors.mutedForeground }]}>Average</Text>
+                </View>
+                <View style={[styles.impStatDivider, { backgroundColor: colors.border }]} />
+                <View style={styles.impStat}>
+                  <Text style={[styles.impStatVal, { color: '#F59E0B' }]}>
+                    {bestScore !== null ? `${bestScore}%` : '–'}
+                  </Text>
+                  <Text style={[styles.impStatLabel, { color: colors.mutedForeground }]}>Best</Text>
+                </View>
+                <View style={[styles.impStatDivider, { backgroundColor: colors.border }]} />
+                <View style={styles.impStat}>
+                  <Text style={[styles.impStatVal, { color: '#8B5CF6' }]}>{mcqTests.length}</Text>
+                  <Text style={[styles.impStatLabel, { color: colors.mutedForeground }]}>Tests</Text>
+                </View>
+              </View>
+
+              {/* Streak message */}
+              {improvingStreak >= 2 && (
+                <View style={[styles.streakBanner, { backgroundColor: '#10B98110' }]}>
+                  <Ionicons name="flame" size={14} color="#10B981" />
+                  <Text style={[styles.streakText, { color: '#10B981' }]}>
+                    {improvingStreak} test streak — keep it up!
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* ── QUICK ACTIONS ── */}
+        <View style={{ paddingTop: 24 }}>
+          <View style={[styles.sectionHeader, styles.px]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Jump In</Text>
             {lastStudied && (
-              <View style={[styles.jumpTag, { backgroundColor: colors.primaryLight }]}>
-                <Ionicons name="bookmark-outline" size={10} color={colors.primary} />
-                <Text style={[styles.jumpTagText, { color: colors.primary }]} numberOfLines={1}>
-                  {lastStudied.subjectName}
-                </Text>
-              </View>
+              <Text style={[styles.sectionHint, { color: colors.mutedForeground }]}>
+                with {lastStudied.subjectName}
+              </Text>
             )}
           </View>
-          <View style={styles.actionsGrid}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 10, gap: 10 }}
+          >
             {QUICK_ACTIONS.map(a => (
               <Pressable
                 key={a.key}
-                style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                style={[styles.actionPill, { backgroundColor: a.color + '12', borderColor: a.color + '35' }]}
                 onPress={() => handleQuickAction(a.key)}
               >
-                <View style={[styles.actionCardIcon, { backgroundColor: a.color + '15' }]}>
-                  <Ionicons name={a.icon} size={22} color={a.color} />
+                <View style={[styles.actionPillIcon, { backgroundColor: a.color + '20' }]}>
+                  <Ionicons name={a.icon} size={20} color={a.color} />
                 </View>
-                <View style={styles.actionCardBody}>
-                  <Text style={[styles.actionCardLabel, { color: colors.text }]}>{a.label}</Text>
-                  <Text style={[styles.actionCardDesc, { color: colors.mutedForeground }]}>{a.desc}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={14} color={colors.border} />
+                <Text style={[styles.actionPillLabel, { color: a.color }]}>{a.label}</Text>
               </Pressable>
             ))}
-          </View>
+          </ScrollView>
         </View>
 
         {/* ── CONTINUE LEARNING ── */}
@@ -305,7 +400,7 @@ export default function SubjectsScreen() {
             <View style={[styles.section, styles.px]}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Continue Learning</Text>
               <Pressable
-                style={[styles.continueCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                style={[styles.continueCard, { backgroundColor: theme.color + '0E', borderColor: theme.color + '35' }]}
                 onPress={() => {
                   Haptics.selectionAsync();
                   if (lastStudied.topicId) {
@@ -319,20 +414,21 @@ export default function SubjectsScreen() {
                   }
                 }}
               >
-                <View style={[styles.continueAccent, { backgroundColor: theme.color }]} />
-                <View style={[styles.continueIconWrap, { backgroundColor: theme.color + '18' }]}>
-                  <Ionicons name={theme.icon} size={22} color={theme.color} />
-                </View>
-                <View style={styles.continueInfo}>
-                  <Text style={[styles.continueSubject, { color: colors.text }]} numberOfLines={1}>
-                    {lastStudied.subjectName}
-                  </Text>
-                  <Text style={[styles.continueTopic, { color: colors.mutedForeground }]} numberOfLines={1}>
-                    {lastStudied.topicName ?? lastStudied.chapterName ?? 'Open subject'}
-                  </Text>
+                <View style={[styles.continueLeft, { borderRightColor: theme.color + '30' }]}>
+                  <View style={[styles.continueIcon, { backgroundColor: theme.color + '20' }]}>
+                    <Ionicons name={theme.icon} size={22} color={theme.color} />
+                  </View>
+                  <View style={styles.continueInfo}>
+                    <Text style={[styles.continueSubject, { color: colors.text }]} numberOfLines={1}>
+                      {lastStudied.subjectName}
+                    </Text>
+                    <Text style={[styles.continueTopic, { color: colors.mutedForeground }]} numberOfLines={1}>
+                      {lastStudied.topicName ?? lastStudied.chapterName ?? 'Open subject'}
+                    </Text>
+                  </View>
                 </View>
                 <View style={[styles.resumeBtn, { backgroundColor: theme.color }]}>
-                  <Ionicons name="play" size={12} color="#FFF" />
+                  <Ionicons name="play" size={13} color="#FFF" />
                   <Text style={styles.resumeText}>Resume</Text>
                 </View>
               </Pressable>
@@ -380,42 +476,42 @@ export default function SubjectsScreen() {
           {subjectsQuery.isLoading && (
             <View style={styles.loadRow}>
               <ActivityIndicator color={colors.primary} size="small" />
-              <Text style={[styles.loadText, { color: colors.mutedForeground }]}>Loading subjects…</Text>
+              <Text style={[styles.loadText, { color: colors.mutedForeground }]}>Loading…</Text>
             </View>
           )}
 
           {subjectsQuery.isError && !subjectsQuery.isLoading && (
-            <View style={[styles.stateCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={[styles.stateIcon, { backgroundColor: '#EF444415' }]}>
-                <Ionicons name="cloud-offline-outline" size={26} color="#EF4444" />
+            <View style={[styles.errorCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={[styles.errorIcon, { backgroundColor: '#EF444415' }]}>
+                <Ionicons name="cloud-offline-outline" size={28} color="#EF4444" />
               </View>
-              <View style={styles.stateBody}>
-                <Text style={[styles.stateTitle, { color: colors.text }]}>Couldn't load subjects</Text>
-                <Text style={[styles.stateSub, { color: colors.mutedForeground }]}>Check your connection and try again.</Text>
+              <View style={styles.errorBody}>
+                <Text style={[styles.errorTitle, { color: colors.text }]}>Couldn't load subjects</Text>
+                <Text style={[styles.errorSub, { color: colors.mutedForeground }]}>
+                  Check your internet connection and try again.
+                </Text>
               </View>
               <Pressable
                 style={[styles.retryBtn, { backgroundColor: colors.primary }]}
                 onPress={() => { Haptics.selectionAsync(); subjectsQuery.refetch(); }}
               >
-                <Ionicons name="refresh-outline" size={14} color="#FFF" />
+                <Ionicons name="refresh-outline" size={15} color="#FFF" />
                 <Text style={styles.retryText}>Retry</Text>
               </Pressable>
             </View>
           )}
 
           {!subjectsQuery.isLoading && !subjectsQuery.isError && subjects.length === 0 && (
-            <View style={[styles.stateCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={[styles.stateIcon, { backgroundColor: colors.primaryLight }]}>
-                <Ionicons name="book-outline" size={26} color={colors.primary} />
-              </View>
-              <Text style={[styles.stateSub, { color: colors.mutedForeground, flex: 1 }]}>
-                No subjects found. Try a different board or standard in Settings.
+            <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Ionicons name="book-outline" size={26} color={colors.mutedForeground} />
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                No subjects found for your class. Try a different board or standard in Settings.
               </Text>
             </View>
           )}
 
           {subjects.length > 0 && (
-            <View style={styles.subjectsGrid}>
+            <View style={[styles.subjectsList, { borderColor: selectMode ? colors.primary + '30' : colors.border, borderWidth: selectMode ? 1.5 : 1 }]}>
               {subjects.map((item, index) => {
                 const theme = getTheme(item.name, index);
                 const sid = getId(item);
@@ -423,13 +519,14 @@ export default function SubjectsScreen() {
                 const explored = prog?.explored ?? 0;
                 const total = prog?.total ?? 0;
                 const pct = total > 0 ? Math.min(100, Math.round((explored / total) * 100)) : 0;
+                const isLast = index === subjects.length - 1;
                 const isSelected = selected.has(sid);
                 return (
                   <Pressable
                     key={sid}
                     style={[
-                      styles.subjectCard,
-                      { backgroundColor: colors.card, borderColor: isSelected ? colors.primary : colors.border },
+                      styles.subjectRow,
+                      !isLast && { borderBottomWidth: 1, borderBottomColor: colors.border },
                       isSelected && { backgroundColor: colors.primaryLight },
                     ]}
                     onPress={() => {
@@ -445,147 +542,61 @@ export default function SubjectsScreen() {
                       }
                     }}
                   >
-                    {/* Top: icon + checkbox */}
-                    <View style={styles.subjectCardTop}>
-                      <View style={[styles.subjectCardIcon, { backgroundColor: isSelected ? colors.primary + '25' : theme.color + '18' }]}>
-                        <Ionicons name={theme.icon} size={20} color={isSelected ? colors.primary : theme.color} />
+                    {/* Left: checkbox in select mode, accent bar otherwise */}
+                    {selectMode ? (
+                      <View style={[styles.subjectCheckbox, { backgroundColor: isSelected ? colors.primary : 'transparent', borderColor: isSelected ? colors.primary : colors.border }]}>
+                        {isSelected && <Ionicons name="checkmark" size={12} color="#FFF" />}
                       </View>
-                      {selectMode ? (
-                        <View style={[styles.subjectCheckbox, { backgroundColor: isSelected ? colors.primary : 'transparent', borderColor: isSelected ? colors.primary : colors.border }]}>
-                          {isSelected && <Ionicons name="checkmark" size={11} color="#FFF" />}
-                        </View>
-                      ) : (
-                        pct > 0 ? (
-                          <View style={[styles.pctBadge, { backgroundColor: theme.color + '18' }]}>
-                            <Text style={[styles.pctBadgeText, { color: theme.color }]}>{pct}%</Text>
+                    ) : (
+                      <View style={[styles.subjectAccent, { backgroundColor: theme.color }]} />
+                    )}
+
+                    {/* Icon */}
+                    <View style={[styles.subjectIcon, { backgroundColor: isSelected ? colors.primary + '25' : theme.color + '18' }]}>
+                      <Ionicons name={theme.icon} size={18} color={isSelected ? colors.primary : theme.color} />
+                    </View>
+
+                    {/* Info */}
+                    <View style={styles.subjectInfo}>
+                      <View style={styles.subjectTopRow}>
+                        <Text style={[styles.subjectName, { color: isSelected ? colors.primary : colors.text }]} numberOfLines={1}>
+                          {item.name}
+                        </Text>
+                        <Text style={[styles.subjectPct, { color: pct > 0 ? (isSelected ? colors.primary : theme.color) : colors.mutedForeground }]}>
+                          {pct > 0 ? `${pct}%` : selectMode ? '' : 'New'}
+                        </Text>
+                      </View>
+                      {!selectMode && (
+                        <>
+                          <View style={[styles.subjectBar, { backgroundColor: theme.color + '18' }]}>
+                            <View style={[styles.subjectBarFill, {
+                              backgroundColor: theme.color,
+                              width: pct > 0 ? `${pct}%` as any : '2%',
+                              opacity: pct > 0 ? 1 : 0.3,
+                            }]} />
                           </View>
-                        ) : (
-                          <View style={[styles.newBadge, { backgroundColor: colors.primaryLight }]}>
-                            <Text style={[styles.newBadgeText, { color: colors.primary }]}>New</Text>
-                          </View>
-                        )
+                          <Text style={[styles.subjectTopicText, { color: colors.mutedForeground }]}>
+                            {explored > 0 ? `${explored} of ${total || '?'} topics` : 'Not started yet'}
+                          </Text>
+                        </>
+                      )}
+                      {selectMode && (
+                        <Text style={[styles.subjectTopicText, { color: isSelected ? colors.primary : colors.mutedForeground }]}>
+                          {isSelected ? 'Selected — chapters will be included' : 'Tap to select'}
+                        </Text>
                       )}
                     </View>
 
-                    {/* Subject name */}
-                    <Text style={[styles.subjectCardName, { color: isSelected ? colors.primary : colors.text }]} numberOfLines={2}>
-                      {item.name}
-                    </Text>
-
-                    {!selectMode && (
-                      <>
-                        {/* Progress bar */}
-                        <View style={[styles.subjectCardBar, { backgroundColor: theme.color + '20' }]}>
-                          <View style={[styles.subjectCardBarFill, {
-                            backgroundColor: theme.color,
-                            width: pct > 0 ? `${pct}%` as any : '3%',
-                            opacity: pct > 0 ? 1 : 0.4,
-                          }]} />
-                        </View>
-                        <Text style={[styles.subjectCardSub, { color: colors.mutedForeground }]}>
-                          {explored > 0 ? `${explored}/${total || '?'} topics` : 'Not started'}
-                        </Text>
-                      </>
+                    {/* Right indicator */}
+                    {selectMode ? null : (
+                      <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
                     )}
-
-                    {selectMode && (
-                      <Text style={[styles.subjectCardSub, { color: isSelected ? colors.primary : colors.mutedForeground }]}>
-                        {isSelected ? 'Selected ✓' : 'Tap to select'}
-                      </Text>
-                    )}
-
-                    {/* Color strip at bottom */}
-                    <View style={[styles.subjectCardStrip, { backgroundColor: theme.color }]} />
                   </Pressable>
                 );
               })}
             </View>
           )}
         </View>
-
-        {/* ── IMPROVEMENT CARD ── */}
-        {mcqTests.length > 0 && (
-          <View style={[styles.section, styles.px]}>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Improvement</Text>
-              {improvement !== null && (
-                <View style={[styles.trendPill, {
-                  backgroundColor: improvement > 0 ? '#10B98115' : improvement < 0 ? '#EF444415' : '#6366F115',
-                }]}>
-                  <Ionicons
-                    name={improvement > 0 ? 'trending-up' : improvement < 0 ? 'trending-down' : 'remove'}
-                    size={13}
-                    color={improvement > 0 ? '#10B981' : improvement < 0 ? '#EF4444' : '#6366F1'}
-                  />
-                  <Text style={[styles.trendPillText, {
-                    color: improvement > 0 ? '#10B981' : improvement < 0 ? '#EF4444' : '#6366F1',
-                  }]}>
-                    {improvement > 0 ? '+' : ''}{improvement}% vs last
-                  </Text>
-                </View>
-              )}
-            </View>
-            <View style={[styles.improvementCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              {recentBars.length > 0 && (
-                <View style={styles.barsSection}>
-                  <Text style={[styles.barsLabel, { color: colors.mutedForeground }]}>
-                    Last {recentBars.length} test{recentBars.length > 1 ? 's' : ''}
-                  </Text>
-                  <View style={styles.barsRow}>
-                    {recentBars.map((t, i) => {
-                      const pct = t.percentage ?? 0;
-                      const isLatest = i === recentBars.length - 1;
-                      const barColor = pct >= 70 ? '#10B981' : pct >= 40 ? '#F59E0B' : '#EF4444';
-                      return (
-                        <View key={i} style={styles.barCol}>
-                          <View style={styles.barTrack}>
-                            <View style={[styles.barFill, {
-                              height: `${Math.max(8, pct)}%` as any,
-                              backgroundColor: isLatest ? barColor : barColor + '70',
-                            }]} />
-                          </View>
-                          <Text style={[styles.barPct, {
-                            color: isLatest ? colors.text : colors.mutedForeground,
-                            fontFamily: isLatest ? 'Inter_700Bold' : 'Inter_400Regular',
-                          }]}>{pct}%</Text>
-                        </View>
-                      );
-                    })}
-                  </View>
-                </View>
-              )}
-              <View style={[styles.impStatsRow, { borderTopColor: colors.border }]}>
-                <View style={styles.impStat}>
-                  <Text style={[styles.impStatVal, { color: colors.text }]}>{latestPct !== null ? `${latestPct}%` : '–'}</Text>
-                  <Text style={[styles.impStatLabel, { color: colors.mutedForeground }]}>Latest</Text>
-                </View>
-                <View style={[styles.impStatDivider, { backgroundColor: colors.border }]} />
-                <View style={styles.impStat}>
-                  <Text style={[styles.impStatVal, { color: colors.text }]}>{avgScore !== null ? `${avgScore}%` : '–'}</Text>
-                  <Text style={[styles.impStatLabel, { color: colors.mutedForeground }]}>Average</Text>
-                </View>
-                <View style={[styles.impStatDivider, { backgroundColor: colors.border }]} />
-                <View style={styles.impStat}>
-                  <Text style={[styles.impStatVal, { color: '#F59E0B' }]}>{bestScore !== null ? `${bestScore}%` : '–'}</Text>
-                  <Text style={[styles.impStatLabel, { color: colors.mutedForeground }]}>Best</Text>
-                </View>
-                <View style={[styles.impStatDivider, { backgroundColor: colors.border }]} />
-                <View style={styles.impStat}>
-                  <Text style={[styles.impStatVal, { color: '#8B5CF6' }]}>{mcqTests.length}</Text>
-                  <Text style={[styles.impStatLabel, { color: colors.mutedForeground }]}>Tests</Text>
-                </View>
-              </View>
-              {improvingStreak >= 2 && (
-                <View style={[styles.streakBanner, { backgroundColor: '#10B98110' }]}>
-                  <Ionicons name="flame" size={14} color="#10B981" />
-                  <Text style={[styles.streakText, { color: '#10B981' }]}>
-                    {improvingStreak} test streak — keep it up!
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-        )}
 
         {/* ── RECENT TESTS ── */}
         {testHistory.length > 0 && (
@@ -599,7 +610,9 @@ export default function SubjectsScreen() {
                 const theme = getTheme(t.subjectName, 0);
                 const pct = t.percentage ?? null;
                 const barColor = pct !== null ? (pct >= 70 ? '#10B981' : pct >= 40 ? '#F59E0B' : '#EF4444') : theme.color;
-                const scoreLabel = pct !== null ? (pct >= 90 ? '🏆' : pct >= 70 ? '✅' : pct >= 40 ? '📈' : '📚') : null;
+                const scoreLabel = pct !== null
+                  ? (pct >= 90 ? '🏆' : pct >= 70 ? '✅' : pct >= 40 ? '📈' : '📚')
+                  : null;
                 return (
                   <View key={i} style={[
                     styles.testItem,
@@ -610,10 +623,14 @@ export default function SubjectsScreen() {
                     </View>
                     <View style={styles.testBody}>
                       <View style={styles.testTopRow}>
-                        <Text style={[styles.testSubject, { color: colors.text, flex: 1 }]} numberOfLines={1}>{t.subjectName}</Text>
+                        <Text style={[styles.testSubject, { color: colors.text, flex: 1 }]} numberOfLines={1}>
+                          {t.subjectName}
+                        </Text>
                         {pct !== null ? (
                           <View style={[styles.testBadge, { backgroundColor: barColor + '18' }]}>
-                            <Text style={[styles.testBadgeText, { color: barColor }]}>{scoreLabel} {pct}%</Text>
+                            <Text style={[styles.testBadgeText, { color: barColor }]}>
+                              {scoreLabel} {pct}%
+                            </Text>
                           </View>
                         ) : (
                           <Text style={[styles.testScore, { color: colors.mutedForeground }]}>{t.score}/{t.total}</Text>
@@ -637,7 +654,7 @@ export default function SubjectsScreen() {
 
       </ScrollView>
 
-      {/* ── MULTI-SELECT BOTTOM BAR ── */}
+      {/* ── BOTTOM ACTION BAR (multi-select) ── */}
       {selectMode && selected.size > 0 && (
         <View style={[
           styles.bottomBar,
@@ -646,7 +663,9 @@ export default function SubjectsScreen() {
             borderTopColor: colors.border,
             paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 8,
             position: 'absolute',
-            bottom: 0, left: 0, right: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
           },
         ]}>
           <View style={styles.bottomBarLeft}>
@@ -671,188 +690,203 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   px: { paddingHorizontal: 20 },
 
-  /* ── Hero ── */
-  hero: {
-    backgroundColor: '#4F46E5',
-    paddingHorizontal: 20,
-    paddingBottom: 28,
+  /* ── Top bar ── */
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 20, paddingBottom: 4 },
+  greeting: { fontSize: 12, fontFamily: 'Inter_400Regular', marginBottom: 3 },
+  heroName: { fontSize: 26, fontWeight: '800', fontFamily: 'Inter_700Bold' },
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  settingsBtn: { width: 36, height: 36, borderRadius: 11, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold', color: '#FFF' },
+
+  /* ── Tags ── */
+  tagRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 12 },
+  tag: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  tagText: { fontSize: 11, fontFamily: 'Inter_500Medium', fontWeight: '500' },
+
+  /* ── Progress card ── */
+  progressCard: {
+    borderRadius: 24, padding: 22, overflow: 'hidden',
     position: 'relative',
-    overflow: 'hidden',
   },
-  heroDeco1: {
-    position: 'absolute', width: 200, height: 200, borderRadius: 100,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    top: -60, right: -50,
-  },
-  heroDeco2: {
-    position: 'absolute', width: 140, height: 140, borderRadius: 70,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    bottom: -40, left: 20,
-  },
-  heroRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
-  heroLeft: { flex: 1 },
-  heroGreeting: { fontSize: 13, color: 'rgba(255,255,255,0.65)', fontFamily: 'Inter_400Regular', marginBottom: 3 },
-  heroName: { fontSize: 28, fontWeight: '800', fontFamily: 'Inter_700Bold', color: '#FFFFFF' },
-  heroActions: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
-  heroSettingsBtn: {
-    width: 36, height: 36, borderRadius: 11,
+  progressCardLeft: { flex: 1 },
+  progressCardLabel: { fontSize: 12, color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter_400Regular', marginBottom: 6 },
+  progressCardPct: { fontSize: 42, fontWeight: '900', fontFamily: 'Inter_700Bold', color: '#FFFFFF', lineHeight: 46 },
+  progressCardSub: { fontSize: 11, color: 'rgba(255,255,255,0.65)', fontFamily: 'Inter_400Regular', marginTop: 6, marginBottom: 16 },
+  progressCardRight: {
+    position: 'absolute', right: 22, top: 22,
+    width: 80, height: 80, borderRadius: 40,
     backgroundColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center', justifyContent: 'center',
   },
-  heroAvatar: {
-    width: 42, height: 42, borderRadius: 21,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: 'rgba(255,255,255,0.35)',
-  },
-  heroAvatarText: { fontSize: 15, fontWeight: '700', fontFamily: 'Inter_700Bold', color: '#FFF' },
-  heroTags: { flexDirection: 'row', gap: 8, marginBottom: 20 },
-  heroTag: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-  },
-  heroTagText: { fontSize: 11, color: 'rgba(255,255,255,0.9)', fontFamily: 'Inter_500Medium', fontWeight: '500' },
-  heroProgressWrap: { gap: 6 },
-  heroProgressTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  heroProgressLabel: { fontSize: 11, color: 'rgba(255,255,255,0.65)', fontFamily: 'Inter_400Regular' },
-  heroProgressPct: { fontSize: 13, color: '#FFFFFF', fontFamily: 'Inter_700Bold', fontWeight: '700' },
-  heroProgressTrack: { height: 7, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' },
-  heroProgressFill: { height: 7, borderRadius: 4, backgroundColor: '#FFFFFF' },
-  heroProgressSub: { fontSize: 10, color: 'rgba(255,255,255,0.55)', fontFamily: 'Inter_400Regular' },
+  pctCircle: { alignItems: 'center' },
+  pctCircleNum: { fontSize: 26, fontWeight: '900', fontFamily: 'Inter_700Bold', color: 'rgba(255,255,255,0.9)' },
+  pctCircleSymbol: { fontSize: 12, color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_400Regular', marginTop: -4 },
+  progressBarTrack: { height: 6, borderRadius: 3, overflow: 'hidden', marginTop: 0 },
+  progressBarFill: { height: 6, borderRadius: 3 },
 
-  /* ── Stats chips ── */
-  statsStrip: { flexDirection: 'row', gap: 10, paddingHorizontal: 20, marginTop: 14 },
-  statChip: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 9,
-    borderRadius: 16, borderWidth: 1, padding: 12,
+  /* ── Stat row ── */
+  statRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  statCard: {
+    flex: 1, borderRadius: 18, borderWidth: 1,
+    padding: 14, alignItems: 'flex-start', gap: 6,
   },
-  statChipIcon: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  statChipBody: { flex: 1, gap: 1 },
-  statChipVal: { fontSize: 17, fontWeight: '800', fontFamily: 'Inter_700Bold', lineHeight: 20 },
-  statChipLabel: { fontSize: 9, fontFamily: 'Inter_400Regular', lineHeight: 12 },
-  statChipSub: { fontSize: 9, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
+  statIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  statVal: { fontSize: 22, fontWeight: '800', fontFamily: 'Inter_700Bold', marginTop: 4 },
+  statLabel: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  statSub: { fontSize: 10, fontFamily: 'Inter_600SemiBold', fontWeight: '600', marginTop: -2 },
 
   /* ── Section ── */
   section: { paddingTop: 24 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   sectionTitle: { fontSize: 17, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   sectionHint: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  badge: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20 },
-  badgeText: { fontSize: 11, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  jumpTag: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20, maxWidth: 140 },
-  jumpTagText: { fontSize: 10, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
+  badge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
+  badgeText: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold' },
 
-  /* ── Quick actions 2×2 grid ── */
-  actionsGrid: { gap: 10 },
-  actionCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    borderRadius: 18, borderWidth: 1, padding: 14,
+  /* ── Quick actions ── */
+  actionPill: {
+    flexDirection: 'column', alignItems: 'center',
+    gap: 8, paddingHorizontal: 18, paddingVertical: 14,
+    borderRadius: 20, borderWidth: 1.5, minWidth: 90,
   },
-  actionCardIcon: { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  actionCardBody: { flex: 1 },
-  actionCardLabel: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  actionCardDesc: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  actionPillIcon: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  actionPillLabel: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold' },
 
   /* ── Continue learning ── */
   continueCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderRadius: 18, borderWidth: 1, overflow: 'hidden', paddingVertical: 14, paddingRight: 0,
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: 20, borderWidth: 1.5, overflow: 'hidden',
+    gap: 0,
   },
-  continueAccent: { width: 4, alignSelf: 'stretch', borderRadius: 2, marginLeft: 0 },
-  continueIconWrap: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  continueLeft: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    gap: 12, padding: 14,
+    borderRightWidth: 1,
+  },
+  continueIcon: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   continueInfo: { flex: 1 },
   continueSubject: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   continueTopic: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
   resumeBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 16, paddingVertical: 10, margin: 10,
-    borderRadius: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 16, alignSelf: 'stretch', justifyContent: 'center', minWidth: 90,
   },
   resumeText: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold', color: '#FFF' },
 
-  /* ── Subjects grid ── */
-  subjectsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  subjectCard: {
-    width: '47%', borderRadius: 20, borderWidth: 1,
-    padding: 14, gap: 8, overflow: 'hidden',
-    position: 'relative',
-  },
-  subjectCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  subjectCardIcon: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  pctBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
-  pctBadgeText: { fontSize: 11, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  newBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
-  newBadgeText: { fontSize: 10, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  subjectCardName: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold', lineHeight: 19 },
-  subjectCardBar: { height: 5, borderRadius: 3, overflow: 'hidden' },
-  subjectCardBarFill: { height: 5, borderRadius: 3 },
-  subjectCardSub: { fontSize: 10, fontFamily: 'Inter_400Regular' },
-  subjectCardStrip: { height: 3, borderRadius: 2, marginTop: 2 },
-  subjectCheckbox: {
-    width: 22, height: 22, borderRadius: 6, borderWidth: 2,
-    alignItems: 'center', justifyContent: 'center',
-  },
-
-  /* ── States ── */
+  /* ── Subjects list ── */
   loadRow: { flexDirection: 'row', gap: 10, alignItems: 'center', paddingVertical: 10 },
   loadText: { fontSize: 13, fontFamily: 'Inter_400Regular' },
-  stateCard: {
+  errorCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     padding: 14, borderRadius: 18, borderWidth: 1, flexWrap: 'wrap',
   },
-  stateIcon: { width: 46, height: 46, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  stateBody: { flex: 1 },
-  stateTitle: { fontSize: 14, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
-  stateSub: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2, lineHeight: 18 },
+  errorIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  errorBody: { flex: 1 },
+  errorTitle: { fontSize: 14, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  errorSub: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
   retryBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12 },
   retryText: { color: '#FFF', fontSize: 13, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  emptyCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    padding: 16, borderRadius: 18, borderWidth: 1,
+  },
+  emptyText: { flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 19 },
+  subjectsList: { borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
+  subjectRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingRight: 14, paddingVertical: 14, gap: 12, overflow: 'hidden',
+  },
+  subjectAccent: { width: 4, alignSelf: 'stretch', borderRadius: 2, marginLeft: 0 },
+  subjectIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center', marginLeft: 8,
+  },
+  subjectInfo: { flex: 1 },
+  subjectTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  subjectName: { fontSize: 14, fontWeight: '600', fontFamily: 'Inter_600SemiBold', flex: 1, marginRight: 8 },
+  subjectPct: { fontSize: 13, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  subjectBar: { height: 5, borderRadius: 3, overflow: 'hidden', marginBottom: 5 },
+  subjectBarFill: { height: 5, borderRadius: 3 },
+  subjectTopicText: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  subjectCheckbox: {
+    width: 22, height: 22, borderRadius: 6, borderWidth: 2,
+    alignItems: 'center', justifyContent: 'center', marginLeft: 12,
+  },
 
   /* ── Multi-select controls ── */
-  selAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 20 },
+  selAllBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 9, paddingVertical: 5, borderRadius: 20,
+  },
   selAllText: { fontSize: 11, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
-  selToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
+  selToggle: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 9, paddingVertical: 5, borderRadius: 20, borderWidth: 1,
+  },
   selToggleText: { fontSize: 11, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
 
-  /* ── Bottom bar ── */
-  bottomBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, gap: 12 },
+  /* ── Bottom action bar ── */
+  bottomBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, gap: 12,
+  },
   bottomBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   countBubble: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   countBubbleText: { fontSize: 13, fontWeight: '700', fontFamily: 'Inter_700Bold', color: '#FFF' },
   bottomBarLabel: { fontSize: 13, fontFamily: 'Inter_500Medium', fontWeight: '500' },
-  viewChaptersBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14 },
+  viewChaptersBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14,
+  },
   viewChaptersBtnText: { color: '#FFF', fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold' },
 
   /* ── Recent tests ── */
-  testList: { borderRadius: 20, overflow: 'hidden' },
+  testList: { borderRadius: 20, borderWidth: 1, overflow: 'hidden', borderColor: 'transparent' },
   testItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 16 },
-  testIconWrap: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  testDot: { width: 10, height: 10, borderRadius: 5 },
   testBody: { flex: 1 },
-  testTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   testSubject: { fontSize: 13, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
   testMeta: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  testBadge: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 10 },
-  testBadgeText: { fontSize: 11, fontWeight: '800', fontFamily: 'Inter_700Bold' },
+  testBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+  testBadgeText: { fontSize: 12, fontWeight: '800', fontFamily: 'Inter_700Bold' },
   testScore: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
   testScoreBar: { height: 4, borderRadius: 2, marginTop: 5, overflow: 'hidden' },
   testScoreBarFill: { height: 4, borderRadius: 2 },
+  testIconWrap: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  testTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
 
   /* ── Improvement card ── */
-  trendPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  trendPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+  },
   trendPillText: { fontSize: 11, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  improvementCard: { borderRadius: 22, borderWidth: 1, overflow: 'hidden' },
+  improvementCard: {
+    borderRadius: 22, borderWidth: 1, overflow: 'hidden',
+  },
   barsSection: { paddingHorizontal: 18, paddingTop: 18, paddingBottom: 4 },
   barsLabel: { fontSize: 11, fontFamily: 'Inter_400Regular', marginBottom: 10 },
   barsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, height: 80 },
   barCol: { flex: 1, alignItems: 'center', gap: 5 },
-  barTrack: { flex: 1, width: '100%', borderRadius: 6, backgroundColor: 'rgba(0,0,0,0.06)', overflow: 'hidden', justifyContent: 'flex-end' },
+  barTrack: {
+    flex: 1, width: '100%', borderRadius: 6,
+    backgroundColor: 'rgba(0,0,0,0.06)', overflow: 'hidden',
+    justifyContent: 'flex-end',
+  },
   barFill: { borderRadius: 6, width: '100%' },
   barPct: { fontSize: 10, textAlign: 'center' },
-  impStatsRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, paddingVertical: 14, paddingHorizontal: 18 },
+  impStatsRow: {
+    flexDirection: 'row', alignItems: 'center',
+    borderTopWidth: 1, paddingVertical: 14, paddingHorizontal: 18,
+  },
   impStat: { flex: 1, alignItems: 'center', gap: 3 },
   impStatVal: { fontSize: 18, fontWeight: '800', fontFamily: 'Inter_700Bold' },
   impStatLabel: { fontSize: 10, fontFamily: 'Inter_400Regular' },
   impStatDivider: { width: 1, height: 32, marginHorizontal: 2 },
-  streakBanner: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 18, paddingVertical: 10 },
+  streakBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    paddingHorizontal: 18, paddingVertical: 10,
+  },
   streakText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
 });
