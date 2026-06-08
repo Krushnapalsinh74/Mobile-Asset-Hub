@@ -6,9 +6,9 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -54,13 +54,12 @@ function isAnswerCorrect(q: Question, selectedOpt: string): boolean {
   return selectedOpt === q.options[idx];
 }
 
+function formatTime(s: number) {
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
+
 export default function TestQuizScreen() {
-  const {
-    questionsJson,
-    subjectName,
-    chapterName,
-    mode,
-  } = useLocalSearchParams<{
+  const { questionsJson, subjectName, chapterName, mode } = useLocalSearchParams<{
     questionsJson: string;
     subjectId: string;
     subjectName: string;
@@ -71,6 +70,7 @@ export default function TestQuizScreen() {
   const { studentName, boardId, boardName, standardId, standardName, addTestResult } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
 
   const questions: Question[] = useMemo(() => {
     try {
@@ -85,16 +85,24 @@ export default function TestQuizScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [score, setScore] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (submitted) return;
+    const id = setInterval(() => setElapsed(s => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [submitted]);
 
   const answeredCount = Object.keys(answers).length;
+  const answerPct = questions.length > 0 ? answeredCount / questions.length : 0;
 
   const setAnswer = (index: number, answer: string) => {
     if (submitted) return;
     Haptics.selectionAsync();
-    setAnswers((prev) => ({ ...prev, [index]: answer }));
+    setAnswers(prev => ({ ...prev, [index]: answer }));
   };
 
-  const handleSubmit = async () => {
+  const doSubmit = async () => {
     if (submitting) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSubmitting(true);
@@ -120,9 +128,7 @@ export default function TestQuizScreen() {
         totalQuestions: questions.length,
         timestamp: new Date().toISOString(),
       });
-    } catch {
-      // silently handle submit errors
-    }
+    } catch {}
 
     addTestResult({
       subjectName,
@@ -136,20 +142,40 @@ export default function TestQuizScreen() {
 
     setSubmitted(true);
     setSubmitting(false);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  };
+
+  const handleSubmit = () => {
+    const unanswered = questions.length - answeredCount;
+    if (unanswered > 0 && mode === 'mcq') {
+      if (Platform.OS === 'web') {
+        if (window.confirm(`${unanswered} question${unanswered > 1 ? 's' : ''} unanswered. Submit anyway?`)) doSubmit();
+      } else {
+        Alert.alert(
+          'Unanswered Questions',
+          `You have ${unanswered} unanswered question${unanswered > 1 ? 's' : ''}. Submit anyway?`,
+          [
+            { text: 'Review', style: 'cancel' },
+            { text: 'Submit', style: 'destructive', onPress: doSubmit },
+          ],
+        );
+      }
+    } else {
+      doSubmit();
+    }
   };
 
   if (questions.length === 0) {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: colors.background }]}>
-        <Ionicons name="alert-circle-outline" size={52} color={colors.destructive} />
+        <View style={[styles.emptyIconWrap, { backgroundColor: colors.secondary }]}>
+          <Ionicons name="alert-circle-outline" size={40} color={colors.destructive} />
+        </View>
         <Text style={[styles.errorTitle, { color: colors.text }]}>No questions found</Text>
         <Text style={[styles.errorSub, { color: colors.mutedForeground }]}>
           Try selecting a different chapter or question type
         </Text>
-        <Pressable
-          onPress={() => router.back()}
-          style={[styles.actionBtn, { backgroundColor: colors.primary }]}
-        >
+        <Pressable onPress={() => router.back()} style={[styles.actionBtn, { backgroundColor: colors.primary }]}>
           <Text style={styles.actionBtnText}>Go Back</Text>
         </Pressable>
       </View>
@@ -158,33 +184,50 @@ export default function TestQuizScreen() {
 
   const percentage = mode === 'mcq' ? Math.round((score / questions.length) * 100) : null;
   const isGood = percentage !== null && percentage >= 70;
+  const BOTTOM_NAV_HEIGHT = insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 72;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+
+      {/* ── HEADER ── */}
       {submitted ? (
         <LinearGradient
-          colors={isGood ? ['#065F46', '#10B981'] : ['#312E81', '#4F46E5']}
-          style={[
-            styles.resultHeader,
-            { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 24 },
-          ]}
+          colors={isGood ? ['#065F46', '#10B981'] : percentage !== null && percentage >= 50 ? ['#92400E', '#F59E0B'] : ['#312E81', '#4F46E5']}
+          style={[styles.resultHeader, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 24 }]}
         >
           <View style={styles.trophyWrap}>
-            <Ionicons name={isGood ? 'trophy' : 'ribbon'} size={48} color="#FFFFFF" />
+            <Ionicons
+              name={isGood ? 'trophy' : percentage !== null && percentage >= 50 ? 'ribbon' : 'school'}
+              size={48}
+              color="#FFFFFF"
+            />
           </View>
           <Text style={styles.resultTitle}>Test Complete!</Text>
           {percentage !== null ? (
             <>
               <Text style={styles.resultScore}>{score}/{questions.length}</Text>
               <Text style={styles.resultPercent}>{percentage}% Correct</Text>
+              <View style={styles.resultMeta}>
+                <View style={styles.resultMetaItem}>
+                  <Ionicons name="time-outline" size={13} color="rgba(255,255,255,0.7)" />
+                  <Text style={styles.resultMetaText}>{formatTime(elapsed)}</Text>
+                </View>
+                <View style={styles.resultMetaDot} />
+                <View style={styles.resultMetaItem}>
+                  <Ionicons name="checkmark-circle-outline" size={13} color="rgba(255,255,255,0.7)" />
+                  <Text style={styles.resultMetaText}>{score} correct</Text>
+                </View>
+                <View style={styles.resultMetaDot} />
+                <View style={styles.resultMetaItem}>
+                  <Ionicons name="close-circle-outline" size={13} color="rgba(255,255,255,0.7)" />
+                  <Text style={styles.resultMetaText}>{questions.length - score} wrong</Text>
+                </View>
+              </View>
               <Text style={styles.resultMsg}>
-                {percentage >= 90
-                  ? 'Outstanding performance!'
-                  : percentage >= 70
-                  ? 'Great job! Keep it up.'
-                  : percentage >= 50
-                  ? 'Good effort, keep practicing!'
-                  : 'Keep studying, you can do it!'}
+                {percentage >= 90 ? '🎉 Outstanding performance!'
+                  : percentage >= 70 ? '🌟 Great job! Keep it up.'
+                  : percentage >= 50 ? '💪 Good effort, keep practicing!'
+                  : '📚 Keep studying, you can do it!'}
               </Text>
             </>
           ) : (
@@ -192,18 +235,18 @@ export default function TestQuizScreen() {
           )}
         </LinearGradient>
       ) : (
-        <View
-          style={[
-            styles.header,
-            {
-              paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 12,
-              backgroundColor: colors.card,
-              borderBottomColor: colors.border,
-            },
-          ]}
-        >
+        <View style={[
+          styles.header,
+          {
+            paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 12,
+            backgroundColor: colors.card,
+            borderBottomColor: colors.border,
+          },
+        ]}>
           <Pressable onPress={() => router.back()} style={styles.closeBtn}>
-            <Ionicons name="close" size={24} color={colors.text} />
+            <View style={[styles.closeCircle, { backgroundColor: colors.secondary }]}>
+              <Ionicons name="close" size={20} color={colors.text} />
+            </View>
           </Pressable>
           <View style={styles.headerCenter}>
             <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
@@ -213,18 +256,68 @@ export default function TestQuizScreen() {
               {answeredCount}/{questions.length} answered
             </Text>
           </View>
-          <View style={[styles.progressPill, { backgroundColor: colors.primaryLight }]}>
-            <Text style={[styles.progressText, { color: colors.primary }]}>
-              {Math.round((answeredCount / questions.length) * 100)}%
-            </Text>
+          <View style={styles.headerRight}>
+            <View style={[styles.timerPill, { backgroundColor: elapsed > 1800 ? '#FEF3C7' : colors.secondary }]}>
+              <Ionicons name="time-outline" size={12} color={elapsed > 1800 ? '#F59E0B' : colors.mutedForeground} />
+              <Text style={[styles.timerText, { color: elapsed > 1800 ? '#F59E0B' : colors.mutedForeground }]}>
+                {formatTime(elapsed)}
+              </Text>
+            </View>
+            <View style={[styles.progressPill, { backgroundColor: colors.primaryLight }]}>
+              <Text style={[styles.progressText, { color: colors.primary }]}>
+                {Math.round(answerPct * 100)}%
+              </Text>
+            </View>
           </View>
         </View>
       )}
 
+      {/* ── PROGRESS BAR ── */}
+      {!submitted && (
+        <View style={[styles.progressBarTrack, { backgroundColor: colors.border }]}>
+          <View style={[styles.progressBarFill, {
+            backgroundColor: answerPct === 1 ? colors.success : colors.primary,
+            width: `${Math.max(2, answerPct * 100)}%` as any,
+          }]} />
+        </View>
+      )}
+
+      {/* ── QUESTION NAVIGATOR (not submitted) ── */}
+      {!submitted && (
+        <View style={[styles.navigatorWrap, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.navigatorRow}>
+            {questions.map((_, i) => {
+              const answered = answers[i] !== undefined;
+              return (
+                <Pressable
+                  key={i}
+                  style={[
+                    styles.navBubble,
+                    {
+                      backgroundColor: answered ? colors.primary : colors.secondary,
+                      borderColor: answered ? colors.primary : colors.border,
+                    },
+                  ]}
+                  onPress={() => {
+                    scrollRef.current?.scrollTo({ y: i * 180, animated: true });
+                    Haptics.selectionAsync();
+                  }}
+                >
+                  <Text style={[styles.navBubbleText, { color: answered ? '#FFF' : colors.mutedForeground }]}>
+                    {i + 1}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 20 },
+          { paddingBottom: submitted ? insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 24 : BOTTOM_NAV_HEIGHT },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -236,20 +329,54 @@ export default function TestQuizScreen() {
           return (
             <View
               key={index}
-              style={[styles.questionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              style={[
+                styles.questionCard,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: submitted
+                    ? userAns
+                      ? userCorrect ? '#10B981' : '#EF4444'
+                      : colors.border
+                    : userAns ? colors.primary : colors.border,
+                  borderWidth: submitted && userAns ? 1.5 : 1,
+                },
+              ]}
             >
               <View style={styles.questionHeader}>
-                <View style={[styles.qNumBadge, { backgroundColor: colors.primaryLight }]}>
-                  <Text style={[styles.qNumText, { color: colors.primary }]}>Q{index + 1}</Text>
+                <View style={[styles.qNumBadge, {
+                  backgroundColor: submitted
+                    ? userAns ? (userCorrect ? '#D1FAE5' : '#FEE2E2') : colors.primaryLight
+                    : userAns ? colors.primaryLight : colors.secondary,
+                }]}>
+                  <Text style={[styles.qNumText, {
+                    color: submitted
+                      ? userAns ? (userCorrect ? '#065F46' : '#991B1B') : colors.primary
+                      : userAns ? colors.primary : colors.mutedForeground,
+                  }]}>
+                    Q{index + 1}
+                  </Text>
                 </View>
                 {submitted && userAns ? (
-                  <Ionicons
-                    name={userCorrect ? 'checkmark-circle' : 'close-circle'}
-                    size={20}
-                    color={userCorrect ? colors.success : colors.destructive}
-                  />
+                  <View style={styles.resultBadge}>
+                    <Ionicons
+                      name={userCorrect ? 'checkmark-circle' : 'close-circle'}
+                      size={20}
+                      color={userCorrect ? colors.success : colors.destructive}
+                    />
+                    <Text style={[styles.resultBadgeText, { color: userCorrect ? colors.success : colors.destructive }]}>
+                      {userCorrect ? 'Correct' : 'Wrong'}
+                    </Text>
+                  </View>
                 ) : !submitted && userAns ? (
-                  <View style={[styles.answeredDot, { backgroundColor: colors.primary }]} />
+                  <View style={[styles.answeredTag, { backgroundColor: colors.primaryLight }]}>
+                    <View style={[styles.answeredDot, { backgroundColor: colors.primary }]} />
+                    <Text style={[styles.answeredTagText, { color: colors.primary }]}>Answered</Text>
+                  </View>
+                ) : submitted && !userAns ? (
+                  <View style={[styles.answeredTag, { backgroundColor: '#FEF3C7' }]}>
+                    <Ionicons name="remove-circle-outline" size={12} color="#F59E0B" />
+                    <Text style={[styles.answeredTagText, { color: '#F59E0B' }]}>Skipped</Text>
+                  </View>
                 ) : null}
               </View>
 
@@ -295,21 +422,19 @@ export default function TestQuizScreen() {
                     return (
                       <Pressable
                         key={oi}
-                        style={[
-                          styles.option,
-                          { backgroundColor: bgColor, borderColor, borderWidth },
-                        ]}
+                        style={[styles.option, { backgroundColor: bgColor, borderColor, borderWidth }]}
                         onPress={() => setAnswer(index, opt)}
                         disabled={submitted}
                       >
                         <View style={[styles.optionLetter, { backgroundColor: letterBg }]}>
-                          <Text style={[styles.optionLetterText, { color: letterColor }]}>
-                            {letter}
-                          </Text>
+                          <Text style={[styles.optionLetterText, { color: letterColor }]}>{letter}</Text>
                         </View>
                         <Text style={[styles.optionText, { color: textColor }]}>{opt}</Text>
                         {submitted && isCorrectOpt && (
-                          <Ionicons name="checkmark" size={16} color="#10B981" />
+                          <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+                        )}
+                        {isWrongSelection && (
+                          <Ionicons name="close-circle" size={18} color="#EF4444" />
                         )}
                       </Pressable>
                     );
@@ -337,16 +462,13 @@ export default function TestQuizScreen() {
               )}
 
               {submitted && (q.solution || q.tip) && (
-                <View style={[styles.solutionBox, { backgroundColor: colors.primaryLight }]}>
+                <View style={[styles.solutionBox, { backgroundColor: colors.primaryLight, borderColor: colors.primary + '30', borderWidth: 1 }]}>
+                  <View style={styles.solutionHeader}>
+                    <Ionicons name="bulb" size={14} color={colors.primary} />
+                    <Text style={[styles.solutionLabel, { color: colors.primary }]}>Explanation</Text>
+                  </View>
                   {q.solution ? (
-                    <>
-                      <Text style={[styles.solutionLabel, { color: colors.primary }]}>
-                        Explanation
-                      </Text>
-                      <Text style={[styles.solutionText, { color: colors.text }]}>
-                        {q.solution}
-                      </Text>
-                    </>
+                    <Text style={[styles.solutionText, { color: colors.text }]}>{q.solution}</Text>
                   ) : null}
                   {q.tip ? (
                     <Text style={[styles.tipText, { color: colors.mutedForeground }]}>
@@ -360,53 +482,68 @@ export default function TestQuizScreen() {
         })}
 
         {submitted ? (
-          <View style={[styles.resultActions]}>
+          <View style={styles.resultActions}>
             <Pressable
-              style={[
-                styles.resultBtn,
-                { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 },
-              ]}
-              onPress={() => {
-                router.back();
-                router.back();
-              }}
+              style={[styles.resultBtn, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
+              onPress={() => { router.back(); router.back(); }}
             >
-              <Text style={[styles.resultBtnText, { color: colors.text }]}>Back to Subject</Text>
+              <Ionicons name="home-outline" size={16} color={colors.text} />
+              <Text style={[styles.resultBtnText, { color: colors.text }]}>Home</Text>
             </Pressable>
             <Pressable
               style={[styles.resultBtn, { backgroundColor: colors.primary }]}
               onPress={() => router.back()}
             >
+              <Ionicons name="refresh" size={16} color="#FFF" />
               <Text style={[styles.resultBtnText, { color: '#FFFFFF' }]}>Try Again</Text>
             </Pressable>
           </View>
-        ) : (
+        ) : null}
+      </ScrollView>
+
+      {/* ── FIXED SUBMIT BUTTON ── */}
+      {!submitted && (
+        <View style={[
+          styles.submitWrap,
+          {
+            backgroundColor: colors.card,
+            borderTopColor: colors.border,
+            paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 8,
+          },
+        ]}>
+          <View style={styles.submitMeta}>
+            <Text style={[styles.submitMetaText, { color: colors.mutedForeground }]}>
+              {answeredCount === questions.length
+                ? '✅ All answered — ready to submit!'
+                : `${questions.length - answeredCount} question${questions.length - answeredCount !== 1 ? 's' : ''} remaining`}
+            </Text>
+          </View>
           <Pressable
             style={[
               styles.submitBtn,
-              { backgroundColor: colors.primary, opacity: submitting ? 0.65 : 1 },
+              {
+                backgroundColor: answeredCount === questions.length ? colors.success : colors.primary,
+                opacity: submitting ? 0.65 : 1,
+              },
             ]}
             onPress={handleSubmit}
             disabled={submitting}
           >
-            {submitting ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <>
-                <Ionicons name="checkmark-circle" size={22} color="#FFFFFF" />
-                <Text style={styles.submitBtnText}>Submit Test</Text>
-              </>
-            )}
+            <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+            <Text style={styles.submitBtnText}>
+              {submitting ? 'Submitting…' : 'Submit Test'}
+            </Text>
           </Pressable>
-        )}
-      </ScrollView>
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  center: { alignItems: 'center', justifyContent: 'center', gap: 14 },
+  center: { alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24 },
+  emptyIconWrap: { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -415,113 +552,75 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     gap: 10,
   },
-  closeBtn: { padding: 4 },
+  closeBtn: {},
+  closeCircle: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { flex: 1 },
   headerTitle: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  headerCount: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  progressPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  progressText: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  headerCount: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  timerPill: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 20 },
+  timerText: { fontSize: 11, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  progressPill: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 20 },
+  progressText: { fontSize: 11, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  progressBarTrack: { height: 3, width: '100%' },
+  progressBarFill: { height: 3 },
+  navigatorWrap: { borderBottomWidth: 1, paddingVertical: 6 },
+  navigatorRow: { paddingHorizontal: 12, gap: 5 },
+  navBubble: {
+    width: 30, height: 30, borderRadius: 9, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  navBubbleText: { fontSize: 11, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   resultHeader: { alignItems: 'center', paddingBottom: 32, paddingHorizontal: 24 },
   trophyWrap: {
-    width: 90,
-    height: 90,
-    borderRadius: 28,
+    width: 90, height: 90, borderRadius: 28,
     backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 16,
   },
-  resultTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    fontFamily: 'Inter_700Bold',
-    marginBottom: 12,
-  },
-  resultScore: { fontSize: 48, fontWeight: '700', color: '#FFFFFF', fontFamily: 'Inter_700Bold' },
-  resultPercent: {
-    fontSize: 17,
-    color: 'rgba(255,255,255,0.8)',
-    fontFamily: 'Inter_500Medium',
-    marginBottom: 6,
-  },
-  resultMsg: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.75)',
-    fontFamily: 'Inter_400Regular',
-    textAlign: 'center',
-  },
+  resultTitle: { fontSize: 22, fontWeight: '700', color: '#FFFFFF', fontFamily: 'Inter_700Bold', marginBottom: 8 },
+  resultScore: { fontSize: 52, fontWeight: '700', color: '#FFFFFF', fontFamily: 'Inter_700Bold', lineHeight: 60 },
+  resultPercent: { fontSize: 16, color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter_500Medium', marginBottom: 12 },
+  resultMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  resultMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  resultMetaText: { fontSize: 11, color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter_400Regular' },
+  resultMetaDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.4)' },
+  resultMsg: { fontSize: 14, color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter_500Medium', textAlign: 'center' },
   resultSub: { fontSize: 16, color: 'rgba(255,255,255,0.8)', fontFamily: 'Inter_400Regular' },
-  content: { padding: 16, gap: 12 },
+  content: { padding: 14, gap: 12 },
   questionCard: { borderRadius: 18, padding: 18, borderWidth: 1, gap: 14 },
-  questionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
+  questionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   qNumBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 9 },
   qNumText: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  answeredDot: { width: 10, height: 10, borderRadius: 5 },
-  questionText: {
-    fontSize: 15,
-    fontWeight: '500',
-    fontFamily: 'Inter_500Medium',
-    lineHeight: 24,
-  },
+  resultBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  resultBadgeText: { fontSize: 12, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  answeredTag: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+  answeredDot: { width: 6, height: 6, borderRadius: 3 },
+  answeredTagText: { fontSize: 11, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  questionText: { fontSize: 15, fontWeight: '500', fontFamily: 'Inter_500Medium', lineHeight: 24 },
   options: { gap: 8 },
-  option: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 13,
-    padding: 12,
-    gap: 10,
-  },
-  optionLetter: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  option: { flexDirection: 'row', alignItems: 'center', borderRadius: 13, padding: 12, gap: 10 },
+  optionLetter: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   optionLetterText: { fontSize: 13, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   optionText: { flex: 1, fontSize: 14, fontFamily: 'Inter_400Regular', lineHeight: 20 },
-  answerInput: {
-    borderRadius: 13,
-    borderWidth: 1,
-    padding: 12,
-    fontSize: 15,
-    minHeight: 80,
-    fontFamily: 'Inter_400Regular',
-  },
+  answerInput: { borderRadius: 13, borderWidth: 1, padding: 12, fontSize: 15, minHeight: 80, fontFamily: 'Inter_400Regular' },
   solutionBox: { borderRadius: 12, padding: 14, gap: 6 },
+  solutionHeader: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   solutionLabel: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   solutionText: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 20 },
   tipText: { fontSize: 12, fontFamily: 'Inter_400Regular', fontStyle: 'italic', lineHeight: 18 },
+  submitWrap: { borderTopWidth: 1, paddingHorizontal: 16, paddingTop: 10, gap: 8 },
+  submitMeta: { alignItems: 'center' },
+  submitMetaText: { fontSize: 12, fontFamily: 'Inter_400Regular' },
   submitBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 18,
-    padding: 18,
-    gap: 10,
-    marginTop: 6,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderRadius: 16, paddingVertical: 16, gap: 8,
   },
-  submitBtnText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
-    fontFamily: 'Inter_700Bold',
-  },
+  submitBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   resultActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  resultBtn: { flex: 1, borderRadius: 16, padding: 16, alignItems: 'center' },
+  resultBtn: { flex: 1, borderRadius: 16, padding: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
   resultBtnText: { fontSize: 15, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   errorTitle: { fontSize: 18, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   errorSub: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center' },
   actionBtn: { paddingHorizontal: 28, paddingVertical: 13, borderRadius: 14 },
-  actionBtnText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-    fontFamily: 'Inter_700Bold',
-  },
+  actionBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', fontFamily: 'Inter_700Bold' },
 });
