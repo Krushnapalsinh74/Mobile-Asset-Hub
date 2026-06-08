@@ -233,7 +233,10 @@ export default function SubjectsScreen() {
           <View style={styles.topBar}>
             <View style={{ flex: 1 }}>
               <Text style={styles.heroGreeting}>{getGreeting()} {getGreetingEmoji()}</Text>
-              <Text style={styles.heroName}>{firstName}! 👋</Text>
+              <Text style={styles.heroName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                {firstName}!
+              </Text>
+              <Text style={styles.heroWave}>👋 Welcome back</Text>
               <View style={styles.heroPillRow}>
                 {boardName ? (
                   <View style={styles.heroPill}>
@@ -748,8 +751,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
-  heroGreeting: { fontSize: 13, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.3, marginBottom: 4 },
-  heroName: { fontSize: 28, fontWeight: '800', color: '#FFFFFF', marginBottom: 10, letterSpacing: -0.5 },
+  heroGreeting: { fontSize: 13, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.3, marginBottom: 2 },
+  heroName: { fontSize: 28, fontWeight: '800', color: '#FFFFFF', marginBottom: 2, letterSpacing: -0.5 },
+  heroWave: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginBottom: 10 },
   heroPillRow: { flexDirection: 'row', gap: 6 },
   heroPill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
@@ -784,35 +788,38 @@ const styles = StyleSheet.create({
 
   /* ── Stats area ── */
   statsArea: {
-    flexDirection: 'row', gap: 12,
+    flexDirection: 'row', gap: 10,
     paddingHorizontal: 16, paddingTop: 20, paddingBottom: 4,
+    alignItems: 'stretch',
   },
   progressCard: {
-    width: 130, borderRadius: 24, padding: 16,
+    width: 128, borderRadius: 24, padding: 14,
     alignItems: 'center', justifyContent: 'center',
   },
   progressRing: {
     flexDirection: 'row', alignItems: 'flex-end',
     backgroundColor: 'rgba(255,255,255,0.15)',
-    width: 72, height: 72, borderRadius: 36,
+    width: 68, height: 68, borderRadius: 34,
     alignSelf: 'center', justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
   },
-  progressRingNum: { fontSize: 24, fontWeight: '900', color: '#FFF' },
-  progressRingPct: { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 4 },
-  progressLabel: { fontSize: 11, color: 'rgba(255,255,255,0.8)', textAlign: 'center', marginBottom: 10, lineHeight: 15 },
-  progressBar: { height: 5, borderRadius: 3, overflow: 'hidden', width: '100%', marginBottom: 6 },
-  progressBarFill: { height: 5, borderRadius: 3, backgroundColor: '#FFF' },
+  progressRingNum: { fontSize: 22, fontWeight: '900', color: '#FFF' },
+  progressRingPct: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 3 },
+  progressLabel: { fontSize: 11, color: 'rgba(255,255,255,0.8)', textAlign: 'center', marginBottom: 8, lineHeight: 15 },
+  progressBar: { height: 4, borderRadius: 2, overflow: 'hidden', width: '100%', marginBottom: 5 },
+  progressBarFill: { height: 4, borderRadius: 2, backgroundColor: '#FFF' },
   progressSub: { fontSize: 10, color: 'rgba(255,255,255,0.6)', textAlign: 'center' },
 
-  statsCol: { flex: 1, gap: 8, justifyContent: 'center' },
+  statsCol: { flex: 1, gap: 7, justifyContent: 'space-between' },
   statChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderRadius: 16, borderWidth: 1, padding: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderRadius: 14, borderWidth: 1,
+    paddingHorizontal: 10, paddingVertical: 8,
+    flex: 1,
   },
-  statChipIcon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  statChipVal: { fontSize: 17, fontWeight: '800' },
-  statChipLabel: { fontSize: 10, fontWeight: '500', marginTop: 1 },
+  statChipIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  statChipVal: { fontSize: 16, fontWeight: '800' },
+  statChipLabel: { fontSize: 10, fontWeight: '500', marginTop: 0 },
 
   /* ── Section ── */
   section: { paddingTop: 24 },
