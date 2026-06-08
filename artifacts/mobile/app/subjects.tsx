@@ -130,14 +130,15 @@ export default function SubjectsScreen() {
   }
 
   const recentBars = mcqTests.slice(0, 6).reverse(); // oldest→newest for bar chart
-  const filteredSubjects = subjects.filter(s => !search.trim() || s.name.toLowerCase().includes(search.toLowerCase()));
-
-  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
-  const tabBarHeight = BOTTOM_TAB_INNER_HEIGHT + insets.bottom + (Platform.OS === 'web' ? 8 : 0);
 
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
+
+  const filteredSubjects = subjects.filter(s => !search.trim() || s.name.toLowerCase().includes(search.toLowerCase()));
+
+  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
+  const tabBarHeight = BOTTOM_TAB_INNER_HEIGHT + insets.bottom + (Platform.OS === 'web' ? 8 : 0);
 
   function toggleSelectMode() {
     Haptics.selectionAsync();
