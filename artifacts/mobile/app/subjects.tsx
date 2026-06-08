@@ -16,6 +16,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -129,12 +130,14 @@ export default function SubjectsScreen() {
   }
 
   const recentBars = mcqTests.slice(0, 6).reverse(); // oldest→newest for bar chart
+  const filteredSubjects = subjects.filter(s => !search.trim() || s.name.toLowerCase().includes(search.toLowerCase()));
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
   const tabBarHeight = BOTTOM_TAB_INNER_HEIGHT + insets.bottom + (Platform.OS === 'web' ? 8 : 0);
 
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState('');
 
   function toggleSelectMode() {
     Haptics.selectionAsync();
@@ -475,6 +478,27 @@ export default function SubjectsScreen() {
             )}
           </View>
 
+          {/* ── SEARCH BAR ── */}
+          {subjects.length > 0 && !selectMode && (
+            <View style={[styles.searchWrap, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+              <Ionicons name="search-outline" size={15} color={colors.mutedForeground} />
+              <TextInput
+                style={[styles.searchInput, { color: colors.text }]}
+                placeholder="Search subjects…"
+                placeholderTextColor={colors.mutedForeground}
+                value={search}
+                onChangeText={setSearch}
+                returnKeyType="search"
+                clearButtonMode="while-editing"
+              />
+              {search.length > 0 && (
+                <Pressable onPress={() => setSearch('')}>
+                  <Ionicons name="close-circle" size={15} color={colors.mutedForeground} />
+                </Pressable>
+              )}
+            </View>
+          )}
+
           {subjectsQuery.isLoading && (
             <View style={styles.loadRow}>
               <ActivityIndicator color={colors.primary} size="small" />
@@ -512,16 +536,25 @@ export default function SubjectsScreen() {
             </View>
           )}
 
-          {subjects.length > 0 && (
+          {subjects.length > 0 && search.trim() && filteredSubjects.length === 0 && (
+            <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Ionicons name="search-outline" size={24} color={colors.mutedForeground} />
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                No subjects match "{search}"
+              </Text>
+            </View>
+          )}
+
+          {filteredSubjects.length > 0 && (
             <View style={[styles.subjectsList, { borderColor: selectMode ? colors.primary + '30' : colors.border, borderWidth: selectMode ? 1.5 : 1 }]}>
-              {subjects.map((item, index) => {
+              {filteredSubjects.map((item, index) => {
                 const theme = getTheme(item.name, index);
                 const sid = getId(item);
                 const prog = subjectProgress[sid];
                 const explored = prog?.explored ?? 0;
                 const total = prog?.total ?? 0;
                 const pct = total > 0 ? Math.min(100, Math.round((explored / total) * 100)) : 0;
-                const isLast = index === subjects.length - 1;
+                const isLast = index === filteredSubjects.length - 1;
                 const isSelected = selected.has(sid);
                 return (
                   <Pressable
@@ -780,6 +813,12 @@ const styles = StyleSheet.create({
   resumeText: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold', color: '#FFF' },
 
   /* ── Subjects list ── */
+  searchWrap: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderRadius: 14, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 9,
+    marginTop: 10, marginBottom: 4,
+  },
+  searchInput: { flex: 1, fontSize: 14, fontFamily: 'Inter_400Regular', padding: 0 },
   loadRow: { flexDirection: 'row', gap: 10, alignItems: 'center', paddingVertical: 10 },
   loadText: { fontSize: 13, fontFamily: 'Inter_400Regular' },
   errorCard: {

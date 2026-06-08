@@ -93,6 +93,7 @@ export default function TestConfigScreen() {
 
   const [topicStates, setTopicStates] = useState<Record<string, TopicState>>({});
   const [loading, setLoading] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState('');
   const [error, setError] = useState('');
 
   const topicQueries = useQueries({
@@ -117,7 +118,7 @@ export default function TestConfigScreen() {
   function adjustCount(cid: string, delta: number) {
     Haptics.selectionAsync();
     const current = configs[cid]?.count ?? 5;
-    const next = Math.max(1, Math.min(50, current + delta));
+    const next = Math.max(1, Math.min(100, current + delta));
     updateConfig(cid, { count: next });
   }
 
@@ -139,6 +140,37 @@ export default function TestConfigScreen() {
     }));
   }
 
+  // Parse questions from raw API response
+  function parseQuestionsFromResponse(res: unknown): any[] {
+    const r = res as any;
+    return (
+      r?.questions ??
+      r?.data?.questions ??
+      r?.result?.questions ??
+      (Array.isArray(r) ? r : [])
+    );
+  }
+
+  // Keep only real MCQ questions (must have options array with ≥2 items)
+  function filterMcq(qs: any[]): any[] {
+    return qs.filter(q => Array.isArray(q?.options) && q.options.length >= 2);
+  }
+
+  // Remove duplicate questions by normalised question text
+  function deduplicate(qs: any[]): any[] {
+    const seen = new Set<string>();
+    return qs.filter(q => {
+      const key = String(q?.question ?? '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 100);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
   const handleGenerate = async () => {
     if (chapterIds.length === 0) {
       setError('No chapters selected.');
@@ -146,36 +178,57 @@ export default function TestConfigScreen() {
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
+    setLoadingMsg('Preparing questions…');
     setError('');
+
     try {
-      const results = await Promise.all(
-        configList.map(cfg =>
-          eduApi
-            .generateQuestions({
-              board: boardId ?? boardName ?? '',
-              standard: standardId ?? standardName ?? '',
-              subject: cfg.subjectName,
-              chapter: cfg.chapterName,
-              options: { mode: 'mcq', count: cfg.count, seed: Date.now() + Math.random() * 1000 },
-            })
-            .then(res => {
-              const r = res as any;
-              return (
-                r?.questions ??
-                r?.data?.questions ??
-                r?.result?.questions ??
-                (Array.isArray(r) ? r : [])
-              ) as unknown[];
-            }),
-        ),
+      // API caps ~10 questions per call. To get more, we make multiple
+      // parallel calls with different seeds, then filter + deduplicate.
+      const API_BATCH = 10;
+
+      const chapterResults: any[][] = await Promise.all(
+        configList.map(async cfg => {
+          const needed = cfg.count;
+          // How many batches we need (cap at 8 to avoid hammering the server)
+          const numBatches = Math.min(Math.ceil(needed / API_BATCH), 8);
+
+          setLoadingMsg(`Fetching ${needed} questions for "${cfg.chapterName}"…`);
+
+          const batchCalls = Array.from({ length: numBatches }, (_, i) =>
+            eduApi
+              .generateQuestions({
+                board: boardId ?? boardName ?? '',
+                standard: standardId ?? standardName ?? '',
+                subject: cfg.subjectName,
+                chapter: cfg.chapterName,
+                options: {
+                  mode: 'mcq',
+                  count: API_BATCH,
+                  // Truly independent seed per batch so the API returns different sets
+                  seed: Math.floor(Math.random() * 1_000_000) + i * 100_003,
+                },
+                freshQuestions: true,
+              })
+              .then(res => filterMcq(parseQuestionsFromResponse(res)))
+              .catch(() => [] as any[]),
+          );
+
+          const batches = await Promise.all(batchCalls);
+          const poolRaw = batches.flat();
+
+          // Remove duplicates, then take exactly what was requested
+          const pool = deduplicate(poolRaw);
+          return pool.slice(0, needed);
+        }),
       );
-      const allQuestions = results.flat();
+
+      const allQuestions = chapterResults.flat();
+
       if (allQuestions.length === 0) {
-        setError(
-          'No questions were generated. Try different chapters or reduce the question count.',
-        );
+        setError('No MCQ questions could be generated. Try different chapters or a smaller count.');
         return;
       }
+
       const first = configList[0]!;
       router.push({
         pathname: '/test-quiz' as any,
@@ -188,24 +241,26 @@ export default function TestConfigScreen() {
           mode: 'mcq',
         },
       });
-      configList.forEach((cfg, i) => {
-        const qs = results[i] ?? [];
-        if (qs.length > 0) {
-          eduApi
-            .saveQuestions({
-              boardId: boardId ?? '',
-              standardId: standardId ?? '',
-              subjectId: cfg.subjectId,
-              chapterId: cfg.chapterId,
-              questions: qs as any[],
-            })
-            .catch(() => {});
-        }
+
+      // Save in background (fire-and-forget)
+      chapterResults.forEach((qs, i) => {
+        const cfg = configList[i];
+        if (!cfg || qs.length === 0) return;
+        eduApi
+          .saveQuestions({
+            boardId: boardId ?? '',
+            standardId: standardId ?? '',
+            subjectId: cfg.subjectId,
+            chapterId: cfg.chapterId,
+            questions: qs as any[],
+          })
+          .catch(() => {});
       });
     } catch {
       setError('Failed to generate questions. Check your connection and try again.');
     } finally {
       setLoading(false);
+      setLoadingMsg('');
     }
   };
 
@@ -309,9 +364,9 @@ export default function TestConfigScreen() {
                     value={String(cfg.count)}
                     onChangeText={t => {
                       const n = parseInt(t.replace(/[^0-9]/g, ''), 10);
-                      if (!isNaN(n) && n >= 1 && n <= 50) updateConfig(cid, { count: n });
+                      if (!isNaN(n) && n >= 1 && n <= 100) updateConfig(cid, { count: n });
                     }}
-                    maxLength={2}
+                    maxLength={3}
                     returnKeyType="done"
                     selectTextOnFocus
                   />
@@ -474,7 +529,14 @@ export default function TestConfigScreen() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#FFF" size="small" />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <ActivityIndicator color="#FFF" size="small" />
+              {!!loadingMsg && (
+                <Text style={[styles.generateBtnText, { fontSize: 12, opacity: 0.9 }]} numberOfLines={1}>
+                  {loadingMsg}
+                </Text>
+              )}
+            </View>
           ) : (
             <>
               <Ionicons name="play-circle-outline" size={20} color="#FFF" />
