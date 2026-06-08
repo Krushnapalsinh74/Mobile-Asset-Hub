@@ -21,6 +21,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const MARKS_OPTIONS = [1, 2, 3, 4];
 
+type Difficulty = 'easy' | 'medium' | 'hard';
+
+const DIFFICULTY_OPTIONS: { value: Difficulty; label: string; icon: string; color: string }[] = [
+  { value: 'easy',   label: 'Easy',   icon: '😊', color: '#10B981' },
+  { value: 'medium', label: 'Medium', icon: '🔥', color: '#F59E0B' },
+  { value: 'hard',   label: 'Hard',   icon: '💀', color: '#EF4444' },
+];
+
 type ChapterConfig = {
   chapterId: string;
   chapterName: string;
@@ -28,6 +36,7 @@ type ChapterConfig = {
   subjectName: string;
   count: number;
   marksPerQ: number;
+  difficulty: Difficulty;
   expanded: boolean;
 };
 
@@ -85,6 +94,7 @@ export default function TestConfigScreen() {
         subjectName: sname,
         count: 5,
         marksPerQ: 1,
+        difficulty: 'medium',
         expanded: false,
       };
     });
@@ -125,6 +135,11 @@ export default function TestConfigScreen() {
   function setMarksPerQ(cid: string, m: number) {
     Haptics.selectionAsync();
     updateConfig(cid, { marksPerQ: m });
+  }
+
+  function setDifficulty(cid: string, d: Difficulty) {
+    Haptics.selectionAsync();
+    updateConfig(cid, { difficulty: d });
   }
 
   function toggleExpand(cid: string) {
@@ -204,8 +219,8 @@ export default function TestConfigScreen() {
                 options: {
                   mode: 'mcq',
                   count: API_BATCH,
-                  // Truly independent seed per batch so the API returns different sets
                   seed: Math.floor(Math.random() * 1_000_000) + i * 100_003,
+                  difficulty: cfg.difficulty,
                 },
                 freshQuestions: true,
               })
@@ -401,6 +416,35 @@ export default function TestConfigScreen() {
                       </Text>
                     </Pressable>
                   ))}
+                </View>
+              </View>
+
+              {/* Difficulty level */}
+              <View style={[styles.controlRow, { borderTopColor: colors.border }]}>
+                <Text style={[styles.controlLabel, { color: colors.text }]}>Difficulty</Text>
+                <View style={styles.marksRow}>
+                  {DIFFICULTY_OPTIONS.map(d => {
+                    const active = cfg.difficulty === d.value;
+                    return (
+                      <Pressable
+                        key={d.value}
+                        style={[
+                          styles.diffChip,
+                          {
+                            backgroundColor: active ? d.color + '20' : colors.secondary,
+                            borderColor: active ? d.color : colors.border,
+                            borderWidth: active ? 1.5 : 1,
+                          },
+                        ]}
+                        onPress={() => setDifficulty(cid, d.value)}
+                      >
+                        <Text style={styles.diffChipIcon}>{d.icon}</Text>
+                        <Text style={[styles.diffChipText, { color: active ? d.color : colors.mutedForeground, fontWeight: active ? '700' : '400' }]}>
+                          {d.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
               </View>
 
@@ -606,6 +650,12 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   markChipText: { fontSize: 13, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  diffChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, borderWidth: 1,
+  },
+  diffChipIcon: { fontSize: 13 },
+  diffChipText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
   subtotalRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 14, paddingVertical: 7, borderTopWidth: 1,
