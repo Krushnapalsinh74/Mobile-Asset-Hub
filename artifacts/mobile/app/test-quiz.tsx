@@ -59,13 +59,12 @@ function formatTime(s: number) {
 }
 
 export default function TestQuizScreen() {
-  const { questionsJson, subjectName, chapterName, mode } = useLocalSearchParams<{
+  const { questionsJson, subjectName, chapterName } = useLocalSearchParams<{
     questionsJson: string;
     subjectId: string;
     subjectName: string;
     chapterId: string;
     chapterName: string;
-    mode: string;
   }>();
   const { studentName, boardId, boardName, standardId, standardName, addTestResult } = useApp();
   const colors = useColors();
@@ -108,15 +107,13 @@ export default function TestQuizScreen() {
     setSubmitting(true);
 
     let correct = 0;
-    if (mode === 'mcq') {
-      questions.forEach((q, i) => {
-        const userAns = answers[i];
-        if (userAns && isAnswerCorrect(q, userAns)) correct++;
-      });
-    }
+    questions.forEach((q, i) => {
+      const userAns = answers[i];
+      if (userAns && isAnswerCorrect(q, userAns)) correct++;
+    });
     setScore(correct);
 
-    const pct = mode === 'mcq' ? Math.round((correct / questions.length) * 100) : null;
+    const pct = Math.round((correct / questions.length) * 100);
 
     try {
       await eduApi.submitTest({
@@ -124,7 +121,7 @@ export default function TestQuizScreen() {
         board: boardId ?? boardName ?? '',
         standard: standardId ?? standardName ?? '',
         subject: subjectName,
-        score: mode === 'mcq' ? correct : answeredCount,
+        score: correct,
         totalQuestions: questions.length,
         timestamp: new Date().toISOString(),
       });
@@ -133,8 +130,8 @@ export default function TestQuizScreen() {
     addTestResult({
       subjectName,
       chapterName,
-      mode,
-      score: mode === 'mcq' ? correct : answeredCount,
+      mode: 'mcq',
+      score: correct,
       total: questions.length,
       percentage: pct,
       timestamp: Date.now(),
@@ -147,7 +144,7 @@ export default function TestQuizScreen() {
 
   const handleSubmit = () => {
     const unanswered = questions.length - answeredCount;
-    if (unanswered > 0 && mode === 'mcq') {
+    if (unanswered > 0) {
       if (Platform.OS === 'web') {
         if (window.confirm(`${unanswered} question${unanswered > 1 ? 's' : ''} unanswered. Submit anyway?`)) doSubmit();
       } else {
