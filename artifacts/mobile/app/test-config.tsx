@@ -14,6 +14,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -60,6 +61,7 @@ export default function TestConfigScreen() {
   const insets = useSafeAreaInsets();
 
   const [count, setCount] = useState(10);
+  const [customCountText, setCustomCountText] = useState('');
   const [mode, setMode] = useState('mcq');
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(
     paramChapterId ? { _id: paramChapterId, name: paramChapterName ?? '' } : null,
@@ -218,19 +220,46 @@ export default function TestConfigScreen() {
             style={[
               styles.countChip,
               {
-                backgroundColor: count === c ? colors.primary : colors.card,
-                borderColor: count === c ? colors.primary : colors.border,
+                backgroundColor: count === c && !customCountText ? colors.primary : colors.card,
+                borderColor: count === c && !customCountText ? colors.primary : colors.border,
               },
             ]}
-            onPress={() => { setCount(c); Haptics.selectionAsync(); }}
+            onPress={() => {
+              setCount(c);
+              setCustomCountText('');
+              Haptics.selectionAsync();
+            }}
           >
             <Text
-              style={[styles.countChipText, { color: count === c ? '#FFFFFF' : colors.text }]}
+              style={[styles.countChipText, { color: count === c && !customCountText ? '#FFFFFF' : colors.text }]}
             >
               {c}
             </Text>
           </Pressable>
         ))}
+      </View>
+      <View style={[styles.customCountRow, { backgroundColor: colors.card, borderColor: customCountText ? colors.primary : colors.border }]}>
+        <Ionicons name="create-outline" size={16} color={customCountText ? colors.primary : colors.mutedForeground} />
+        <TextInput
+          style={[styles.customCountInput, { color: colors.text }]}
+          placeholder="Custom number (e.g. 40)"
+          placeholderTextColor={colors.mutedForeground}
+          keyboardType="number-pad"
+          value={customCountText}
+          onChangeText={(t) => {
+            const digits = t.replace(/[^0-9]/g, '');
+            setCustomCountText(digits);
+            const n = parseInt(digits, 10);
+            if (!isNaN(n) && n > 0 && n <= 100) setCount(n);
+          }}
+          maxLength={3}
+          returnKeyType="done"
+        />
+        {customCountText ? (
+          <Text style={[styles.customCountHint, { color: colors.primary }]}>
+            {count} questions
+          </Text>
+        ) : null}
       </View>
 
       <Text style={[styles.sectionTitle, { color: colors.text }]}>Question Type</Text>
@@ -327,6 +356,14 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   countChipText: { fontSize: 15, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  customCountRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderWidth: 1.5, borderRadius: 13, paddingHorizontal: 14, paddingVertical: 12,
+  },
+  customCountInput: {
+    flex: 1, fontSize: 15, fontFamily: 'Inter_500Medium', fontWeight: '500',
+  },
+  customCountHint: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
   modeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   modeCard: {
     width: '47.5%',

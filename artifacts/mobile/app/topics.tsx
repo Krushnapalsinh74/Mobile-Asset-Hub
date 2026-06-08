@@ -3,10 +3,10 @@ import { useColors } from '@/hooks/useColors';
 import { eduApi, getId } from '@/services/api';
 import type { Topic } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -18,50 +18,215 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+type TaggedTopic = Topic & {
+  _chapterId: string;
+  _chapterName: string;
+  _subjectId: string;
+  _subjectName: string;
+};
+
 export default function TopicsScreen() {
-  const { subjectId, subjectName, chapterId, chapterName, mode } =
-    useLocalSearchParams<{
-      subjectId: string;
-      subjectName: string;
-      chapterId: string;
-      chapterName: string;
-      mode?: string;
-    }>();
+  const {
+    subjectId,
+    subjectName,
+    subjectIds: rawSubjectIds,
+    subjectNames: rawSubjectNames,
+    chapterId,
+    chapterName,
+    mode,
+  } = useLocalSearchParams<{
+    subjectId?: string;
+    subjectName?: string;
+    subjectIds?: string;      // comma-sep, aligned with chapterId (multi-subject path)
+    subjectNames?: string;    // pipe-sep, aligned with chapterId
+    chapterId: string;
+    chapterName: string;
+    mode?: string;
+  }>();
   const { boardId, standardId, setSubjectTotal } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
-  const topicsQuery = useQuery({
-    queryKey: ['topics', boardId, standardId, subjectId, chapterId],
-    queryFn: () => eduApi.getTopics(boardId!, standardId!, subjectId, chapterId),
-    enabled: !!boardId && !!standardId && !!subjectId && !!chapterId,
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Parse chapter params (always comma/pipe-sep)
+  const chapterIds = useMemo(() => (chapterId ?? '').split(',').filter(Boolean), [chapterId]);
+  const chapterNames = useMemo(() => (chapterName ?? '').split('|||').filter(Boolean), [chapterName]);
+
+  // Per-chapter subject info — from multi-subject path OR fall back to single subjectId
+  const perChapterSubjectIds = useMemo(() => {
+    if (rawSubjectIds) return rawSubjectIds.split(',').filter(Boolean);
+    // Single subject: replicate for all chapters
+    return chapterIds.map(() => subjectId ?? '');
+  }, [rawSubjectIds, subjectId, chapterIds]);
+
+  const perChapterSubjectNames = useMemo(() => {
+    if (rawSubjectNames) return rawSubjectNames.split('|||').filter(Boolean);
+    return chapterIds.map(() => subjectName ?? '');
+  }, [rawSubjectNames, subjectName, chapterIds]);
+
+  const isMultiChapter = chapterIds.length > 1;
+
+  // Single chapter fetch (single chapter, single subject)
+  const singleQuery = useQuery({
+    queryKey: ['topics', boardId, standardId, perChapterSubjectIds[0], chapterIds[0]],
+    queryFn: () => eduApi.getTopics(boardId!, standardId!, perChapterSubjectIds[0]!, chapterIds[0]!),
+    enabled: !!boardId && !!standardId && !!perChapterSubjectIds[0] && chapterIds.length === 1,
   });
 
-  useEffect(() => {
-    if (topicsQuery.data && subjectId) {
-      setSubjectTotal(subjectId, (topicsQuery.data.length));
+  // Multi-chapter parallel fetch — each with its own subjectId
+  const multiQueries = useQueries({
+    queries: chapterIds.map((cid, i) => ({
+      queryKey: ['topics', boardId, standardId, perChapterSubjectIds[i], cid],
+      queryFn: () => eduApi.getTopics(boardId!, standardId!, perChapterSubjectIds[i]!, cid),
+      enabled: !!boardId && !!standardId && !!perChapterSubjectIds[i] && chapterIds.length > 1,
+    })),
+  });
+
+  const isLoading = isMultiChapter
+    ? multiQueries.some(q => q.isLoading)
+    : singleQuery.isLoading;
+
+  const isError = isMultiChapter
+    ? multiQueries.every(q => q.isError)
+    : !!singleQuery.error;
+
+  // Flatten topics with full context tags
+  const allTopics: TaggedTopic[] = useMemo(() => {
+    if (isMultiChapter) {
+      return multiQueries.flatMap((q, i) =>
+        (q.data ?? []).map(t => ({
+          ...t,
+          _chapterId: chapterIds[i]!,
+          _chapterName: chapterNames[i] ?? chapterIds[i]!,
+          _subjectId: perChapterSubjectIds[i]!,
+          _subjectName: perChapterSubjectNames[i] ?? perChapterSubjectIds[i]!,
+        }))
+      );
     }
-  }, [topicsQuery.data, subjectId]);
+    return (singleQuery.data ?? []).map(t => ({
+      ...t,
+      _chapterId: chapterIds[0]!,
+      _chapterName: chapterNames[0] ?? chapterName,
+      _subjectId: perChapterSubjectIds[0]!,
+      _subjectName: perChapterSubjectNames[0] ?? subjectName ?? '',
+    }));
+  }, [isMultiChapter, multiQueries, singleQuery.data, chapterIds, chapterNames, perChapterSubjectIds, perChapterSubjectNames]);
+
+  useEffect(() => {
+    if (allTopics.length > 0 && !isMultiChapter && perChapterSubjectIds[0]) {
+      setSubjectTotal(perChapterSubjectIds[0], allTopics.length);
+    }
+  }, [allTopics.length]);
 
   const isExplanation = mode === 'explanation';
+  const isMultiSubject = (rawSubjectIds?.split(',') ?? []).filter(Boolean).length > 1;
 
-  const handleTopicPress = (topic: Topic) => {
+  function toggleSelectMode() {
+    Haptics.selectionAsync();
+    if (selectMode) { setSelected(new Set()); setSelectMode(false); }
+    else setSelectMode(true);
+  }
+
+  function toggleItem(id: string) {
+    Haptics.selectionAsync();
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAll() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (selected.size === allTopics.length) setSelected(new Set());
+    else setSelected(new Set(allTopics.map(t => getId(t))));
+  }
+
+  function handleTopicPress(topic: TaggedTopic) {
+    if (selectMode) { toggleItem(getId(topic)); return; }
     Haptics.selectionAsync();
     if (isExplanation) {
       router.push({
         pathname: '/explanation' as any,
-        params: { subjectId, subjectName, chapterId, chapterName, topicId: getId(topic), topicName: topic.name },
+        params: {
+          subjectId: topic._subjectId, subjectName: topic._subjectName,
+          chapterId: topic._chapterId, chapterName: topic._chapterName,
+          topicId: getId(topic), topicName: topic.name,
+        },
       });
     } else {
       router.push({
         pathname: '/topic-dashboard' as any,
-        params: { subjectId, subjectName, chapterId, chapterName, topicId: getId(topic), topicName: topic.name },
+        params: {
+          subjectId: topic._subjectId, subjectName: topic._subjectName,
+          chapterId: topic._chapterId, chapterName: topic._chapterName,
+          topicId: getId(topic), topicName: topic.name,
+        },
       });
     }
+  }
+
+  function handleAction(action: 'test' | 'chat' | 'explanation') {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const topics = allTopics.filter(t => selected.has(getId(t)));
+    if (topics.length === 0) return;
+    const first = topics[0]!;
+
+    if (action === 'test') {
+      router.push({
+        pathname: '/test-config' as any,
+        params: {
+          subjectId: first._subjectId,
+          subjectName: first._subjectName,
+          chapterId: first._chapterId,
+          chapterName: first._chapterName,
+          topicIds: topics.map(t => getId(t)).join(','),
+          topicNames: topics.map(t => t.name).join('|||'),
+        },
+      });
+    } else if (action === 'chat') {
+      router.push({
+        pathname: '/chat' as any,
+        params: {
+          subjectId: first._subjectId,
+          subjectName: first._subjectName,
+          chapterId: first._chapterId,
+          chapterName: first._chapterName,
+          topicId: getId(first),
+          topicName: topics.map(t => t.name).join(', '),
+        },
+      });
+    } else {
+      router.push({
+        pathname: '/explanation' as any,
+        params: {
+          subjectId: first._subjectId, subjectName: first._subjectName,
+          chapterId: first._chapterId, chapterName: first._chapterName,
+          topicId: getId(first), topicName: first.name,
+        },
+      });
+    }
+  }
+
+  const allSelected = allTopics.length > 0 && selected.size === allTopics.length;
+
+  // Display label for the header sub-text
+  const displaySubtitle = useMemo(() => {
+    if (isMultiSubject) return `${perChapterSubjectIds.length} subjects`;
+    if (isMultiChapter) return `${chapterIds.length} chapters`;
+    return chapterNames[0] ?? chapterName ?? '';
+  }, [isMultiSubject, isMultiChapter, perChapterSubjectIds, chapterIds, chapterNames, chapterName]);
+
+  const refetchAll = () => {
+    if (isMultiChapter) multiQueries.forEach(q => q.refetch());
+    else singleQuery.refetch();
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* ── HEADER ── */}
       <View
         style={[
           styles.header,
@@ -72,19 +237,56 @@ export default function TopicsScreen() {
           },
         ]}
       >
-        <Pressable onPress={() => router.back()}>
+        <Pressable onPress={() => {
+          if (selectMode) { setSelectMode(false); setSelected(new Set()); }
+          else router.back();
+        }}>
           <View style={[styles.backCircle, { backgroundColor: colors.secondary }]}>
             <Ionicons name="arrow-back" size={20} color={colors.text} />
           </View>
         </Pressable>
+
         <View style={styles.headerText}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Topics</Text>
-          {chapterName ? (
+          <Text style={[styles.headerTitle, { color: colors.text }]}>
+            {selectMode
+              ? selected.size === 0 ? 'Select Topics' : `${selected.size} selected`
+              : 'Topics'}
+          </Text>
+          {!selectMode && displaySubtitle ? (
             <Text style={[styles.headerSub, { color: colors.mutedForeground }]} numberOfLines={1}>
-              {chapterName}
+              {displaySubtitle}
             </Text>
           ) : null}
         </View>
+
+        {/* Select-All when in select mode */}
+        {selectMode && allTopics.length > 0 ? (
+          <Pressable
+            style={[styles.selectAllBtn, { backgroundColor: allSelected ? colors.primaryLight : colors.secondary }]}
+            onPress={selectAll}
+          >
+            <Ionicons
+              name={allSelected ? 'checkmark-circle' : 'ellipse-outline'}
+              size={15}
+              color={allSelected ? colors.primary : colors.mutedForeground}
+            />
+            <Text style={[styles.selectAllText, { color: allSelected ? colors.primary : colors.mutedForeground }]}>All</Text>
+          </Pressable>
+        ) : null}
+
+        {/* Select mode toggle */}
+        {allTopics.length > 1 && !isExplanation ? (
+          <Pressable
+            style={[styles.selectToggle, { backgroundColor: selectMode ? colors.primary + '18' : colors.secondary, borderColor: selectMode ? colors.primary : colors.border }]}
+            onPress={toggleSelectMode}
+          >
+            <Ionicons name={selectMode ? 'close' : 'checkmark-done-outline'} size={15} color={selectMode ? colors.primary : colors.mutedForeground} />
+            <Text style={[styles.selectToggleText, { color: selectMode ? colors.primary : colors.mutedForeground }]}>
+              {selectMode ? 'Cancel' : 'Select'}
+            </Text>
+          </Pressable>
+        ) : null}
+
         {isExplanation && (
           <View style={[styles.modePill, { backgroundColor: colors.accent }]}>
             <Text style={styles.modePillText}>Explanation</Text>
@@ -92,95 +294,179 @@ export default function TopicsScreen() {
         )}
       </View>
 
-      {chapterName ? (
-        <View style={[styles.chapterBanner, { backgroundColor: colors.primaryLight, borderBottomColor: colors.border }]}>
+      {/* ── CONTEXT BANNER ── */}
+      {!selectMode && displaySubtitle ? (
+        <View style={[styles.contextBanner, { backgroundColor: colors.primaryLight, borderBottomColor: colors.border }]}>
           <View style={[styles.bannerIconWrap, { backgroundColor: colors.primary + '22' }]}>
-            <Ionicons name="book-outline" size={14} color={colors.primary} />
+            <Ionicons
+              name={isMultiSubject ? 'school-outline' : isMultiChapter ? 'layers-outline' : 'book-outline'}
+              size={14}
+              color={colors.primary}
+            />
           </View>
-          <Text style={[styles.chapterText, { color: colors.primary }]} numberOfLines={1}>
-            {chapterName}
+          <Text style={[styles.bannerText, { color: colors.primary }]} numberOfLines={1}>
+            {displaySubtitle}
           </Text>
-          {isExplanation && (
-            <View style={[styles.modePill, { backgroundColor: colors.primary }]}>
-              <Text style={styles.modeText}>Explanation</Text>
-            </View>
-          )}
         </View>
       ) : null}
 
-      {topicsQuery.isLoading && (
+      {/* ── LOADING / ERROR / EMPTY ── */}
+      {isLoading && (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       )}
 
-      {topicsQuery.error && (
+      {isError && !isLoading && (
         <View style={styles.center}>
-          <View style={[styles.emptyIcon, { backgroundColor: colors.secondary }]}>
+          <View style={[styles.stateIcon, { backgroundColor: colors.secondary }]}>
             <Ionicons name="cloud-offline-outline" size={34} color={colors.destructive} />
           </View>
-          <Text style={[styles.errorText, { color: colors.text }]}>Couldn't load topics</Text>
-          <Pressable
-            onPress={() => topicsQuery.refetch()}
-            style={[styles.retryBtn, { backgroundColor: colors.primary }]}
-          >
+          <Text style={[styles.stateText, { color: colors.text }]}>Couldn't load topics</Text>
+          <Pressable onPress={refetchAll} style={[styles.retryBtn, { backgroundColor: colors.primary }]}>
             <Text style={styles.retryText}>Try Again</Text>
           </Pressable>
         </View>
       )}
 
-      {topicsQuery.data && topicsQuery.data.length === 0 && (
+      {!isLoading && !isError && allTopics.length === 0 && (
         <View style={styles.center}>
-          <View style={[styles.emptyIcon, { backgroundColor: colors.secondary }]}>
+          <View style={[styles.stateIcon, { backgroundColor: colors.secondary }]}>
             <Ionicons name="document-outline" size={34} color={colors.mutedForeground} />
           </View>
-          <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
-            No topics found for this chapter
-          </Text>
+          <Text style={[styles.stateText, { color: colors.mutedForeground }]}>No topics found</Text>
         </View>
       )}
 
-      {topicsQuery.data && topicsQuery.data.length > 0 && (
+      {/* ── TOPIC LIST ── */}
+      {!isLoading && allTopics.length > 0 && (
         <FlatList
-          data={topicsQuery.data}
-          keyExtractor={(item) => getId(item)}
+          data={allTopics}
+          keyExtractor={(item) => `${item._subjectId}-${item._chapterId}-${getId(item)}`}
           contentContainerStyle={[
             styles.list,
-            { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 20 },
+            { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + (selectMode && selected.size > 0 ? 120 : 20) },
           ]}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
-            <Text style={[styles.listHeader, { color: colors.mutedForeground }]}>
-              {topicsQuery.data.length} topics
-            </Text>
-          }
-          renderItem={({ item, index }) => (
-            <Pressable
-              style={[
-                styles.topicCard,
-                { backgroundColor: colors.card, borderColor: colors.border },
-              ]}
-              onPress={() => handleTopicPress(item)}
-            >
-              <View style={[styles.topicNum, { backgroundColor: colors.secondary }]}>
-                <Text style={[styles.topicNumText, { color: colors.mutedForeground }]}>
-                  {index + 1}
-                </Text>
-              </View>
-              <Text style={[styles.topicName, { color: colors.text }]} numberOfLines={2}>
-                {item.name}
+            <View style={styles.listHeaderRow}>
+              <Text style={[styles.listHeader, { color: colors.mutedForeground }]}>
+                {allTopics.length} topic{allTopics.length !== 1 ? 's' : ''}
+                {isMultiSubject ? ` · ${perChapterSubjectIds.length} subjects` : isMultiChapter ? ` · ${chapterIds.length} chapters` : ''}
               </Text>
-              <View style={[styles.topicAction, { backgroundColor: isExplanation ? colors.accentLight : colors.secondary }]}>
-                <Ionicons
-                  name={isExplanation ? 'bulb-outline' : 'chevron-forward'}
-                  size={15}
-                  color={isExplanation ? colors.accent : colors.mutedForeground}
-                />
-              </View>
-            </Pressable>
-          )}
-          scrollEnabled={true}
+              {selectMode && (
+                <Text style={[styles.selectHint, { color: colors.mutedForeground }]}>Tap to select</Text>
+              )}
+            </View>
+          }
+          renderItem={({ item, index }) => {
+            const id = getId(item);
+            const isSelected = selected.has(id);
+            const showTag = isMultiChapter || isMultiSubject;
+            return (
+              <Pressable
+                style={[
+                  styles.topicCard,
+                  {
+                    backgroundColor: isSelected ? colors.primaryLight : colors.card,
+                    borderColor: isSelected ? colors.primary : colors.border,
+                    borderWidth: isSelected ? 1.5 : 1,
+                  },
+                ]}
+                onPress={() => handleTopicPress(item)}
+                onLongPress={() => {
+                  if (!selectMode && !isExplanation) {
+                    setSelectMode(true);
+                    setSelected(new Set([id]));
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  }
+                }}
+              >
+                {selectMode ? (
+                  <View style={[
+                    styles.checkbox,
+                    { backgroundColor: isSelected ? colors.primary : 'transparent', borderColor: isSelected ? colors.primary : colors.border },
+                  ]}>
+                    {isSelected && <Ionicons name="checkmark" size={13} color="#FFF" />}
+                  </View>
+                ) : (
+                  <View style={[styles.topicNum, { backgroundColor: colors.secondary }]}>
+                    <Text style={[styles.topicNumText, { color: colors.mutedForeground }]}>{index + 1}</Text>
+                  </View>
+                )}
+
+                <View style={styles.topicBody}>
+                  <Text style={[styles.topicName, { color: isSelected ? colors.primary : colors.text }]} numberOfLines={2}>
+                    {item.name}
+                  </Text>
+                  {showTag && (
+                    <Text style={[styles.topicTag, { color: colors.mutedForeground }]} numberOfLines={1}>
+                      {isMultiSubject ? `${item._subjectName} · ${item._chapterName}` : item._chapterName}
+                    </Text>
+                  )}
+                </View>
+
+                {!selectMode && (
+                  <View style={[styles.topicAction, { backgroundColor: isExplanation ? colors.accentLight : colors.secondary }]}>
+                    <Ionicons
+                      name={isExplanation ? 'bulb-outline' : 'chevron-forward'}
+                      size={15}
+                      color={isExplanation ? colors.accent : colors.mutedForeground}
+                    />
+                  </View>
+                )}
+              </Pressable>
+            );
+          }}
+          scrollEnabled
         />
+      )}
+
+      {/* ── BOTTOM ACTION BAR ── */}
+      {selectMode && selected.size > 0 && (
+        <View style={[
+          styles.bottomBar,
+          {
+            backgroundColor: colors.card,
+            borderTopColor: colors.border,
+            paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 8,
+          },
+        ]}>
+          <View style={styles.bottomCount}>
+            <View style={[styles.countBubble, { backgroundColor: colors.primary }]}>
+              <Text style={styles.countBubbleText}>{selected.size}</Text>
+            </View>
+            <Text style={[styles.bottomCountLabel, { color: colors.mutedForeground }]}>
+              {selected.size === allTopics.length ? 'All topics' : selected.size === 1 ? '1 topic' : `${selected.size} topics`}
+            </Text>
+          </View>
+
+          <View style={styles.bottomActions}>
+            <Pressable
+              style={[styles.actionBtn, { backgroundColor: '#10B981' + '18', borderColor: '#10B981' + '40' }]}
+              onPress={() => handleAction('explanation')}
+            >
+              <Ionicons name="bulb-outline" size={16} color="#10B981" />
+              <Text style={[styles.actionBtnText, { color: '#10B981' }]}>Study</Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.actionBtn, { backgroundColor: '#6366F1' + '18', borderColor: '#6366F1' + '40' }]}
+              onPress={() => handleAction('chat')}
+            >
+              <Ionicons name="chatbubbles-outline" size={16} color="#6366F1" />
+              <Text style={[styles.actionBtnText, { color: '#6366F1' }]}>AI Tutor</Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.actionBtn, { backgroundColor: '#F59E0B' + '18', borderColor: '#F59E0B' + '40' }]}
+              onPress={() => handleAction('test')}
+            >
+              <Ionicons name="trophy-outline" size={16} color="#F59E0B" />
+              <Text style={[styles.actionBtnText, { color: '#F59E0B' }]}>Test</Text>
+            </Pressable>
+          </View>
+        </View>
       )}
     </View>
   );
@@ -189,111 +475,68 @@ export default function TopicsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1,
   },
-  backCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  backCircle: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   headerText: { flex: 1 },
   headerTitle: { fontSize: 18, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   headerSub: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
-  modePill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
+  modePill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   modePillText: { fontSize: 11, color: '#FFFFFF', fontFamily: 'Inter_700Bold', fontWeight: '700' },
-  chapterBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-    borderBottomWidth: 1,
+  selectAllBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20,
   },
-  bannerIconWrap: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+  selectAllText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
+  selectToggle: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1,
   },
-  chapterText: {
-    fontSize: 13,
-    fontWeight: '600',
-    fontFamily: 'Inter_600SemiBold',
-    flex: 1,
+  selectToggleText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
+  contextBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1,
   },
-  modePill: {
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 20,
-  },
-  modeText: { fontSize: 10, color: '#FFFFFF', fontFamily: 'Inter_700Bold', fontWeight: '700' },
+  bannerIconWrap: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  bannerText: { fontSize: 13, fontWeight: '600', fontFamily: 'Inter_600SemiBold', flex: 1 },
   list: { padding: 16, gap: 8 },
-  listHeader: {
-    fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
-    fontWeight: '600',
-    marginBottom: 8,
-    letterSpacing: 0.3,
-  },
+  listHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  listHeader: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600', letterSpacing: 0.3 },
+  selectHint: { fontSize: 11, fontFamily: 'Inter_400Regular' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  emptyIcon: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  topicCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    borderRadius: 18,
-    borderWidth: 1,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 5,
-    elevation: 1,
-  },
-  topicNum: {
-    width: 30,
-    height: 30,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  topicNumText: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  topicName: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '500',
-    fontFamily: 'Inter_500Medium',
-    lineHeight: 20,
-  },
-  topicAction: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  hintText: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center' },
-  errorText: { fontSize: 16, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  stateIcon: { width: 68, height: 68, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  stateText: { fontSize: 15, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
   retryBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, marginTop: 4 },
   retryText: { color: '#FFFFFF', fontWeight: '700', fontFamily: 'Inter_700Bold', fontSize: 14 },
+  topicCard: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 14, paddingHorizontal: 14,
+    borderRadius: 18, borderWidth: 1, gap: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03, shadowRadius: 5, elevation: 1,
+  },
+  checkbox: {
+    width: 24, height: 24, borderRadius: 7,
+    borderWidth: 2, alignItems: 'center', justifyContent: 'center',
+  },
+  topicNum: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  topicNumText: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  topicBody: { flex: 1 },
+  topicName: { fontSize: 14, fontWeight: '500', fontFamily: 'Inter_500Medium', lineHeight: 20 },
+  topicTag: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  topicAction: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  bottomBar: {
+    borderTopWidth: 1, paddingHorizontal: 16, paddingTop: 12, gap: 10,
+  },
+  bottomCount: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  countBubble: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  countBubbleText: { fontSize: 13, fontWeight: '700', fontFamily: 'Inter_700Bold', color: '#FFF' },
+  bottomCountLabel: { fontSize: 13, fontFamily: 'Inter_500Medium', fontWeight: '500' },
+  bottomActions: { flexDirection: 'row', gap: 8 },
+  actionBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 5, paddingVertical: 11, borderRadius: 13, borderWidth: 1.5,
+  },
+  actionBtnText: { fontSize: 13, fontWeight: '700', fontFamily: 'Inter_700Bold' },
 });
