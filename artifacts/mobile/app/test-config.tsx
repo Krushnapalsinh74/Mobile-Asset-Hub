@@ -20,6 +20,29 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const COUNTS = [5, 10, 15, 20, 25, 30];
+const DIFFICULTIES = [
+  {
+    key: 'easy',
+    label: 'Easy',
+    icon: 'sunny-outline' as const,
+    desc: 'Basic concepts',
+    color: '#22c55e',
+  },
+  {
+    key: 'medium',
+    label: 'Medium',
+    icon: 'partly-sunny-outline' as const,
+    desc: 'Mixed challenge',
+    color: '#f59e0b',
+  },
+  {
+    key: 'hard',
+    label: 'Hard',
+    icon: 'thunderstorm-outline' as const,
+    desc: 'Deep understanding',
+    color: '#ef4444',
+  },
+];
 const MODES = [
   {
     key: 'mcq',
@@ -63,6 +86,7 @@ export default function TestConfigScreen() {
   const [count, setCount] = useState(10);
   const [customCountText, setCustomCountText] = useState('');
   const [mode, setMode] = useState('mcq');
+  const [difficulty, setDifficulty] = useState('medium');
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(
     paramChapterId ? { _id: paramChapterId, name: paramChapterName ?? '' } : null,
   );
@@ -89,7 +113,7 @@ export default function TestConfigScreen() {
         standard: standardId ?? standardName ?? '',
         subject: subjectName,
         chapter: selectedChapter.name,
-        options: { mode, count, seed: Date.now() },
+        options: { mode, count, seed: Date.now(), difficulty },
       });
       const r = res as any;
       const questions: unknown[] =
@@ -262,6 +286,35 @@ export default function TestConfigScreen() {
         ) : null}
       </View>
 
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>Difficulty Level</Text>
+      <View style={styles.difficultyRow}>
+        {DIFFICULTIES.map((d) => {
+          const active = difficulty === d.key;
+          return (
+            <Pressable
+              key={d.key}
+              style={[
+                styles.difficultyCard,
+                {
+                  backgroundColor: active ? d.color + '18' : colors.card,
+                  borderColor: active ? d.color : colors.border,
+                  borderWidth: active ? 2 : 1.5,
+                },
+              ]}
+              onPress={() => { setDifficulty(d.key); Haptics.selectionAsync(); }}
+            >
+              <Ionicons name={d.icon} size={24} color={active ? d.color : colors.mutedForeground} />
+              <Text style={[styles.difficultyLabel, { color: active ? d.color : colors.text }]}>
+                {d.label}
+              </Text>
+              <Text style={[styles.difficultyDesc, { color: active ? d.color + 'cc' : colors.mutedForeground }]}>
+                {d.desc}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
       <Text style={[styles.sectionTitle, { color: colors.text }]}>Question Type</Text>
       <View style={styles.modeGrid}>
         {MODES.map((m) => (
@@ -364,6 +417,16 @@ const styles = StyleSheet.create({
     flex: 1, fontSize: 15, fontFamily: 'Inter_500Medium', fontWeight: '500',
   },
   customCountHint: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
+  difficultyRow: { flexDirection: 'row', gap: 10 },
+  difficultyCard: {
+    flex: 1,
+    borderRadius: 16,
+    padding: 14,
+    alignItems: 'center',
+    gap: 6,
+  },
+  difficultyLabel: { fontSize: 13, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  difficultyDesc: { fontSize: 11, fontFamily: 'Inter_400Regular', textAlign: 'center' },
   modeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   modeCard: {
     width: '47.5%',
