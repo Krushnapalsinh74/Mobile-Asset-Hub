@@ -21,11 +21,7 @@ const PROXY_PORT = 5000;
 // ── 1. Patch app.json origin ──────────────────────────────────────────────
 
 function getOrigin() {
-  const expoDomain = process.env.REPLIT_EXPO_DEV_DOMAIN;
-  if (expoDomain) {
-    const domain = expoDomain.replace(/^https?:\/\//, "");
-    return `https://${domain}`;
-  }
+  // Use the main dev domain so ALL Replit-proxied origins are accepted
   const devDomain = process.env.REPLIT_DEV_DOMAIN;
   if (devDomain) {
     const domain = devDomain.replace(/^https?:\/\//, "");
@@ -67,12 +63,12 @@ try {
 function startProxy() {
   const server = http.createServer((clientReq, clientRes) => {
     const forwardedHeaders = { ...clientReq.headers };
-    const expoDomain = process.env.REPLIT_EXPO_DEV_DOMAIN || "";
-    if (expoDomain && forwardedHeaders["origin"]) {
-      forwardedHeaders["origin"] = `https://${expoDomain.replace(/^https?:\/\//, "")}`;
+    const devDomain = process.env.REPLIT_DEV_DOMAIN || "";
+    if (devDomain && forwardedHeaders["origin"]) {
+      forwardedHeaders["origin"] = `https://${devDomain.replace(/^https?:\/\//, "")}`;
     }
-    if (expoDomain && forwardedHeaders["referer"]) {
-      forwardedHeaders["referer"] = `https://${expoDomain.replace(/^https?:\/\//, "")}/`;
+    if (devDomain && forwardedHeaders["referer"]) {
+      forwardedHeaders["referer"] = `https://${devDomain.replace(/^https?:\/\//, "")}/`;
     }
     const options = {
       hostname: "127.0.0.1",
