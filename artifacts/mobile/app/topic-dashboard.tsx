@@ -2,6 +2,7 @@ import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -12,7 +13,7 @@ type ActionItem = {
   label: string;
   desc: string;
   icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
-  color: string;
+  gradient: [string, string];
   route?: string;
   action?: 'back';
 };
@@ -21,34 +22,34 @@ const TOPIC_ACTIONS: ActionItem[] = [
   {
     key: 'explanation',
     label: 'Study Guide',
-    desc: 'Detailed explanation with key concepts',
-    icon: 'bulb-outline',
-    color: '#10B981',
+    desc: 'Key concepts & detailed notes',
+    icon: 'bulb',
+    gradient: ['#059669', '#10B981'],
     route: '/explanation',
   },
   {
     key: 'chat',
     label: 'AI Tutor',
-    desc: 'Discuss this topic with AI instantly',
-    icon: 'chatbubbles-outline',
-    color: '#6366F1',
+    desc: 'Ask anything, get instant help',
+    icon: 'chatbubbles',
+    gradient: ['#4F46E5', '#6366F1'],
     route: '/chat',
   },
   {
     key: 'test',
     label: 'Practice Test',
-    desc: 'Generate questions for this chapter',
-    icon: 'trophy-outline',
-    color: '#F59E0B',
+    desc: 'MCQ questions with solutions',
+    icon: 'trophy',
+    gradient: ['#D97706', '#F59E0B'],
     route: '/test-config',
   },
   {
-    key: 'topics',
-    label: 'Back to Topics',
-    desc: 'See all topics in this chapter',
-    icon: 'list-outline',
-    color: '#94A3B8',
-    action: 'back',
+    key: 'flashcard',
+    label: 'Flashcards',
+    desc: 'Flip-card rapid revision',
+    icon: 'layers',
+    gradient: ['#0891B2', '#06B6D4'],
+    route: '/flashcard',
   },
 ];
 
@@ -83,36 +84,45 @@ export default function TopicDashboardScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 16,
-            backgroundColor: colors.card,
-            borderBottomColor: colors.border,
-          },
-        ]}
+      {/* ── HERO HEADER ── */}
+      <LinearGradient
+        colors={['#4F46E5', '#6366F1']}
+        style={[styles.hero, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 16 }]}
       >
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <View style={[styles.backCircle, { backgroundColor: colors.secondary }]}>
-            <Ionicons name="arrow-back" size={20} color={colors.text} />
+          <View style={styles.backCircle}>
+            <Ionicons name="arrow-back" size={20} color="#FFF" />
           </View>
         </Pressable>
 
-        <View style={[styles.topicIconWrap, { backgroundColor: colors.successLight }]}>
-          <Ionicons name="document-text-outline" size={26} color={colors.success} />
+        <View style={styles.topicIconWrap}>
+          <Ionicons name="document-text" size={28} color="#FFF" />
         </View>
 
-        <View style={[styles.breadcrumbPill, { backgroundColor: colors.secondary }]}>
-          <Text style={[styles.breadcrumbText, { color: colors.mutedForeground }]} numberOfLines={1}>
-            {subjectName} › {chapterName}
+        <View style={[styles.breadcrumbPill]}>
+          <Ionicons name="navigate-outline" size={10} color="rgba(255,255,255,0.7)" />
+          <Text style={styles.breadcrumbText} numberOfLines={1}>
+            {subjectName}  ›  {chapterName}
           </Text>
         </View>
 
-        <Text style={[styles.topicName, { color: colors.text }]} numberOfLines={3}>
+        <Text style={styles.topicName} numberOfLines={3}>
           {topicName}
         </Text>
-      </View>
+
+        <View style={styles.heroBadges}>
+          {boardName ? (
+            <View style={styles.heroBadge}>
+              <Text style={styles.heroBadgeText}>{boardName}</Text>
+            </View>
+          ) : null}
+          {standardName ? (
+            <View style={styles.heroBadge}>
+              <Text style={styles.heroBadgeText}>{standardName}</Text>
+            </View>
+          ) : null}
+        </View>
+      </LinearGradient>
 
       <ScrollView
         contentContainerStyle={[
@@ -122,41 +132,53 @@ export default function TopicDashboardScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-          Explore this topic
+          What would you like to do?
         </Text>
-        {TOPIC_ACTIONS.map((action) => (
-          <Pressable
-            key={action.key}
-            style={[
-              styles.actionRow,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              if (action.action === 'back') {
-                router.back();
-                return;
-              }
-              router.push({
-                pathname: action.route as any,
-                params: { subjectId, subjectName, chapterId, chapterName, topicId, topicName },
-              });
-            }}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: action.color + '18' }]}>
-              <Ionicons name={action.icon} size={22} color={action.color} />
-            </View>
-            <View style={styles.actionText}>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>{action.label}</Text>
-              <Text style={[styles.actionDesc, { color: colors.mutedForeground }]}>
-                {action.desc}
-              </Text>
-            </View>
-            <View style={[styles.actionChevron, { backgroundColor: colors.secondary }]}>
-              <Ionicons name="chevron-forward" size={15} color={colors.mutedForeground} />
-            </View>
-          </Pressable>
-        ))}
+
+        {/* ── 2×2 ACTION GRID ── */}
+        <View style={styles.grid}>
+          {TOPIC_ACTIONS.map((action) => (
+            <Pressable
+              key={action.key}
+              style={styles.gridCard}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                if (action.action === 'back') { router.back(); return; }
+                router.push({
+                  pathname: action.route as any,
+                  params: { subjectId, subjectName, chapterId, chapterName, topicId, topicName },
+                });
+              }}
+            >
+              <LinearGradient
+                colors={action.gradient}
+                style={styles.gridCardGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <View style={styles.gridIconWrap}>
+                  <Ionicons name={action.icon} size={28} color="#FFFFFF" />
+                </View>
+                <Text style={styles.gridLabel}>{action.label}</Text>
+                <Text style={styles.gridDesc}>{action.desc}</Text>
+              </LinearGradient>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* ── BACK TO TOPICS ── */}
+        <Pressable
+          style={[styles.backToTopics, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={() => { Haptics.selectionAsync(); router.back(); }}
+        >
+          <View style={[styles.backToTopicsIcon, { backgroundColor: colors.secondary }]}>
+            <Ionicons name="list-outline" size={16} color={colors.mutedForeground} />
+          </View>
+          <Text style={[styles.backToTopicsText, { color: colors.mutedForeground }]}>
+            Back to all topics
+          </Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.mutedForeground} />
+        </Pressable>
       </ScrollView>
     </View>
   );
@@ -164,80 +186,75 @@ export default function TopicDashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
+  hero: {
     paddingHorizontal: 20,
-    paddingBottom: 24,
+    paddingBottom: 28,
     alignItems: 'center',
-    borderBottomWidth: 1,
   },
-  backBtn: { alignSelf: 'flex-start', marginBottom: 18 },
+  backBtn: { alignSelf: 'flex-start', marginBottom: 20 },
   backCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center', justifyContent: 'center',
   },
   topicIconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 68, height: 68, borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center', justifyContent: 'center',
     marginBottom: 14,
   },
   breadcrumbPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-    marginBottom: 10,
-    maxWidth: '90%',
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    marginBottom: 10, maxWidth: '90%',
   },
-  breadcrumbText: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  breadcrumbText: { fontSize: 11, fontFamily: 'Inter_400Regular', color: 'rgba(255,255,255,0.8)' },
   topicName: {
-    fontSize: 20,
-    fontWeight: '700',
-    fontFamily: 'Inter_700Bold',
-    textAlign: 'center',
-    lineHeight: 28,
-    paddingHorizontal: 12,
+    fontSize: 21, fontWeight: '700', fontFamily: 'Inter_700Bold',
+    color: '#FFFFFF', textAlign: 'center', lineHeight: 30,
+    paddingHorizontal: 8, marginBottom: 14,
   },
-  content: { padding: 20, gap: 10 },
+  heroBadges: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' },
+  heroBadge: {
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  heroBadgeText: { fontSize: 11, color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter_500Medium' },
+  content: { padding: 16, gap: 14 },
   sectionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    fontFamily: 'Inter_600SemiBold',
-    marginBottom: 4,
-    letterSpacing: 0.3,
+    fontSize: 12, fontWeight: '600', fontFamily: 'Inter_600SemiBold',
+    letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 2,
   },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    gap: 14,
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  gridCard: {
+    width: '47.5%',
+    borderRadius: 22,
+    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  actionIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+  gridCardGradient: {
+    padding: 18,
+    minHeight: 140,
+    justifyContent: 'flex-end',
+    gap: 4,
   },
-  actionText: { flex: 1 },
-  actionLabel: { fontSize: 15, fontWeight: '700', fontFamily: 'Inter_700Bold', marginBottom: 3 },
-  actionDesc: { fontSize: 12, fontFamily: 'Inter_400Regular', lineHeight: 17 },
-  actionChevron: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+  gridIconWrap: {
+    width: 50, height: 50, borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 8,
   },
+  gridLabel: { fontSize: 15, fontWeight: '700', fontFamily: 'Inter_700Bold', color: '#FFFFFF' },
+  gridDesc: { fontSize: 11, fontFamily: 'Inter_400Regular', color: 'rgba(255,255,255,0.8)', lineHeight: 15 },
+  backToTopics: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    padding: 14, borderRadius: 16, borderWidth: 1,
+  },
+  backToTopicsIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  backToTopicsText: { flex: 1, fontSize: 14, fontFamily: 'Inter_500Medium' },
 });

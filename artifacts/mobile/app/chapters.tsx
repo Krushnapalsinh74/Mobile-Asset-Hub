@@ -14,6 +14,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -172,6 +173,21 @@ export default function ChaptersScreen() {
     });
   }
 
+  function handleGenerateTest() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const sel = allChapters.filter(c => selected.has(getId(c)));
+    if (sel.length === 0) return;
+    router.push({
+      pathname: '/test-config' as any,
+      params: {
+        subjectId: sel.map(c => c._subjectId).join(','),
+        subjectName: sel.map(c => c._subjectName).join('|||'),
+        chapterId: sel.map(c => getId(c)).join(','),
+        chapterName: sel.map(c => c.name).join('|||'),
+      },
+    });
+  }
+
   function handleProceed() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const sel = allChapters.filter(c => selected.has(getId(c)));
@@ -203,6 +219,9 @@ export default function ChaptersScreen() {
       });
     }
   }
+
+  const [search, setSearch] = useState('');
+  const filteredChapters = allChapters.filter(c => !search.trim() || c.name.toLowerCase().includes(search.toLowerCase()));
 
   const isExplanation = mode === 'explanation';
   const allSelected = allChapters.length > 0 && selected.size === allChapters.length;
@@ -319,7 +338,7 @@ export default function ChaptersScreen() {
       {/* ── CHAPTER LIST ── */}
       {!isLoading && allChapters.length > 0 && (
         <FlatList
-          data={allChapters}
+          data={filteredChapters}
           keyExtractor={(item) => `${item._subjectId}-${getId(item)}`}
           contentContainerStyle={[
             styles.list,
@@ -327,13 +346,38 @@ export default function ChaptersScreen() {
           ]}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
-            <View style={styles.listHeaderRow}>
-              <Text style={[styles.listHeader, { color: colors.mutedForeground }]}>
-                {allChapters.length} chapter{allChapters.length !== 1 ? 's' : ''}
-                {isMultiSubject ? ` across ${subjectIds.length} subjects` : ''}
-              </Text>
-              {selectMode && (
-                <Text style={[styles.selectHint, { color: colors.mutedForeground }]}>Tap to select</Text>
+            <View style={styles.listHeader}>
+              <View style={[styles.searchBar, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+                <Ionicons name="search-outline" size={15} color={colors.mutedForeground} />
+                <TextInput
+                  style={[styles.searchInput, { color: colors.text }]}
+                  placeholder={`Search ${allChapters.length} chapter${allChapters.length !== 1 ? 's' : ''}…`}
+                  placeholderTextColor={colors.mutedForeground}
+                  value={search}
+                  onChangeText={setSearch}
+                  returnKeyType="search"
+                  clearButtonMode="while-editing"
+                />
+                {search.length > 0 && (
+                  <Pressable onPress={() => setSearch('')}>
+                    <Ionicons name="close-circle" size={15} color={colors.mutedForeground} />
+                  </Pressable>
+                )}
+              </View>
+              <View style={styles.listHeaderRow}>
+                <Text style={[styles.listHeaderCount, { color: colors.mutedForeground }]}>
+                  {filteredChapters.length}{search.trim() ? ` of ${allChapters.length}` : ''} chapter{filteredChapters.length !== 1 ? 's' : ''}
+                  {isMultiSubject ? ` · ${subjectIds.length} subjects` : ''}
+                </Text>
+                {selectMode && (
+                  <Text style={[styles.selectHint, { color: colors.mutedForeground }]}>Tap to select</Text>
+                )}
+              </View>
+              {filteredChapters.length === 0 && search.trim() && (
+                <View style={[styles.noResults, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <Ionicons name="search-outline" size={22} color={colors.mutedForeground} />
+                  <Text style={[styles.noResultsText, { color: colors.mutedForeground }]}>No chapters match "{search}"</Text>
+                </View>
               )}
             </View>
           }
@@ -419,10 +463,16 @@ export default function ChaptersScreen() {
               {selected.size === allChapters.length ? 'All chapters' : selected.size === 1 ? 'chapter selected' : 'chapters selected'}
             </Text>
           </View>
-          <Pressable style={[styles.proceedBtn, { backgroundColor: colors.primary }]} onPress={handleProceed}>
-            <Text style={styles.proceedBtnText}>View Topics</Text>
-            <Ionicons name="arrow-forward" size={16} color="#FFF" />
-          </Pressable>
+          <View style={styles.bottomBtns}>
+            <Pressable style={[styles.proceedBtn, { backgroundColor: '#F59E0B' }]} onPress={handleGenerateTest}>
+              <Ionicons name="trophy-outline" size={15} color="#FFF" />
+              <Text style={styles.proceedBtnText}>Test</Text>
+            </Pressable>
+            <Pressable style={[styles.proceedBtn, { backgroundColor: colors.primary }]} onPress={handleProceed}>
+              <Text style={styles.proceedBtnText}>Topics</Text>
+              <Ionicons name="arrow-forward" size={15} color="#FFF" />
+            </Pressable>
+          </View>
         </View>
       )}
     </View>
@@ -455,9 +505,17 @@ const styles = StyleSheet.create({
   },
   subjectBannerText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
   list: { padding: 16, gap: 8 },
-  listHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  listHeader: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600', letterSpacing: 0.3 },
+  listHeader: { gap: 8, marginBottom: 4 },
+  searchBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderRadius: 14, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 9,
+  },
+  searchInput: { flex: 1, fontSize: 14, fontFamily: 'Inter_400Regular', padding: 0 },
+  listHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  listHeaderCount: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600', letterSpacing: 0.3 },
   selectHint: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  noResults: { borderRadius: 14, borderWidth: 1, padding: 20, alignItems: 'center', gap: 8 },
+  noResultsText: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   emptyIcon: { width: 68, height: 68, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   chapterCard: {
@@ -489,9 +547,10 @@ const styles = StyleSheet.create({
   countBubble: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   countBubbleText: { fontSize: 13, fontWeight: '700', fontFamily: 'Inter_700Bold', color: '#FFF' },
   bottomBarLabel: { fontSize: 14, fontFamily: 'Inter_500Medium', fontWeight: '500' },
+  bottomBtns: { flexDirection: 'row', gap: 8 },
   proceedBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14,
+    paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14,
   },
   proceedBtnText: { color: '#FFF', fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold' },
 });

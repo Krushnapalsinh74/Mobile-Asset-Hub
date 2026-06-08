@@ -14,6 +14,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -210,6 +211,8 @@ export default function TopicsScreen() {
     }
   }
 
+  const [search, setSearch] = useState('');
+  const filteredTopics = allTopics.filter(t => !search.trim() || t.name.toLowerCase().includes(search.toLowerCase()));
   const allSelected = allTopics.length > 0 && selected.size === allTopics.length;
 
   // Display label for the header sub-text
@@ -341,7 +344,7 @@ export default function TopicsScreen() {
       {/* ── TOPIC LIST ── */}
       {!isLoading && allTopics.length > 0 && (
         <FlatList
-          data={allTopics}
+          data={filteredTopics}
           keyExtractor={(item) => `${item._subjectId}-${item._chapterId}-${getId(item)}`}
           contentContainerStyle={[
             styles.list,
@@ -349,13 +352,38 @@ export default function TopicsScreen() {
           ]}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
-            <View style={styles.listHeaderRow}>
-              <Text style={[styles.listHeader, { color: colors.mutedForeground }]}>
-                {allTopics.length} topic{allTopics.length !== 1 ? 's' : ''}
-                {isMultiSubject ? ` · ${perChapterSubjectIds.length} subjects` : isMultiChapter ? ` · ${chapterIds.length} chapters` : ''}
-              </Text>
-              {selectMode && (
-                <Text style={[styles.selectHint, { color: colors.mutedForeground }]}>Tap to select</Text>
+            <View style={styles.listHeader}>
+              <View style={[styles.searchBar, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+                <Ionicons name="search-outline" size={15} color={colors.mutedForeground} />
+                <TextInput
+                  style={[styles.searchInput, { color: colors.text }]}
+                  placeholder={`Search ${allTopics.length} topic${allTopics.length !== 1 ? 's' : ''}…`}
+                  placeholderTextColor={colors.mutedForeground}
+                  value={search}
+                  onChangeText={setSearch}
+                  returnKeyType="search"
+                  clearButtonMode="while-editing"
+                />
+                {search.length > 0 && (
+                  <Pressable onPress={() => setSearch('')}>
+                    <Ionicons name="close-circle" size={15} color={colors.mutedForeground} />
+                  </Pressable>
+                )}
+              </View>
+              <View style={styles.listHeaderRow}>
+                <Text style={[styles.listHeaderCount, { color: colors.mutedForeground }]}>
+                  {filteredTopics.length}{search.trim() ? ` of ${allTopics.length}` : ''} topic{filteredTopics.length !== 1 ? 's' : ''}
+                  {isMultiSubject ? ` · ${perChapterSubjectIds.length} subjects` : isMultiChapter ? ` · ${chapterIds.length} chapters` : ''}
+                </Text>
+                {selectMode && (
+                  <Text style={[styles.selectHint, { color: colors.mutedForeground }]}>Tap to select</Text>
+                )}
+              </View>
+              {filteredTopics.length === 0 && search.trim() && (
+                <View style={[styles.noResults, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <Ionicons name="search-outline" size={22} color={colors.mutedForeground} />
+                  <Text style={[styles.noResultsText, { color: colors.mutedForeground }]}>No topics match "{search}"</Text>
+                </View>
               )}
             </View>
           }
@@ -501,9 +529,17 @@ const styles = StyleSheet.create({
   bannerIconWrap: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   bannerText: { fontSize: 13, fontWeight: '600', fontFamily: 'Inter_600SemiBold', flex: 1 },
   list: { padding: 16, gap: 8 },
-  listHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  listHeader: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600', letterSpacing: 0.3 },
+  listHeader: { gap: 8, marginBottom: 4 },
+  searchBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderRadius: 14, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 9,
+  },
+  searchInput: { flex: 1, fontSize: 14, fontFamily: 'Inter_400Regular', padding: 0 },
+  listHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  listHeaderCount: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600', letterSpacing: 0.3 },
   selectHint: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  noResults: { borderRadius: 14, borderWidth: 1, padding: 20, alignItems: 'center', gap: 8 },
+  noResultsText: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   stateIcon: { width: 68, height: 68, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   stateText: { fontSize: 15, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },

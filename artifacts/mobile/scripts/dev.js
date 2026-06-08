@@ -10,22 +10,18 @@ const fs = require("fs");
 const path = require("path");
 const http = require("http");
 const net = require("net");
-const { spawn } = require("child_process");
+const { spawn, execSync } = require("child_process");
 
 const projectRoot = path.resolve(__dirname, "..");
 const appJsonPath = path.join(projectRoot, "app.json");
 
-const EXPO_PORT = parseInt(process.env.EXPO_PORT || "18115", 10);
+const EXPO_PORT = parseInt(process.env.EXPO_PORT || "18116", 10);
 const PROXY_PORT = 5000;
 
 // ── 1. Patch app.json origin ──────────────────────────────────────────────
 
 function getOrigin() {
-  const expoDomain = process.env.REPLIT_EXPO_DEV_DOMAIN;
-  if (expoDomain) {
-    const domain = expoDomain.replace(/^https?:\/\//, "");
-    return `https://${domain}`;
-  }
+  // Use the main dev domain so ALL Replit-proxied origins are accepted
   const devDomain = process.env.REPLIT_DEV_DOMAIN;
   if (devDomain) {
     const domain = devDomain.replace(/^https?:\/\//, "");
@@ -55,17 +51,24 @@ function patchAppJson() {
 
 patchAppJson();
 
+// ── 1b. Free port 18115 so Expo always starts there ──────────────────────
+try {
+  execSync(`fuser -k ${EXPO_PORT}/tcp 2>/dev/null || true`, { stdio: 'ignore' });
+  // brief pause for OS to release the port
+  execSync('sleep 0.5', { stdio: 'ignore' });
+} catch (_) {}
+
 // ── 2. Start reverse-proxy (port 5000 → Expo port 18115) ─────────────────
 
 function startProxy() {
   const server = http.createServer((clientReq, clientRes) => {
     const forwardedHeaders = { ...clientReq.headers };
-    const expoDomain = process.env.REPLIT_EXPO_DEV_DOMAIN || "";
-    if (expoDomain && forwardedHeaders["origin"]) {
-      forwardedHeaders["origin"] = `https://${expoDomain.replace(/^https?:\/\//, "")}`;
+    const devDomain = process.env.REPLIT_DEV_DOMAIN || "";
+    if (devDomain && forwardedHeaders["origin"]) {
+      forwardedHeaders["origin"] = `https://${devDomain.replace(/^https?:\/\//, "")}`;
     }
-    if (expoDomain && forwardedHeaders["referer"]) {
-      forwardedHeaders["referer"] = `https://${expoDomain.replace(/^https?:\/\//, "")}/`;
+    if (devDomain && forwardedHeaders["referer"]) {
+      forwardedHeaders["referer"] = `https://${devDomain.replace(/^https?:\/\//, "")}/`;
     }
     const options = {
       hostname: "127.0.0.1",
