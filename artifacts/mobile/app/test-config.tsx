@@ -2,11 +2,12 @@ import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { eduApi, getId } from '@/services/api';
 import type { Chapter } from '@/services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -92,12 +93,63 @@ export default function TestConfigScreen() {
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [chapterDifficulties, setChapterDifficulties] = useState<Record<string, string>>({});
+
+  const difficultyKey = (chapterId: string) => `chapter_difficulty_${chapterId}`;
+
+  // Load saved difficulty when chapter is known on mount
+  useEffect(() => {
+    if (paramChapterId) {
+      AsyncStorage.getItem(difficultyKey(paramChapterId)).then((saved) => {
+        if (saved) setDifficulty(saved);
+      });
+    }
+  }, [paramChapterId]);
+
+  const handleSelectChapter = async (ch: Chapter) => {
+    setSelectedChapter(ch);
+    setError('');
+    Haptics.selectionAsync();
+    const chId = getId(ch);
+    if (chId) {
+      const saved = await AsyncStorage.getItem(difficultyKey(chId));
+      if (saved) setDifficulty(saved);
+      else setDifficulty('medium');
+    }
+  };
+
+  const handleDifficultyChange = (key: string) => {
+    setDifficulty(key);
+    Haptics.selectionAsync();
+    const chId = selectedChapter ? getId(selectedChapter) : paramChapterId;
+    if (chId) {
+      AsyncStorage.setItem(difficultyKey(chId), key);
+      setChapterDifficulties((prev) => ({ ...prev, [chId]: key }));
+    }
+  };
 
   const chaptersQuery = useQuery({
     queryKey: ['chapters', boardId, standardId, subjectId],
     queryFn: () => eduApi.getChapters(boardId!, standardId!, subjectId),
     enabled: !!boardId && !!standardId && !!subjectId && !paramChapterId,
   });
+
+  // Load saved difficulties for all chapters once list arrives
+  useEffect(() => {
+    const chapters = chaptersQuery.data;
+    if (!chapters || chapters.length === 0) return;
+    const keys = chapters.map((ch) => difficultyKey(getId(ch)));
+    AsyncStorage.multiGet(keys).then((pairs) => {
+      const map: Record<string, string> = {};
+      pairs.forEach(([key, val]) => {
+        if (val) {
+          const chId = key.replace('chapter_difficulty_', '');
+          map[chId] = val;
+        }
+      });
+      setChapterDifficulties(map);
+    });
+  }, [chaptersQuery.data]);
 
   const handleGenerate = async () => {
     if (!selectedChapter) {
@@ -212,11 +264,7 @@ export default function TestConfigScreen() {
                     borderWidth: isSelected ? 2 : 1,
                   },
                 ]}
-                onPress={() => {
-                  setSelectedChapter(ch);
-                  setError('');
-                  Haptics.selectionAsync();
-                }}
+                onPress={() => handleSelectChapter(ch)}
               >
                 <Text
                   style={[
@@ -227,6 +275,18 @@ export default function TestConfigScreen() {
                 >
                   {ch.name}
                 </Text>
+                {(() => {
+                  const chId = getId(ch);
+                  const saved = chapterDifficulties[chId];
+                  const diff = DIFFICULTIES.find((d) => d.key === saved);
+                  if (!diff) return null;
+                  return (
+                    <View style={[styles.diffBadge, { backgroundColor: diff.color + '22', borderColor: diff.color }]}>
+                      <Ionicons name={diff.icon} size={11} color={diff.color} />
+                      <Text style={[styles.diffBadgeText, { color: diff.color }]}>{diff.label}</Text>
+                    </View>
+                  );
+                })()}
                 {isSelected && (
                   <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
                 )}
@@ -301,7 +361,7 @@ export default function TestConfigScreen() {
                   borderWidth: active ? 2 : 1.5,
                 },
               ]}
-              onPress={() => { setDifficulty(d.key); Haptics.selectionAsync(); }}
+              onPress={() => handleDifficultyChange(d.key)}
             >
               <Ionicons name={d.icon} size={24} color={active ? d.color : colors.mutedForeground} />
               <Text style={[styles.difficultyLabel, { color: active ? d.color : colors.text }]}>
@@ -400,6 +460,11 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   chapterChipText: { flex: 1, fontSize: 14, fontWeight: '500', fontFamily: 'Inter_500Medium' },
+  diffBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    borderWidth: 1, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3,
+  },
+  diffBadgeText: { fontSize: 11, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
   countRow: { flexDirection: 'row', gap: 8 },
   countChip: {
     flex: 1,
