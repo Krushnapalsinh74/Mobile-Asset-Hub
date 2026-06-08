@@ -179,8 +179,8 @@ export default function TestQuizScreen() {
     );
   }
 
-  const percentage = mode === 'mcq' ? Math.round((score / questions.length) * 100) : null;
-  const isGood = percentage !== null && percentage >= 70;
+  const percentage = Math.round((score / questions.length) * 100);
+  const isGood = percentage >= 70;
   const BOTTOM_NAV_HEIGHT = insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 72;
 
   return (
@@ -189,47 +189,43 @@ export default function TestQuizScreen() {
       {/* ── HEADER ── */}
       {submitted ? (
         <LinearGradient
-          colors={isGood ? ['#065F46', '#10B981'] : percentage !== null && percentage >= 50 ? ['#92400E', '#F59E0B'] : ['#312E81', '#4F46E5']}
+          colors={isGood ? ['#065F46', '#10B981'] : percentage >= 50 ? ['#92400E', '#F59E0B'] : ['#312E81', '#4F46E5']}
           style={[styles.resultHeader, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 24 }]}
         >
           <View style={styles.trophyWrap}>
             <Ionicons
-              name={isGood ? 'trophy' : percentage !== null && percentage >= 50 ? 'ribbon' : 'school'}
+              name={isGood ? 'trophy' : percentage >= 50 ? 'ribbon' : 'school'}
               size={48}
               color="#FFFFFF"
             />
           </View>
           <Text style={styles.resultTitle}>Test Complete!</Text>
-          {percentage !== null ? (
-            <>
-              <Text style={styles.resultScore}>{score}/{questions.length}</Text>
-              <Text style={styles.resultPercent}>{percentage}% Correct</Text>
-              <View style={styles.resultMeta}>
-                <View style={styles.resultMetaItem}>
-                  <Ionicons name="time-outline" size={13} color="rgba(255,255,255,0.7)" />
-                  <Text style={styles.resultMetaText}>{formatTime(elapsed)}</Text>
-                </View>
-                <View style={styles.resultMetaDot} />
-                <View style={styles.resultMetaItem}>
-                  <Ionicons name="checkmark-circle-outline" size={13} color="rgba(255,255,255,0.7)" />
-                  <Text style={styles.resultMetaText}>{score} correct</Text>
-                </View>
-                <View style={styles.resultMetaDot} />
-                <View style={styles.resultMetaItem}>
-                  <Ionicons name="close-circle-outline" size={13} color="rgba(255,255,255,0.7)" />
-                  <Text style={styles.resultMetaText}>{questions.length - score} wrong</Text>
-                </View>
+          <>
+            <Text style={styles.resultScore}>{score}/{questions.length}</Text>
+            <Text style={styles.resultPercent}>{percentage}% Correct</Text>
+            <View style={styles.resultMeta}>
+              <View style={styles.resultMetaItem}>
+                <Ionicons name="time-outline" size={13} color="rgba(255,255,255,0.7)" />
+                <Text style={styles.resultMetaText}>{formatTime(elapsed)}</Text>
               </View>
-              <Text style={styles.resultMsg}>
-                {percentage >= 90 ? '🎉 Outstanding performance!'
-                  : percentage >= 70 ? '🌟 Great job! Keep it up.'
-                  : percentage >= 50 ? '💪 Good effort, keep practicing!'
-                  : '📚 Keep studying, you can do it!'}
-              </Text>
-            </>
-          ) : (
-            <Text style={styles.resultSub}>{answeredCount}/{questions.length} answered</Text>
-          )}
+              <View style={styles.resultMetaDot} />
+              <View style={styles.resultMetaItem}>
+                <Ionicons name="checkmark-circle-outline" size={13} color="rgba(255,255,255,0.7)" />
+                <Text style={styles.resultMetaText}>{score} correct</Text>
+              </View>
+              <View style={styles.resultMetaDot} />
+              <View style={styles.resultMetaItem}>
+                <Ionicons name="close-circle-outline" size={13} color="rgba(255,255,255,0.7)" />
+                <Text style={styles.resultMetaText}>{questions.length - score} wrong</Text>
+              </View>
+            </View>
+            <Text style={styles.resultMsg}>
+              {percentage >= 90 ? '🎉 Outstanding performance!'
+                : percentage >= 70 ? '🌟 Great job! Keep it up.'
+                : percentage >= 50 ? '💪 Good effort, keep practicing!'
+                : '📚 Keep studying, you can do it!'}
+            </Text>
+          </>
         </LinearGradient>
       ) : (
         <View style={[
@@ -438,24 +434,12 @@ export default function TestQuizScreen() {
                   })}
                 </View>
               ) : (
-                <TextInput
-                  style={[
-                    styles.answerInput,
-                    {
-                      backgroundColor: colors.background,
-                      borderColor: submitted ? (userCorrect ? '#10B981' : colors.border) : colors.border,
-                      color: colors.text,
-                    },
-                  ]}
-                  placeholder="Type your answer here..."
-                  placeholderTextColor={colors.mutedForeground}
-                  value={answers[index] ?? ''}
-                  onChangeText={(t) => setAnswer(index, t)}
-                  multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                  editable={!submitted}
-                />
+                <View style={[styles.noOptionsBox, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+                  <Ionicons name="alert-circle-outline" size={16} color={colors.mutedForeground} />
+                  <Text style={[styles.noOptionsText, { color: colors.mutedForeground }]}>
+                    No options available for this question.
+                  </Text>
+                </View>
               )}
 
               {submitted && (q.solution || q.tip) && (
@@ -599,7 +583,8 @@ const styles = StyleSheet.create({
   optionLetter: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   optionLetterText: { fontSize: 13, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   optionText: { flex: 1, fontSize: 14, fontFamily: 'Inter_400Regular', lineHeight: 20 },
-  answerInput: { borderRadius: 13, borderWidth: 1, padding: 12, fontSize: 15, minHeight: 80, fontFamily: 'Inter_400Regular' },
+  noOptionsBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, borderWidth: 1, padding: 12 },
+  noOptionsText: { fontSize: 13, fontFamily: 'Inter_400Regular' },
   solutionBox: { borderRadius: 12, padding: 14, gap: 6 },
   solutionHeader: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   solutionLabel: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold' },
