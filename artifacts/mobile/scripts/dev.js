@@ -149,6 +149,7 @@ function startExpo() {
       stdio: "inherit",
       cwd: projectRoot,
       env,
+      shell: true,
     }
   );
 

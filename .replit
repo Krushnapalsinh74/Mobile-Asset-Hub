@@ -4,6 +4,8 @@ modules = ["nodejs-20", "web", "bash"]
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
+run = ["bash", "-c", "PORT=8080 node artifacts/api-server/dist/index.mjs & PORT=5000 node artifacts/mobile/server/serve.js"]
+build = ["bash", "-c", "pnpm install --frozen-lockfile && pnpm --filter @workspace/api-server run build && pnpm --filter @workspace/mobile run build"]
 
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
@@ -59,11 +61,7 @@ timeoutMs = 20000
 
 [[ports]]
 localPort = 5000
-externalPort = 5000
-
-[[ports]]
-localPort = 8080
-externalPort = 8080
+externalPort = 80
 
 [[ports]]
 localPort = 8081
