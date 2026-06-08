@@ -1,5 +1,6 @@
 import { useApp } from '@/context/AppContext';
 import type { SubjectProgress } from '@/context/AppContext';
+import { BottomTabBar, BOTTOM_TAB_INNER_HEIGHT } from '@/components/BottomTabBar';
 import { useColors } from '@/hooks/useColors';
 import { eduApi, getId } from '@/services/api';
 import type { Subject } from '@/services/api';
@@ -130,6 +131,7 @@ export default function SubjectsScreen() {
   const recentBars = mcqTests.slice(0, 6).reverse(); // oldest→newest for bar chart
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
+  const tabBarHeight = BOTTOM_TAB_INNER_HEIGHT + insets.bottom + (Platform.OS === 'web' ? 8 : 0);
 
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -188,7 +190,7 @@ export default function SubjectsScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
-          paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + (selectMode && selected.size > 0 ? 100 : 40),
+          paddingBottom: tabBarHeight + (selectMode && selected.size > 0 ? 88 : 20),
         }}
       >
 
@@ -654,16 +656,16 @@ export default function SubjectsScreen() {
 
       </ScrollView>
 
-      {/* ── BOTTOM ACTION BAR (multi-select) ── */}
+      {/* ── BOTTOM ACTION BAR (multi-select, floats above tab bar) ── */}
       {selectMode && selected.size > 0 && (
         <View style={[
           styles.bottomBar,
           {
             backgroundColor: colors.card,
             borderTopColor: colors.border,
-            paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 8,
+            paddingBottom: 8,
             position: 'absolute',
-            bottom: 0,
+            bottom: tabBarHeight,
             left: 0,
             right: 0,
           },
@@ -682,6 +684,9 @@ export default function SubjectsScreen() {
           </Pressable>
         </View>
       )}
+
+      {/* ── BOTTOM TAB NAV ── */}
+      <BottomTabBar activeTab="home" />
     </View>
   );
 }

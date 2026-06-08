@@ -172,6 +172,21 @@ export default function ChaptersScreen() {
     });
   }
 
+  function handleGenerateTest() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const sel = allChapters.filter(c => selected.has(getId(c)));
+    if (sel.length === 0) return;
+    router.push({
+      pathname: '/test-config' as any,
+      params: {
+        subjectId: sel.map(c => c._subjectId).join(','),
+        subjectName: sel.map(c => c._subjectName).join('|||'),
+        chapterId: sel.map(c => getId(c)).join(','),
+        chapterName: sel.map(c => c.name).join('|||'),
+      },
+    });
+  }
+
   function handleProceed() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const sel = allChapters.filter(c => selected.has(getId(c)));
@@ -419,10 +434,16 @@ export default function ChaptersScreen() {
               {selected.size === allChapters.length ? 'All chapters' : selected.size === 1 ? 'chapter selected' : 'chapters selected'}
             </Text>
           </View>
-          <Pressable style={[styles.proceedBtn, { backgroundColor: colors.primary }]} onPress={handleProceed}>
-            <Text style={styles.proceedBtnText}>View Topics</Text>
-            <Ionicons name="arrow-forward" size={16} color="#FFF" />
-          </Pressable>
+          <View style={styles.bottomBtns}>
+            <Pressable style={[styles.proceedBtn, { backgroundColor: '#F59E0B' }]} onPress={handleGenerateTest}>
+              <Ionicons name="trophy-outline" size={15} color="#FFF" />
+              <Text style={styles.proceedBtnText}>Test</Text>
+            </Pressable>
+            <Pressable style={[styles.proceedBtn, { backgroundColor: colors.primary }]} onPress={handleProceed}>
+              <Text style={styles.proceedBtnText}>Topics</Text>
+              <Ionicons name="arrow-forward" size={15} color="#FFF" />
+            </Pressable>
+          </View>
         </View>
       )}
     </View>
@@ -489,9 +510,10 @@ const styles = StyleSheet.create({
   countBubble: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   countBubbleText: { fontSize: 13, fontWeight: '700', fontFamily: 'Inter_700Bold', color: '#FFF' },
   bottomBarLabel: { fontSize: 14, fontFamily: 'Inter_500Medium', fontWeight: '500' },
+  bottomBtns: { flexDirection: 'row', gap: 8 },
   proceedBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14,
+    paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14,
   },
   proceedBtnText: { color: '#FFF', fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold' },
 });
