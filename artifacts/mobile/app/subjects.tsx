@@ -7,6 +7,7 @@ import type { Subject } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -198,38 +199,58 @@ export default function SubjectsScreen() {
         }}
       >
 
-        {/* ── TOP BAR ── */}
-        <View style={[styles.topBar, { paddingTop: topPad + 4 }]}>
-          <View>
-            <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
-              {getGreeting()} {getGreetingEmoji()}
-            </Text>
-            <Text style={[styles.heroName, { color: colors.text }]}>{firstName}</Text>
-          </View>
-          <View style={styles.topRight}>
-            <Pressable
-              style={[styles.settingsBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => { Haptics.selectionAsync(); router.push('/settings' as any); }}
-            >
-              <Ionicons name="settings-outline" size={18} color={colors.mutedForeground} />
-            </Pressable>
-            <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-              <Text style={styles.avatarText}>{initials}</Text>
+        {/* ── GRADIENT HERO HEADER ── */}
+        <LinearGradient
+          colors={['#4F46E5', '#7C3AED']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.heroGradient, { paddingTop: topPad + 12 }]}
+        >
+          <View style={styles.topBar}>
+            <View>
+              <Text style={styles.heroGreeting}>{getGreeting()} {getGreetingEmoji()}</Text>
+              <Text style={styles.heroName}>{firstName} 👋</Text>
+              <View style={styles.heroBoardRow}>
+                {boardName ? (
+                  <View style={styles.heroPill}>
+                    <Text style={styles.heroPillText}>{boardName}</Text>
+                  </View>
+                ) : null}
+                {standardName ? (
+                  <View style={styles.heroPill}>
+                    <Text style={styles.heroPillText}>{standardName}</Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+            <View style={styles.topRight}>
+              <Pressable
+                style={styles.heroSettingsBtn}
+                onPress={() => { Haptics.selectionAsync(); router.push('/settings' as any); }}
+              >
+                <Ionicons name="settings-outline" size={18} color="rgba(255,255,255,0.85)" />
+              </Pressable>
+              <View style={styles.heroAvatar}>
+                <Text style={styles.heroAvatarText}>{initials}</Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* ── BOARD + CLASS TAG ── */}
-        <View style={styles.tagRow}>
-          <View style={[styles.tag, { backgroundColor: colors.primaryLight }]}>
-            <Ionicons name="school-outline" size={11} color={colors.primary} />
-            <Text style={[styles.tagText, { color: colors.primary }]}>{boardName}</Text>
-          </View>
-          <View style={[styles.tag, { backgroundColor: colors.primaryLight }]}>
-            <Ionicons name="layers-outline" size={11} color={colors.primary} />
-            <Text style={[styles.tagText, { color: colors.primary }]}>{standardName}</Text>
-          </View>
-        </View>
+          {/* Streak / streak card */}
+          {improvingStreak >= 2 && (
+            <View style={styles.heroStreakCard}>
+              <View style={styles.heroStreakLeft}>
+                <View style={styles.heroStreakFlame}>
+                  <Ionicons name="flame" size={20} color="#FCD34D" />
+                </View>
+                <View>
+                  <Text style={styles.heroStreakTitle}>{improvingStreak} Test Streak 🔥</Text>
+                  <Text style={styles.heroStreakSub}>Keep it up! You're improving every test</Text>
+                </View>
+              </View>
+            </View>
+          )}
+        </LinearGradient>
 
         {/* ── PROGRESS CARD ── */}
         <View style={styles.px}>
@@ -729,16 +750,52 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   px: { paddingHorizontal: 20 },
 
-  /* ── Top bar ── */
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 20, paddingBottom: 4 },
-  greeting: { fontSize: 12, fontFamily: 'Inter_400Regular', marginBottom: 3 },
-  heroName: { fontSize: 26, fontWeight: '800', fontFamily: 'Inter_700Bold' },
+  /* ── Gradient hero header ── */
+  heroGradient: {
+    paddingHorizontal: 20,
+    paddingBottom: 28,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    marginBottom: 16,
+  },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
+  heroGreeting: { fontSize: 13, color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter_400Regular', marginBottom: 2 },
+  heroName: { fontSize: 24, fontWeight: '800', fontFamily: 'Inter_700Bold', color: '#FFFFFF', marginBottom: 8 },
+  heroBoardRow: { flexDirection: 'row', gap: 6 },
+  heroPill: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  heroPillText: { fontSize: 11, fontWeight: '600', fontFamily: 'Inter_600SemiBold', color: '#FFFFFF' },
   topRight: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  heroSettingsBtn: { width: 40, height: 40, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  heroAvatar: {
+    width: 40, height: 40, borderRadius: 13,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F59E0B',
+  },
+  heroAvatarText: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold', color: '#92400E' },
+  heroStreakCard: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 18,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  heroStreakLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  heroStreakFlame: {
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: 'rgba(249,115,22,0.3)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  heroStreakTitle: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold', color: '#FFFFFF' },
+  heroStreakSub: { fontSize: 11, color: 'rgba(255,255,255,0.65)', fontFamily: 'Inter_400Regular', marginTop: 2 },
+
+  /* Legacy aliases (kept for rest of component) */
+  greeting: { fontSize: 12, fontFamily: 'Inter_400Regular', marginBottom: 3 },
   settingsBtn: { width: 36, height: 36, borderRadius: 11, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold', color: '#FFF' },
 
-  /* ── Tags ── */
+  /* ── Tags (kept for any remaining references) ── */
   tagRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 12 },
   tag: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   tagText: { fontSize: 11, fontFamily: 'Inter_500Medium', fontWeight: '500' },
