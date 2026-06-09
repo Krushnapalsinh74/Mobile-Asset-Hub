@@ -176,7 +176,7 @@ export default function TopicsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     // When no topics selected in select mode → fall back to testing the whole chapter(s)
-    const selectedTopics = allTopics.filter(t => selected.has(getId(t)));
+    const selectedTopics = allTopics.filter(t => selected.has(getKey(t)));
     const useWholeChapter = selectedTopics.length === 0;
     const topics = useWholeChapter ? allTopics : selectedTopics;
     if (topics.length === 0) return;
@@ -405,8 +405,8 @@ export default function TopicsScreen() {
             </View>
           }
           renderItem={({ item, index }) => {
-            const id = getId(item);
-            const isSelected = selected.has(id);
+            const key = getKey(item);
+            const isSelected = selected.has(key);
             const showTag = isMultiChapter || isMultiSubject;
             return (
               <Pressable
@@ -422,7 +422,7 @@ export default function TopicsScreen() {
                 onLongPress={() => {
                   if (!selectMode && !isExplanation) {
                     setSelectMode(true);
-                    setSelected(new Set([id]));
+                    setSelected(new Set([key]));
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   }
                 }}
