@@ -125,56 +125,43 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ flexGrow: 1 }}
       >
-        {/* ── GRADIENT HERO ── */}
-        <LinearGradient
-          colors={['#3730A3', '#4F46E5', '#7C3AED']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.hero, { paddingTop: topPad + 24 }]}
-        >
-          {/* Decorative blobs */}
-          <View style={styles.blob1} />
-          <View style={styles.blob2} />
-          <View style={styles.blob3} />
-
+        {/* ── HERO ── */}
+        <View style={[styles.hero, { paddingTop: topPad + 24, backgroundColor: '#F5F5F7', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }]}>
           {/* Brand row */}
           <View style={styles.heroBrand}>
-            <LinearGradient
-              colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.15)']}
-              style={styles.heroLogoWrap}
-            >
-              <Ionicons name="school" size={30} color="#FFFFFF" />
-            </LinearGradient>
+            <View style={[styles.heroLogoWrap, { backgroundColor: '#EEF2FF' }]}>
+              <Ionicons name="school" size={28} color="#4F46E5" />
+            </View>
             <View>
-              <Text style={styles.heroAppName}>Knowledge Park</Text>
+              <Text style={[styles.heroAppName, { color: '#111827' }]}>Knowledge Park</Text>
               <View style={styles.heroTagRow}>
-                <View style={styles.heroDot} />
-                <Text style={styles.heroTagline}>AI-Powered Learning</Text>
+                <View style={[styles.heroDot, { backgroundColor: '#4F46E5' }]} />
+                <Text style={[styles.heroTagline, { color: '#6B7280' }]}>AI-Powered Learning</Text>
               </View>
             </View>
           </View>
 
           {/* Hero text */}
           <View style={styles.heroTextBlock}>
-            <Text style={styles.heroTitle}>Master Your{'\n'}Board Exams 🎯</Text>
-            <Text style={styles.heroSub}>
+            <Text style={[styles.heroTitle, { color: '#111827' }]}>Master Your{'\n'}Board Exams 🎯</Text>
+            <Text style={[styles.heroSub, { color: '#6B7280' }]}>
               Personalised AI tests, instant explanations{'\n'}and smart revision for CBSE · ICSE · GSEB
             </Text>
           </View>
 
           {/* Stats strip */}
-          <View style={styles.statsStrip}>
+          <View style={[styles.statsStrip, { backgroundColor: '#FFFFFF', borderColor: '#E5E7EB', borderWidth: 1 }]}>
             {STATS.map((s, i) => (
-              <View key={s.label} style={[styles.statItem, i > 0 && styles.statItemBorder]}>
-                <View style={[styles.statIconWrap, { backgroundColor: s.color + '30' }]}>
-                  <Ionicons name={s.icon as any} size={14} color={s.color} />
+              <View key={s.label} style={[styles.statItem, i > 0 && { ...styles.statItemBorder, borderLeftColor: '#E5E7EB' }]}>
+                <View style={[styles.statIconWrap, { backgroundColor: '#EEF2FF' }]}>
+                  <Ionicons name={s.icon as any} size={14} color="#4F46E5" />
                 </View>
-                <Text style={styles.statValue}>{s.value}</Text>
-                <Text style={styles.statLabel}>{s.label}</Text>
+                <Text style={[styles.statValue, { color: '#111827' }]}>{s.value}</Text>
+                <Text style={[styles.statLabel, { color: '#6B7280' }]}>{s.label}</Text>
               </View>
             ))}
           </View>
-        </LinearGradient>
+        </View>
 
         {/* ── FORM CARD ── */}
         <View style={styles.formArea}>

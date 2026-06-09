@@ -7,7 +7,7 @@ import type { Subject } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
+
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -219,97 +219,81 @@ export default function SubjectsScreen() {
       >
 
         {/* ── HERO HEADER ── */}
-        <LinearGradient
-          colors={['#3730A3', '#4F46E5', '#7C3AED']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.hero, { paddingTop: topPad + 16 }]}
-        >
-          {/* Decorative blobs */}
-          <View style={styles.blobTopRight} />
-          <View style={styles.blobBottomLeft} />
-
+        <View style={[styles.hero, { paddingTop: topPad + 16, backgroundColor: colors.background, borderBottomWidth: 1, borderBottomColor: colors.border }]}>
           {/* Top bar */}
           <View style={styles.topBar}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.heroGreeting}>{getGreeting()} {getGreetingEmoji()}</Text>
-              <Text style={styles.heroName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                {firstName}!
+              <Text style={[styles.heroGreeting, { color: colors.mutedForeground }]}>{getGreeting()}</Text>
+              <Text style={[styles.heroName, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                {firstName} 👋
               </Text>
-              <Text style={styles.heroWave}>👋 Welcome back</Text>
               <View style={styles.heroPillRow}>
                 {boardName ? (
-                  <View style={styles.heroPill}>
-                    <Ionicons name="school-outline" size={10} color="rgba(255,255,255,0.9)" />
-                    <Text style={styles.heroPillText}>{boardName}</Text>
+                  <View style={[styles.heroPill, { backgroundColor: '#EEF2FF' }]}>
+                    <Ionicons name="school-outline" size={10} color="#4F46E5" />
+                    <Text style={[styles.heroPillText, { color: '#4F46E5' }]}>{boardName}</Text>
                   </View>
                 ) : null}
                 {standardName ? (
-                  <View style={styles.heroPill}>
-                    <Ionicons name="ribbon-outline" size={10} color="rgba(255,255,255,0.9)" />
-                    <Text style={styles.heroPillText}>{standardName}</Text>
+                  <View style={[styles.heroPill, { backgroundColor: '#EEF2FF' }]}>
+                    <Ionicons name="ribbon-outline" size={10} color="#4F46E5" />
+                    <Text style={[styles.heroPillText, { color: '#4F46E5' }]}>{standardName}</Text>
                   </View>
                 ) : null}
               </View>
             </View>
             <View style={styles.topRight}>
               <Pressable
-                style={styles.settingsBtn}
+                style={[styles.settingsBtn, { backgroundColor: '#F5F5F7' }]}
                 onPress={() => { Haptics.selectionAsync(); router.push('/settings' as any); }}
               >
-                <Ionicons name="settings-outline" size={18} color="rgba(255,255,255,0.9)" />
+                <Ionicons name="settings-outline" size={18} color={colors.mutedForeground} />
               </Pressable>
-              <LinearGradient colors={['#F59E0B', '#F97316']} style={styles.avatarCircle}>
+              <View style={[styles.avatarCircle, { backgroundColor: '#4F46E5' }]}>
                 <Text style={styles.avatarText}>{initials}</Text>
-              </LinearGradient>
+              </View>
             </View>
-          </View>
-
-          {/* Motivational quote */}
-          <View style={styles.quoteCard}>
-            <Ionicons name="sparkles" size={14} color="#FCD34D" />
-            <Text style={styles.quoteText}>{getDailyMotivation()}</Text>
           </View>
 
           {/* Streak banner */}
           {improvingStreak >= 2 && (
-            <View style={styles.streakBadge}>
-              <Ionicons name="flame" size={16} color="#FCD34D" />
-              <Text style={styles.streakBadgeText}>{improvingStreak} Test Streak — You're on fire! 🔥</Text>
+            <View style={[styles.streakBadge, { backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FDE68A' }]}>
+              <Ionicons name="flame" size={15} color="#F59E0B" />
+              <Text style={[styles.streakBadgeText, { color: '#92400E' }]}>{improvingStreak} test streak — keep going! 🔥</Text>
             </View>
           )}
-        </LinearGradient>
+        </View>
 
         {/* ── PROGRESS + STATS ROW ── */}
         <View style={styles.statsArea}>
           {/* Left: progress ring card */}
-          <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.progressCard}>
-            <View style={styles.progressRing}>
-              <Text style={styles.progressRingNum}>{overallPct}</Text>
-              <Text style={styles.progressRingPct}>%</Text>
+          <View style={[styles.progressCard, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
+            <View style={[styles.progressRing, { backgroundColor: '#EEF2FF' }]}>
+              <Text style={[styles.progressRingNum, { color: '#4F46E5' }]}>{overallPct}</Text>
+              <Text style={[styles.progressRingPct, { color: '#4F46E5' }]}>%</Text>
             </View>
-            <Text style={styles.progressLabel}>Overall{'\n'}Progress</Text>
-            <View style={styles.progressBarWrap}>
-              <View style={[styles.progressBarFill, { width: `${overallPct}%` as any }]} />
+            <Text style={[styles.progressLabel, { color: colors.mutedForeground }]}>Overall{'\n'}Progress</Text>
+            <View style={[styles.progressBarWrap, { backgroundColor: '#E5E7EB' }]}>
+              <View style={[styles.progressBarFill, { width: `${overallPct}%` as any, backgroundColor: '#4F46E5' }]} />
             </View>
-            <Text style={styles.progressSub}>{totalExplored}/{totalTopics || '–'} topics</Text>
-          </LinearGradient>
+            <Text style={[styles.progressSub, { color: colors.mutedForeground }]}>{totalExplored}/{totalTopics || '–'} topics</Text>
+          </View>
 
-          {/* Right: 4 stat chips in a fixed-height column */}
+          {/* Right: 4 stat chips */}
           <View style={styles.statsCol}>
             {([
-              { bg: '#FEF3C7', border: '#FDE68A', iconBg: '#F59E0B', icon: 'trophy-outline', val: String(testHistory.length), label: 'Tests Taken', valColor: '#92400E', labelColor: '#B45309' },
-              { bg: '#EDE9FE', border: '#DDD6FE', iconBg: '#8B5CF6', icon: 'chatbubbles-outline', val: String(chatHistory.length), label: 'AI Chats', valColor: '#4C1D95', labelColor: '#6D28D9' },
-              { bg: '#D1FAE5', border: '#A7F3D0', iconBg: '#10B981', icon: 'book-outline', val: String(totalExplored), label: 'Topics Done', valColor: '#064E3B', labelColor: '#065F46' },
-              { bg: '#CFFAFE', border: '#A5F3FC', iconBg: '#06B6D4', icon: 'analytics-outline', val: avgScore !== null ? `${avgScore}%` : '–', label: 'Avg Score', valColor: '#164E63', labelColor: '#0E7490' },
+              { icon: 'trophy-outline', val: String(testHistory.length), label: 'Tests' },
+              { icon: 'chatbubbles-outline', val: String(chatHistory.length), label: 'AI Chats' },
+              { icon: 'book-outline', val: String(totalExplored), label: 'Topics' },
+              { icon: 'analytics-outline', val: avgScore !== null ? `${avgScore}%` : '–', label: 'Avg Score' },
             ] as const).map((chip, i) => (
-              <View key={i} style={[styles.statChip, { backgroundColor: chip.bg, borderColor: chip.border }]}>
-                <View style={[styles.statChipIcon, { backgroundColor: chip.iconBg }]}>
-                  <Ionicons name={chip.icon as any} size={13} color="#FFF" />
+              <View key={i} style={[styles.statChip, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={[styles.statChipIcon, { backgroundColor: '#EEF2FF' }]}>
+                  <Ionicons name={chip.icon as any} size={13} color="#4F46E5" />
                 </View>
                 <View style={styles.statChipText}>
-                  <Text style={[styles.statChipVal, { color: chip.valColor }]}>{chip.val}</Text>
-                  <Text style={[styles.statChipLabel, { color: chip.labelColor }]}>{chip.label}</Text>
+                  <Text style={[styles.statChipVal, { color: colors.text }]}>{chip.val}</Text>
+                  <Text style={[styles.statChipLabel, { color: colors.mutedForeground }]}>{chip.label}</Text>
                 </View>
               </View>
             ))}
@@ -333,13 +317,13 @@ export default function SubjectsScreen() {
                 style={styles.actionCard}
                 onPress={() => handleQuickAction(a.key)}
               >
-                <LinearGradient colors={a.colors} style={styles.actionGradient}>
-                  <View style={styles.actionIconWrap}>
-                    <Ionicons name={a.icon} size={24} color="#FFF" />
+                <View style={[styles.actionGradient, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
+                  <View style={[styles.actionIconWrap, { backgroundColor: '#EEF2FF' }]}>
+                    <Ionicons name={a.icon} size={22} color="#4F46E5" />
                   </View>
-                  <Text style={styles.actionLabel}>{a.label}</Text>
-                  <Ionicons name="arrow-forward-circle" size={16} color="rgba(255,255,255,0.6)" style={{ marginTop: 4 }} />
-                </LinearGradient>
+                  <Text style={[styles.actionLabel, { color: colors.text }]}>{a.label}</Text>
+                  <Ionicons name="arrow-forward" size={14} color={colors.mutedForeground} style={{ marginTop: 2 }} />
+                </View>
               </Pressable>
             ))}
           </View>
@@ -366,25 +350,20 @@ export default function SubjectsScreen() {
                 }}
                 style={{ marginTop: 12 }}
               >
-                <LinearGradient
-                  colors={theme.colors}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0.6 }}
-                  style={styles.continueCard}
-                >
-                  <View style={styles.continueIconWrap}>
-                    <Ionicons name={theme.icon} size={28} color="#FFF" />
+                <View style={[styles.continueCard, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
+                  <View style={[styles.continueIconWrap, { backgroundColor: '#EEF2FF' }]}>
+                    <Ionicons name={theme.icon} size={22} color="#4F46E5" />
                   </View>
                   <View style={styles.continueInfo}>
-                    <Text style={styles.continueSubject} numberOfLines={1}>{lastStudied.subjectName}</Text>
-                    <Text style={styles.continueTopic} numberOfLines={1}>
+                    <Text style={[styles.continueSubject, { color: colors.text }]} numberOfLines={1}>{lastStudied.subjectName}</Text>
+                    <Text style={[styles.continueTopic, { color: colors.mutedForeground }]} numberOfLines={1}>
                       {lastStudied.topicName ?? lastStudied.chapterName ?? 'Open subject'}
                     </Text>
                   </View>
-                  <View style={styles.resumeBtn}>
-                    <Ionicons name="play-circle" size={32} color="rgba(255,255,255,0.9)" />
+                  <View style={[styles.resumeBtn, { backgroundColor: '#EEF2FF', width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }]}>
+                    <Ionicons name="play" size={16} color="#4F46E5" />
                   </View>
-                </LinearGradient>
+                </View>
               </Pressable>
             </View>
           );
@@ -424,9 +403,8 @@ export default function SubjectsScreen() {
                       return (
                         <View key={i} style={styles.barCol}>
                           <View style={styles.barTrack}>
-                            <LinearGradient
-                              colors={isLatest ? [barColor, barColor + 'BB'] : [barColor + '55', barColor + '33']}
-                              style={[styles.barFill, { height: `${Math.max(8, pct)}%` as any }]}
+                            <View
+                              style={[styles.barFill, { height: `${Math.max(8, pct)}%` as any, backgroundColor: isLatest ? barColor : barColor + '55' }]}
                             />
                           </View>
                           <Text style={[styles.barLabel, {
@@ -581,44 +559,43 @@ export default function SubjectsScreen() {
                       }
                     }}
                   >
-                    <LinearGradient
-                      colors={isSelected ? ['#4F46E5', '#7C3AED'] : theme.colors}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.subjectCardGradient}
-                    >
+                    <View style={[styles.subjectCardGradient, {
+                      backgroundColor: isSelected ? '#EEF2FF' : colors.card,
+                      borderWidth: 1,
+                      borderColor: isSelected ? '#4F46E5' : colors.border,
+                    }]}>
                       {/* Selection check */}
                       {selectMode && (
-                        <View style={[styles.selectCheckmark, { backgroundColor: isSelected ? '#FFFFFF' : 'rgba(255,255,255,0.2)' }]}>
-                          {isSelected && <Ionicons name="checkmark" size={12} color="#4F46E5" />}
+                        <View style={[styles.selectCheckmark, { backgroundColor: isSelected ? '#4F46E5' : '#F5F5F7' }]}>
+                          {isSelected && <Ionicons name="checkmark" size={12} color="#FFFFFF" />}
                         </View>
                       )}
 
                       {/* Icon */}
-                      <View style={styles.subjectCardIcon}>
-                        <Ionicons name={theme.icon} size={20} color="#FFF" />
+                      <View style={[styles.subjectCardIcon, { backgroundColor: '#EEF2FF' }]}>
+                        <Ionicons name={theme.icon} size={20} color="#4F46E5" />
                       </View>
 
                       {/* Name */}
-                      <Text style={styles.subjectCardName} numberOfLines={2}>{item.name}</Text>
+                      <Text style={[styles.subjectCardName, { color: colors.text }]} numberOfLines={2}>{item.name}</Text>
 
                       {/* Progress */}
                       {!selectMode && (
                         <>
-                          <View style={styles.subjectCardBar}>
-                            <View style={[styles.subjectCardBarFill, { width: `${Math.max(pct, 2)}%` as any }]} />
+                          <View style={[styles.subjectCardBar, { backgroundColor: '#E5E7EB' }]}>
+                            <View style={[styles.subjectCardBarFill, { width: `${Math.max(pct, 2)}%` as any, backgroundColor: '#4F46E5' }]} />
                           </View>
-                          <Text style={styles.subjectCardMeta}>
+                          <Text style={[styles.subjectCardMeta, { color: colors.mutedForeground }]}>
                             {pct > 0 ? `${pct}% done` : 'Not started'}
                           </Text>
                         </>
                       )}
                       {selectMode && (
-                        <Text style={styles.subjectCardMeta}>
+                        <Text style={[styles.subjectCardMeta, { color: isSelected ? '#4F46E5' : colors.mutedForeground }]}>
                           {isSelected ? 'Selected ✓' : 'Tap to select'}
                         </Text>
                       )}
-                    </LinearGradient>
+                    </View>
                   </Pressable>
                 );
               })}
@@ -641,9 +618,9 @@ export default function SubjectsScreen() {
                 const emoji = pct !== null ? (pct >= 90 ? '🏆' : pct >= 70 ? '✅' : pct >= 40 ? '📈' : '📚') : null;
                 return (
                   <View key={i} style={[styles.testCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <LinearGradient colors={theme.colors} style={styles.testCardAccent} />
-                    <View style={[styles.testCardIcon, { backgroundColor: theme.colors[0] + '18' }]}>
-                      <Ionicons name={theme.icon} size={18} color={theme.colors[0]} />
+                    <View style={[styles.testCardAccent, { backgroundColor: '#4F46E5' }]} />
+                    <View style={[styles.testCardIcon, { backgroundColor: '#EEF2FF' }]}>
+                      <Ionicons name={theme.icon} size={18} color="#4F46E5" />
                     </View>
                     <View style={styles.testCardBody}>
                       <View style={styles.testCardTop}>
@@ -684,18 +661,18 @@ export default function SubjectsScreen() {
           bottom: tabBarHeight,
         }]}>
           <View style={styles.multiBarLeft}>
-            <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.countBubble}>
+            <View style={[styles.countBubble, { backgroundColor: '#4F46E5' }]}>
               <Text style={styles.countBubbleText}>{selected.size}</Text>
-            </LinearGradient>
+            </View>
             <Text style={[styles.multiBarLabel, { color: colors.text }]}>
               {selected.size === 1 ? 'subject selected' : 'subjects selected'}
             </Text>
           </View>
           <Pressable onPress={handleViewChapters}>
-            <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.viewChaptersBtn}>
+            <View style={[styles.viewChaptersBtn, { backgroundColor: '#4F46E5' }]}>
               <Text style={styles.viewChaptersBtnText}>View Chapters</Text>
               <Ionicons name="arrow-forward" size={16} color="#FFF" />
-            </LinearGradient>
+            </View>
           </Pressable>
         </View>
       )}
