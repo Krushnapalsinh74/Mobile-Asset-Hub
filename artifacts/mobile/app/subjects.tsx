@@ -280,61 +280,67 @@ export default function SubjectsScreen() {
           )}
         </LinearGradient>
 
-        {/* ── PROGRESS + STATS ROW ── */}
-        <View style={styles.statsArea}>
-          {/* Big progress ring card */}
-          <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.progressCard}>
-            <View style={styles.progressRing}>
-              <Text style={styles.progressRingNum}>{overallPct}</Text>
-              <Text style={styles.progressRingPct}>%</Text>
+        {/* ── PROGRESS CARD (full width) ── */}
+        <View style={styles.progressSection}>
+          <LinearGradient
+            colors={['#4338CA', '#4F46E5', '#7C3AED']}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={styles.progressCard}
+          >
+            <View style={styles.progressCardBlob} />
+            {/* Left: circle */}
+            <View style={styles.progressRingWrap}>
+              <View style={styles.progressRingOuter}>
+                <View style={styles.progressRingInner}>
+                  <Text style={styles.progressRingNum}>{overallPct}</Text>
+                  <Text style={styles.progressRingPct}>%</Text>
+                </View>
+              </View>
             </View>
-            <Text style={styles.progressLabel}>Overall{'\n'}Progress</Text>
-            <View style={[styles.progressBar, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-              <View style={[styles.progressBarFill, { width: `${overallPct}%` as any }]} />
+            {/* Right: label + bar + sub */}
+            <View style={styles.progressCardRight}>
+              <Text style={styles.progressCardTitle}>Overall Progress</Text>
+              <View style={styles.progressBarTrack}>
+                <View style={[styles.progressBarFill, { width: `${overallPct}%` as any }]} />
+              </View>
+              <Text style={styles.progressCardSub}>
+                {totalExplored} of {totalTopics || '–'} topics explored
+              </Text>
             </View>
-            <Text style={styles.progressSub}>{totalExplored}/{totalTopics || '–'} topics</Text>
           </LinearGradient>
 
-          {/* Right stats column */}
-          <View style={styles.statsCol}>
-            <View style={[styles.statChip, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
-              <View style={[styles.statChipIcon, { backgroundColor: '#F59E0B' }]}>
-                <Ionicons name="trophy-outline" size={14} color="#FFF" />
+          {/* ── 2×2 STATS GRID ── */}
+          <View style={styles.statsRow}>
+            <View style={[styles.statCard, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
+              <View style={[styles.statCardIcon, { backgroundColor: '#F59E0B' }]}>
+                <Ionicons name="trophy-outline" size={15} color="#FFF" />
               </View>
-              <View>
-                <Text style={[styles.statChipVal, { color: '#92400E' }]}>{testHistory.length}</Text>
-                <Text style={[styles.statChipLabel, { color: '#B45309' }]}>Tests Taken</Text>
-              </View>
+              <Text style={[styles.statCardVal, { color: '#92400E' }]}>{testHistory.length}</Text>
+              <Text style={[styles.statCardLabel, { color: '#B45309' }]}>Tests Taken</Text>
             </View>
-            <View style={[styles.statChip, { backgroundColor: '#EDE9FE', borderColor: '#DDD6FE' }]}>
-              <View style={[styles.statChipIcon, { backgroundColor: '#8B5CF6' }]}>
-                <Ionicons name="chatbubbles-outline" size={14} color="#FFF" />
+            <View style={[styles.statCard, { backgroundColor: '#EDE9FE', borderColor: '#DDD6FE' }]}>
+              <View style={[styles.statCardIcon, { backgroundColor: '#8B5CF6' }]}>
+                <Ionicons name="chatbubbles-outline" size={15} color="#FFF" />
               </View>
-              <View>
-                <Text style={[styles.statChipVal, { color: '#4C1D95' }]}>{chatHistory.length}</Text>
-                <Text style={[styles.statChipLabel, { color: '#6D28D9' }]}>AI Chats</Text>
-              </View>
+              <Text style={[styles.statCardVal, { color: '#4C1D95' }]}>{chatHistory.length}</Text>
+              <Text style={[styles.statCardLabel, { color: '#6D28D9' }]}>AI Chats</Text>
             </View>
-            <View style={[styles.statChip, { backgroundColor: '#D1FAE5', borderColor: '#A7F3D0' }]}>
-              <View style={[styles.statChipIcon, { backgroundColor: '#10B981' }]}>
-                <Ionicons name="book-outline" size={14} color="#FFF" />
+          </View>
+          <View style={styles.statsRow}>
+            <View style={[styles.statCard, { backgroundColor: '#D1FAE5', borderColor: '#A7F3D0' }]}>
+              <View style={[styles.statCardIcon, { backgroundColor: '#10B981' }]}>
+                <Ionicons name="book-outline" size={15} color="#FFF" />
               </View>
-              <View>
-                <Text style={[styles.statChipVal, { color: '#064E3B' }]}>{totalExplored}</Text>
-                <Text style={[styles.statChipLabel, { color: '#065F46' }]}>Topics Done</Text>
-              </View>
+              <Text style={[styles.statCardVal, { color: '#064E3B' }]}>{totalExplored}</Text>
+              <Text style={[styles.statCardLabel, { color: '#065F46' }]}>Topics Done</Text>
             </View>
-            {avgScore !== null && (
-              <View style={[styles.statChip, { backgroundColor: '#CFFAFE', borderColor: '#A5F3FC' }]}>
-                <View style={[styles.statChipIcon, { backgroundColor: '#06B6D4' }]}>
-                  <Ionicons name="analytics-outline" size={14} color="#FFF" />
-                </View>
-                <View>
-                  <Text style={[styles.statChipVal, { color: '#164E63' }]}>{avgScore}%</Text>
-                  <Text style={[styles.statChipLabel, { color: '#0E7490' }]}>Avg Score</Text>
-                </View>
+            <View style={[styles.statCard, { backgroundColor: '#CFFAFE', borderColor: '#A5F3FC' }]}>
+              <View style={[styles.statCardIcon, { backgroundColor: '#06B6D4' }]}>
+                <Ionicons name="analytics-outline" size={15} color="#FFF" />
               </View>
-            )}
+              <Text style={[styles.statCardVal, { color: '#164E63' }]}>{avgScore !== null ? `${avgScore}%` : '–'}</Text>
+              <Text style={[styles.statCardLabel, { color: '#0E7490' }]}>Avg Score</Text>
+            </View>
           </View>
         </View>
 
@@ -786,40 +792,51 @@ const styles = StyleSheet.create({
   },
   streakBadgeText: { fontSize: 13, fontWeight: '700', color: '#FCD34D' },
 
-  /* ── Stats area ── */
-  statsArea: {
-    flexDirection: 'row', gap: 10,
-    paddingHorizontal: 16, paddingTop: 20, paddingBottom: 4,
-    alignItems: 'stretch',
+  /* ── Progress section ── */
+  progressSection: {
+    paddingHorizontal: 16, paddingTop: 20, paddingBottom: 4, gap: 10,
   },
   progressCard: {
-    width: 128, borderRadius: 24, padding: 14,
+    borderRadius: 22, padding: 18,
+    flexDirection: 'row', alignItems: 'center', gap: 16,
+    overflow: 'hidden',
+  },
+  progressCardBlob: {
+    position: 'absolute', width: 160, height: 160, borderRadius: 80,
+    backgroundColor: 'rgba(255,255,255,0.07)', top: -50, right: -30,
+  },
+  progressRingWrap: { alignItems: 'center', justifyContent: 'center' },
+  progressRingOuter: {
+    width: 76, height: 76, borderRadius: 38,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center', justifyContent: 'center',
   },
-  progressRing: {
+  progressRingInner: {
     flexDirection: 'row', alignItems: 'flex-end',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    width: 68, height: 68, borderRadius: 34,
-    alignSelf: 'center', justifyContent: 'center',
-    marginBottom: 8,
   },
-  progressRingNum: { fontSize: 22, fontWeight: '900', color: '#FFF' },
-  progressRingPct: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 3 },
-  progressLabel: { fontSize: 11, color: 'rgba(255,255,255,0.8)', textAlign: 'center', marginBottom: 8, lineHeight: 15 },
-  progressBar: { height: 4, borderRadius: 2, overflow: 'hidden', width: '100%', marginBottom: 5 },
-  progressBarFill: { height: 4, borderRadius: 2, backgroundColor: '#FFF' },
-  progressSub: { fontSize: 10, color: 'rgba(255,255,255,0.6)', textAlign: 'center' },
+  progressRingNum: { fontSize: 26, fontWeight: '900', color: '#FFF', lineHeight: 30 },
+  progressRingPct: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginBottom: 2 },
+  progressCardRight: { flex: 1, gap: 8 },
+  progressCardTitle: { fontSize: 15, fontWeight: '800', color: '#FFF', letterSpacing: -0.2 },
+  progressBarTrack: {
+    height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden',
+  },
+  progressBarFill: { height: 6, borderRadius: 3, backgroundColor: '#FFF' },
+  progressCardSub: { fontSize: 11, color: 'rgba(255,255,255,0.65)', fontWeight: '500' },
 
-  statsCol: { flex: 1, gap: 7, justifyContent: 'space-between' },
-  statChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    borderRadius: 14, borderWidth: 1,
-    paddingHorizontal: 10, paddingVertical: 8,
-    flex: 1,
+  statsRow: {
+    flexDirection: 'row', gap: 10,
   },
-  statChipIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  statChipVal: { fontSize: 16, fontWeight: '800' },
-  statChipLabel: { fontSize: 10, fontWeight: '500', marginTop: 0 },
+  statCard: {
+    flex: 1, borderRadius: 16, borderWidth: 1,
+    padding: 14, gap: 4,
+  },
+  statCardIcon: {
+    width: 32, height: 32, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+  },
+  statCardVal: { fontSize: 20, fontWeight: '900', lineHeight: 24 },
+  statCardLabel: { fontSize: 11, fontWeight: '500' },
 
   /* ── Section ── */
   section: { paddingTop: 24 },
