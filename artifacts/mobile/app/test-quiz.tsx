@@ -205,177 +205,258 @@ export default function TestQuizScreen() {
   const percentage = submitted ? Math.round((score / questions.length) * 100) : 0;
 
   /* ════════════════════════════════════
-     RESULT SCREEN — Knowledge Park card
+     RESULT SCREEN — Knowledge Park Official
   ════════════════════════════════════ */
   if (submitted) {
     const gradeInfo = getGrade(percentage);
-    const wrong = questions.length - score - (questions.length - answeredCount);
+    const wrong = Math.max(0, questions.length - score - (questions.length - answeredCount));
     const skipped = questions.length - answeredCount;
     const isPassing = percentage >= 40;
-    const headerGrad: [string, string, string] = percentage >= 70
-      ? ['#064E3B', '#065F46', '#059669']
-      : percentage >= 40
-      ? ['#451A03', '#92400E', '#D97706']
-      : ['#1E1B4B', '#312E81', '#4F46E5'];
+
+    const passGrad: [string, string, string] = ['#064E3B', '#047857', '#059669'];
+    const warnGrad: [string, string, string] = ['#78350F', '#92400E', '#B45309'];
+    const failGrad: [string, string, string] = ['#3730A3', '#4F46E5', '#6366F1'];
+    const headerGrad = percentage >= 70 ? passGrad : percentage >= 40 ? warnGrad : failGrad;
+    const accentColor = percentage >= 70 ? '#059669' : percentage >= 40 ? '#D97706' : '#4F46E5';
 
     return (
-      <View style={[styles.container, { backgroundColor: '#F0F4FF' }]}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}>
+      <View style={[styles.container, { backgroundColor: '#EDEEFF' }]}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
 
-          {/* ── KP Official Header ── */}
+          {/* ══════════════════════════════════════
+              CERTIFICATE HEADER
+          ══════════════════════════════════════ */}
           <LinearGradient
             colors={headerGrad}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.resultHeader, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 20 }]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={[styles.certHeader, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 16 }]}
           >
-            <View style={styles.resultHBlob1} />
-            <View style={styles.resultHBlob2} />
+            {/* decorative blobs */}
+            <View style={styles.certBlob1} />
+            <View style={styles.certBlob2} />
 
-            {/* KP Branding */}
-            <View style={styles.kpBrand}>
-              <View style={styles.kpLogoWrap}>
-                <Ionicons name="school" size={22} color="#FFFFFF" />
-              </View>
-              <View>
-                <Text style={styles.kpName}>{APP_NAME}</Text>
-                <Text style={styles.kpTagline}>Official Test Result</Text>
-              </View>
-            </View>
-
-            {/* Divider */}
-            <View style={styles.kpDivider} />
-
-            {/* Score circle */}
-            <View style={styles.scoreCircleWrap}>
-              <View style={styles.scoreCircleOuter}>
-                <View style={styles.scoreCircleInner}>
-                  <Text style={styles.scoreCirclePct}>{percentage}%</Text>
-                  <Text style={styles.scoreCircleLabel}>Score</Text>
+            {/* top bar — back + branding */}
+            <View style={styles.certTopBar}>
+              <Pressable style={styles.certBackBtn} onPress={() => { router.back(); router.back(); }}>
+                <Ionicons name="close" size={18} color="rgba(255,255,255,0.9)" />
+              </Pressable>
+              <View style={styles.certBranding}>
+                <View style={styles.certLogoBox}>
+                  <Ionicons name="school" size={16} color="#FFFFFF" />
+                </View>
+                <View>
+                  <Text style={styles.certBrandName}>{APP_NAME}</Text>
+                  <Text style={styles.certBrandSub}>AI Assessment System</Text>
                 </View>
               </View>
-              <View style={[styles.gradeBadge, { backgroundColor: gradeInfo.bg }]}>
-                <Text style={[styles.gradeText, { color: gradeInfo.color }]}>{gradeInfo.grade}</Text>
-              </View>
-            </View>
-
-            <Text style={styles.resultStatusText}>
-              {isPassing ? '✅ PASSED' : '❌ NOT PASSED'}
-            </Text>
-
-            {/* Meta strip */}
-            <View style={styles.kpMetaStrip}>
-              <View style={styles.kpMetaItem}>
-                <Ionicons name="person-outline" size={11} color="rgba(255,255,255,0.7)" />
-                <Text style={styles.kpMetaText}>{studentName || 'Student'}</Text>
-              </View>
-              <View style={styles.kpMetaDot} />
-              <View style={styles.kpMetaItem}>
-                <Ionicons name="book-outline" size={11} color="rgba(255,255,255,0.7)" />
-                <Text style={styles.kpMetaText}>{subjectName}</Text>
-              </View>
-              <View style={styles.kpMetaDot} />
-              <View style={styles.kpMetaItem}>
-                <Ionicons name="calendar-outline" size={11} color="rgba(255,255,255,0.7)" />
-                <Text style={styles.kpMetaText}>{getDateString()}</Text>
-              </View>
-            </View>
-          </LinearGradient>
-
-          {/* ── Official Marksheet ── */}
-          <View style={styles.marksheet}>
-
-            {/* Header row */}
-            <View style={[styles.marksheetHeader, { borderBottomColor: '#E5E7EB' }]}>
-              <Text style={styles.marksheetTitle}>PERFORMANCE REPORT</Text>
-              <View style={[styles.marksheetBadge, { backgroundColor: isPassing ? '#D1FAE5' : '#FEE2E2' }]}>
-                <Text style={[styles.marksheetBadgeText, { color: isPassing ? '#065F46' : '#991B1B' }]}>
+              <View style={[styles.certStatusBadge, {
+                backgroundColor: isPassing ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.25)',
+                borderColor: isPassing ? '#6EE7B7' : '#FCA5A5',
+              }]}>
+                <Text style={[styles.certStatusText, { color: isPassing ? '#A7F3D0' : '#FEE2E2' }]}>
                   {isPassing ? 'PASS' : 'FAIL'}
                 </Text>
               </View>
             </View>
 
-            {/* Info rows */}
-            {[
-              { label: 'Student Name', value: studentName || 'Student' },
-              { label: 'Board', value: boardName || boardId || '—' },
-              { label: 'Standard', value: standardName || standardId || '—' },
-              { label: 'Subject', value: subjectName || '—' },
-              { label: 'Chapter', value: (chapterName || '—').split('|||')[0] || '—' },
-              { label: 'Test Type', value: 'MCQ' },
-              { label: 'Test Date', value: getDateString() },
-              { label: 'Time Taken', value: formatTime(elapsed) },
-            ].map((row, i) => (
-              <View key={i} style={[styles.marksheetRow, { backgroundColor: i % 2 === 0 ? '#FAFAFA' : '#FFFFFF', borderBottomColor: '#F3F4F6' }]}>
-                <Text style={styles.marksheetRowLabel}>{row.label}</Text>
-                <Text style={styles.marksheetRowValue} numberOfLines={1}>{row.value}</Text>
-              </View>
-            ))}
+            {/* separator */}
+            <View style={styles.certSep} />
 
-            {/* Score table */}
-            <View style={styles.scoreTable}>
-              <Text style={styles.scoreTableTitle}>MARKS SUMMARY</Text>
-              <View style={styles.scoreTableGrid}>
-                {[
-                  { label: 'Total Qs', val: String(questions.length), color: '#4F46E5', bg: '#EEF2FF' },
-                  { label: 'Attempted', val: String(answeredCount), color: '#0284C7', bg: '#E0F2FE' },
-                  { label: 'Correct', val: String(score), color: '#059669', bg: '#D1FAE5' },
-                  { label: 'Wrong', val: String(Math.max(0, wrong)), color: '#DC2626', bg: '#FEE2E2' },
-                  { label: 'Skipped', val: String(skipped), color: '#D97706', bg: '#FEF3C7' },
-                  { label: 'Score %', val: `${percentage}%`, color: gradeInfo.color, bg: gradeInfo.bg },
-                ].map((s, i) => (
-                  <View key={i} style={[styles.scoreCell, { backgroundColor: s.bg }]}>
-                    <Text style={[styles.scoreCellVal, { color: s.color }]}>{s.val}</Text>
-                    <Text style={[styles.scoreCellLabel, { color: s.color + 'BB' }]}>{s.label}</Text>
+            {/* big score + grade */}
+            <View style={styles.certScoreRow}>
+              {/* percentage ring */}
+              <View style={styles.certRingWrap}>
+                <View style={styles.certRingOuter}>
+                  <View style={styles.certRingInner}>
+                    <Text style={styles.certPct}>{percentage}</Text>
+                    <Text style={styles.certPctSym}>%</Text>
                   </View>
-                ))}
+                </View>
+              </View>
+
+              {/* right info */}
+              <View style={styles.certScoreRight}>
+                <Text style={styles.certScoreLabel}>
+                  {score} / {questions.length} correct
+                </Text>
+                <View style={styles.certProgressBar}>
+                  <View style={[styles.certProgressFill, { width: `${percentage}%` as any, backgroundColor: isPassing ? '#6EE7B7' : '#FCA5A5' }]} />
+                </View>
+                <Text style={styles.certScoreSub}>
+                  {answeredCount} attempted · {skipped} skipped · {wrong} wrong
+                </Text>
+
+                {/* grade pill */}
+                <View style={[styles.certGradePill, { backgroundColor: gradeInfo.bg }]}>
+                  <Text style={[styles.certGradeVal, { color: gradeInfo.color }]}>{gradeInfo.grade}</Text>
+                  <Text style={[styles.certGradeSub, { color: gradeInfo.color }]}>GPA {gradeInfo.gpa}/10</Text>
+                </View>
               </View>
             </View>
 
-            {/* Grade row */}
-            <View style={[styles.gradeRow, { backgroundColor: gradeInfo.bg, borderColor: gradeInfo.color + '30' }]}>
+            {/* student meta row */}
+            <View style={styles.certMeta}>
+              {[
+                { icon: 'person-outline', val: studentName || 'Student' },
+                { icon: 'book-outline', val: subjectName },
+                { icon: 'time-outline', val: formatTime(elapsed) },
+              ].map((m, i) => (
+                <View key={i} style={styles.certMetaChip}>
+                  <Ionicons name={m.icon as any} size={10} color="rgba(255,255,255,0.7)" />
+                  <Text style={styles.certMetaText} numberOfLines={1}>{m.val}</Text>
+                </View>
+              ))}
+            </View>
+          </LinearGradient>
+
+          {/* ══════════════════════════════════════
+              OFFICIAL MARKSHEET CARD
+          ══════════════════════════════════════ */}
+          <View style={styles.marksheetCard}>
+
+            {/* card top accent bar */}
+            <LinearGradient
+              colors={headerGrad}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={styles.cardAccentBar}
+            />
+
+            {/* card header */}
+            <View style={styles.cardHeader}>
               <View>
-                <Text style={[styles.gradeRowLabel, { color: gradeInfo.color }]}>Overall Grade</Text>
-                <Text style={[styles.gradeRowSub, { color: gradeInfo.color + 'AA' }]}>GPA: {gradeInfo.gpa} / 10.0</Text>
+                <Text style={styles.cardHeaderTitle}>OFFICIAL RESULT CARD</Text>
+                <Text style={styles.cardHeaderSub}>Knowledge Park · AI Assessment</Text>
               </View>
-              <View style={[styles.gradeCircle, { borderColor: gradeInfo.color }]}>
-                <Text style={[styles.gradeCircleText, { color: gradeInfo.color }]}>{gradeInfo.grade}</Text>
+              <View style={[styles.cardSeal, { borderColor: accentColor }]}>
+                <Ionicons name="shield-checkmark" size={18} color={accentColor} />
               </View>
             </View>
 
-            {/* Action buttons */}
+            {/* ── STUDENT DETAILS TABLE ── */}
+            <View style={styles.tableSection}>
+              <Text style={styles.tableSectionTitle}>STUDENT DETAILS</Text>
+              {[
+                { label: 'Name', value: studentName || 'Student' },
+                { label: 'Board', value: boardName || boardId || '—' },
+                { label: 'Standard', value: standardName || standardId || '—' },
+                { label: 'Subject', value: subjectName || '—' },
+                { label: 'Chapter', value: (chapterName || '—').split('|||')[0] || '—' },
+                { label: 'Date', value: getDateString() },
+                { label: 'Duration', value: formatTime(elapsed) },
+                { label: 'Test Type', value: 'MCQ — Multiple Choice' },
+              ].map((row, i) => (
+                <View key={i} style={[styles.tableRow, { backgroundColor: i % 2 === 0 ? '#FAFAFA' : '#FFFFFF' }]}>
+                  <Text style={styles.tableRowLabel}>{row.label}</Text>
+                  <View style={styles.tableRowDivider} />
+                  <Text style={styles.tableRowValue} numberOfLines={1}>{row.value}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* ── MARKS TABLE ── */}
+            <View style={styles.marksSection}>
+              <Text style={styles.tableSectionTitle}>MARKS SUMMARY</Text>
+
+              {/* column headers */}
+              <View style={styles.marksTableHead}>
+                <Text style={styles.marksHeadCell}>CATEGORY</Text>
+                <Text style={[styles.marksHeadCell, { textAlign: 'center' }]}>MARKS</Text>
+                <Text style={[styles.marksHeadCell, { textAlign: 'right' }]}>STATUS</Text>
+              </View>
+
+              {[
+                { label: 'Total Questions', marks: questions.length, icon: 'help-circle-outline', color: '#4F46E5' },
+                { label: 'Attempted', marks: answeredCount, icon: 'pencil-outline', color: '#0284C7' },
+                { label: 'Correct Answers', marks: score, icon: 'checkmark-circle-outline', color: '#059669' },
+                { label: 'Wrong Answers', marks: wrong, icon: 'close-circle-outline', color: '#DC2626' },
+                { label: 'Skipped', marks: skipped, icon: 'remove-circle-outline', color: '#D97706' },
+              ].map((r, i) => (
+                <View key={i} style={[styles.marksRow, { backgroundColor: i % 2 === 0 ? '#F9FAFB' : '#FFFFFF' }]}>
+                  <View style={styles.marksRowLeft}>
+                    <View style={[styles.marksRowIcon, { backgroundColor: r.color + '18' }]}>
+                      <Ionicons name={r.icon as any} size={13} color={r.color} />
+                    </View>
+                    <Text style={styles.marksRowLabel}>{r.label}</Text>
+                  </View>
+                  <Text style={[styles.marksRowVal, { color: r.color }]}>{r.marks}</Text>
+                  <View style={styles.marksRowBar}>
+                    <View style={[styles.marksRowBarFill, {
+                      width: `${Math.round((r.marks / questions.length) * 100)}%` as any,
+                      backgroundColor: r.color,
+                      opacity: 0.55,
+                    }]} />
+                  </View>
+                </View>
+              ))}
+
+              {/* score row */}
+              <View style={[styles.marksScoreRow, { backgroundColor: gradeInfo.bg, borderColor: gradeInfo.color + '30' }]}>
+                <Text style={[styles.marksScoreLabel, { color: gradeInfo.color }]}>TOTAL SCORE</Text>
+                <Text style={[styles.marksScorePct, { color: gradeInfo.color }]}>{percentage}%</Text>
+              </View>
+            </View>
+
+            {/* ── GRADE PANEL ── */}
+            <View style={[styles.gradePanel, { backgroundColor: gradeInfo.bg, borderColor: gradeInfo.color + '25' }]}>
+              <View style={styles.gradePanelLeft}>
+                <Text style={[styles.gradePanelTitle, { color: gradeInfo.color }]}>OVERALL GRADE</Text>
+                <Text style={[styles.gradePanelGpa, { color: gradeInfo.color + 'CC' }]}>GPA: {gradeInfo.gpa} / 10.0</Text>
+                <Text style={[styles.gradePanelStatus, { color: isPassing ? '#059669' : '#DC2626' }]}>
+                  {isPassing ? '✓ PASSED' : '✗ NOT PASSED'}
+                </Text>
+              </View>
+              <View style={[styles.gradeSeal, { borderColor: gradeInfo.color }]}>
+                <Text style={[styles.gradeSealLetter, { color: gradeInfo.color }]}>{gradeInfo.grade}</Text>
+              </View>
+            </View>
+
+            {/* ── ACTION BUTTONS ── */}
             <View style={styles.resultActions}>
               <Pressable
                 style={[styles.resultBtnOutline, { borderColor: '#4F46E5' }]}
                 onPress={() => { router.back(); router.back(); }}
               >
-                <Ionicons name="home-outline" size={16} color="#4F46E5" />
+                <Ionicons name="home-outline" size={15} color="#4F46E5" />
                 <Text style={[styles.resultBtnOutlineText, { color: '#4F46E5' }]}>Home</Text>
               </Pressable>
               <Pressable style={styles.resultBtnFill} onPress={() => router.back()}>
                 <LinearGradient colors={['#4F46E5', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.resultBtnGrad}>
-                  <Ionicons name="refresh" size={16} color="#FFF" />
+                  <Ionicons name="refresh" size={15} color="#FFF" />
                   <Text style={styles.resultBtnFillText}>Try Again</Text>
                 </LinearGradient>
               </Pressable>
             </View>
 
-            {/* KP Footer */}
-            <View style={styles.kpFooter}>
-              <View style={[styles.kpFooterLogoWrap, { backgroundColor: '#EEF2FF' }]}>
-                <Ionicons name="school" size={14} color="#4F46E5" />
+            {/* ── OFFICIAL FOOTER ── */}
+            <View style={styles.certFooter}>
+              <View style={styles.certFooterLine} />
+              <View style={styles.certFooterContent}>
+                <View style={[styles.certFooterLogo, { backgroundColor: '#EEF2FF' }]}>
+                  <Ionicons name="school" size={13} color="#4F46E5" />
+                </View>
+                <View>
+                  <Text style={styles.certFooterTitle}>{APP_NAME} · AI Assessment System</Text>
+                  <Text style={styles.certFooterSub}>
+                    This result is officially generated and certified by the {APP_NAME} platform.
+                  </Text>
+                </View>
               </View>
-              <Text style={styles.kpFooterText}>
-                This result is generated by <Text style={{ color: '#4F46E5', fontWeight: '700' }}>{APP_NAME}</Text>
-              </Text>
+              <Text style={styles.certFooterDate}>{getDateString()}</Text>
             </View>
           </View>
 
-          {/* ── Question Review ── */}
+          {/* ══════════════════════════════════════
+              QUESTION-WISE REVIEW
+          ══════════════════════════════════════ */}
           <View style={styles.reviewSection}>
             <View style={styles.reviewSectionHeader}>
-              <Ionicons name="list-circle-outline" size={18} color="#4F46E5" />
+              <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.reviewHeaderIcon}>
+                <Ionicons name="list" size={14} color="#FFFFFF" />
+              </LinearGradient>
               <Text style={styles.reviewSectionTitle}>Question-wise Review</Text>
+              <View style={[styles.reviewCountBadge, { backgroundColor: '#EEF2FF' }]}>
+                <Text style={[styles.reviewCountText, { color: '#4F46E5' }]}>{questions.length} Qs</Text>
+              </View>
             </View>
 
             {questions.map((q, index) => {
@@ -386,11 +467,12 @@ export default function TestQuizScreen() {
               const status = userAns ? (userCorrect ? 'correct' : 'wrong') : 'skipped';
               const statusColor = status === 'correct' ? '#059669' : status === 'wrong' ? '#DC2626' : '#D97706';
               const statusBg = status === 'correct' ? '#D1FAE5' : status === 'wrong' ? '#FEE2E2' : '#FEF3C7';
+              const statusIcon = status === 'correct' ? 'checkmark-circle' : status === 'wrong' ? 'close-circle' : 'remove-circle-outline';
 
               return (
                 <Pressable
                   key={index}
-                  style={[styles.reviewCard, { backgroundColor: '#FFFFFF', borderColor: statusColor + '30' }]}
+                  style={[styles.reviewCard, { borderLeftColor: statusColor, borderColor: '#F3F4F6' }]}
                   onPress={() => {
                     Haptics.selectionAsync();
                     setExpandedReview(prev => {
@@ -401,19 +483,15 @@ export default function TestQuizScreen() {
                   }}
                 >
                   <View style={styles.reviewCardHeader}>
-                    <View style={[styles.reviewQBadge, { backgroundColor: statusBg }]}>
-                      <Text style={[styles.reviewQBadgeNum, { color: statusColor }]}>Q{index + 1}</Text>
+                    <View style={[styles.reviewQNum, { backgroundColor: statusBg }]}>
+                      <Text style={[styles.reviewQNumText, { color: statusColor }]}>{index + 1}</Text>
                     </View>
-                    <Text style={[styles.reviewQuestion, { color: '#111827' }]} numberOfLines={isExpanded ? undefined : 2}>
+                    <Text style={styles.reviewQuestion} numberOfLines={isExpanded ? undefined : 2}>
                       {q.question}
                     </Text>
-                    <View style={{ alignItems: 'center', gap: 4 }}>
-                      <Ionicons
-                        name={status === 'correct' ? 'checkmark-circle' : status === 'wrong' ? 'close-circle' : 'remove-circle-outline'}
-                        size={22}
-                        color={statusColor}
-                      />
-                      <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={13} color="#9CA3AF" />
+                    <View style={styles.reviewCardRight}>
+                      <Ionicons name={statusIcon as any} size={20} color={statusColor} />
+                      <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={12} color="#9CA3AF" />
                     </View>
                   </View>
 
@@ -438,8 +516,8 @@ export default function TestQuizScreen() {
                             <Text style={[styles.reviewOptText, { color: isCorrectOpt ? '#065F46' : isWrong ? '#991B1B' : '#374151', flex: 1 }]}>
                               {opt}
                             </Text>
-                            {isCorrectOpt && <Ionicons name="checkmark-circle" size={15} color="#059669" />}
-                            {isWrong && <Ionicons name="close-circle" size={15} color="#DC2626" />}
+                            {isCorrectOpt && <Ionicons name="checkmark-circle" size={14} color="#059669" />}
+                            {isWrong && <Ionicons name="close-circle" size={14} color="#DC2626" />}
                           </View>
                         );
                       })}
@@ -854,162 +932,229 @@ const styles = StyleSheet.create({
   modalCancelBtn: { paddingVertical: 14, borderRadius: 16, borderWidth: 1.5, alignItems: 'center' },
   modalCancelBtnText: { fontSize: 15, fontWeight: '600' },
 
-  /* ══════════════════════════════
-     RESULT SCREEN
-  ══════════════════════════════ */
-  resultHeader: {
-    paddingHorizontal: 24, paddingBottom: 32,
-    alignItems: 'center', gap: 10,
-    borderBottomLeftRadius: 36, borderBottomRightRadius: 36,
-    overflow: 'hidden',
+  /* ══════════════════════════════════════
+     RESULT SCREEN — Certificate Header
+  ══════════════════════════════════════ */
+  certHeader: {
+    paddingHorizontal: 20, paddingBottom: 28, overflow: 'hidden',
   },
-  resultHBlob1: {
-    position: 'absolute', width: 260, height: 260, borderRadius: 130,
-    backgroundColor: 'rgba(255,255,255,0.06)', top: -80, right: -60,
+  certBlob1: {
+    position: 'absolute', width: 280, height: 280, borderRadius: 140,
+    backgroundColor: 'rgba(255,255,255,0.06)', top: -80, right: -70,
   },
-  resultHBlob2: {
-    position: 'absolute', width: 160, height: 160, borderRadius: 80,
-    backgroundColor: 'rgba(255,255,255,0.05)', bottom: -30, left: -40,
+  certBlob2: {
+    position: 'absolute', width: 140, height: 140, borderRadius: 70,
+    backgroundColor: 'rgba(255,255,255,0.05)', bottom: -20, left: -30,
   },
-
-  /* KP brand in result header */
-  kpBrand: { flexDirection: 'row', alignItems: 'center', gap: 12, alignSelf: 'flex-start', marginBottom: 4 },
-  kpLogoWrap: {
-    width: 42, height: 42, borderRadius: 13,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center', justifyContent: 'center',
+  certTopBar: {
+    flexDirection: 'row', alignItems: 'center', marginBottom: 18,
   },
-  kpName: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
-  kpTagline: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 1 },
-  kpDivider: {
-    alignSelf: 'stretch', height: 1,
-    backgroundColor: 'rgba(255,255,255,0.15)', marginVertical: 4,
-  },
-
-  /* Score circle */
-  scoreCircleWrap: { alignItems: 'center', position: 'relative', marginTop: 8 },
-  scoreCircleOuter: {
-    width: 140, height: 140, borderRadius: 70,
+  certBackBtn: {
+    width: 36, height: 36, borderRadius: 11,
     backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)',
+    alignItems: 'center', justifyContent: 'center', marginRight: 12,
   },
-  scoreCircleInner: {
-    width: 110, height: 110, borderRadius: 55,
+  certBranding: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 },
+  certLogoBox: {
+    width: 34, height: 34, borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center', justifyContent: 'center',
   },
-  scoreCirclePct: { fontSize: 36, fontWeight: '900', color: '#FFFFFF', lineHeight: 42 },
-  scoreCircleLabel: { fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: '600' },
-  gradeBadge: {
-    position: 'absolute', bottom: -8, right: -16,
-    paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15, shadowRadius: 8, elevation: 5,
+  certBrandName: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
+  certBrandSub: { fontSize: 10, color: 'rgba(255,255,255,0.65)', marginTop: 1 },
+  certStatusBadge: {
+    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1,
   },
-  gradeText: { fontSize: 16, fontWeight: '900' },
-  resultStatusText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF', marginTop: 4 },
-  kpMetaStrip: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    flexWrap: 'wrap', justifyContent: 'center',
+  certStatusText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
+  certSep: {
+    height: 1, backgroundColor: 'rgba(255,255,255,0.15)', marginBottom: 20,
   },
-  kpMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  kpMetaText: { fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: '600' },
-  kpMetaDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.4)' },
 
-  /* ── Marksheet ── */
-  marksheet: {
-    margin: 16, borderRadius: 24,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08, shadowRadius: 24, elevation: 6,
-    overflow: 'hidden',
-  },
-  marksheetHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 16, borderBottomWidth: 1,
-  },
-  marksheetTitle: { fontSize: 12, fontWeight: '800', color: '#374151', letterSpacing: 1 },
-  marksheetBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
-  marksheetBadgeText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
-  marksheetRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 11, borderBottomWidth: 1,
-  },
-  marksheetRowLabel: { fontSize: 12, color: '#6B7280', fontWeight: '500' },
-  marksheetRowValue: { fontSize: 13, color: '#111827', fontWeight: '700', flex: 1, textAlign: 'right' },
-
-  /* Score table */
-  scoreTable: { padding: 16, gap: 12 },
-  scoreTableTitle: { fontSize: 11, fontWeight: '800', color: '#374151', letterSpacing: 1 },
-  scoreTableGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  scoreCell: {
-    width: '30%', flex: 1, minWidth: 80, borderRadius: 14,
-    padding: 12, alignItems: 'center', gap: 3,
-  },
-  scoreCellVal: { fontSize: 22, fontWeight: '900' },
-  scoreCellLabel: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.3 },
-
-  /* Grade row */
-  gradeRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    margin: 16, padding: 16, borderRadius: 18, borderWidth: 1.5,
-  },
-  gradeRowLabel: { fontSize: 15, fontWeight: '800' },
-  gradeRowSub: { fontSize: 12, marginTop: 2 },
-  gradeCircle: {
-    width: 52, height: 52, borderRadius: 26, borderWidth: 2.5,
+  /* score row */
+  certScoreRow: { flexDirection: 'row', alignItems: 'center', gap: 18, marginBottom: 18 },
+  certRingWrap: { alignItems: 'center', justifyContent: 'center' },
+  certRingOuter: {
+    width: 100, height: 100, borderRadius: 50,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)',
     alignItems: 'center', justifyContent: 'center',
   },
-  gradeCircleText: { fontSize: 20, fontWeight: '900' },
+  certRingInner: {
+    flexDirection: 'row', alignItems: 'flex-end',
+  },
+  certPct: { fontSize: 34, fontWeight: '900', color: '#FFFFFF', lineHeight: 40 },
+  certPctSym: { fontSize: 14, color: 'rgba(255,255,255,0.7)', marginBottom: 5 },
+  certScoreRight: { flex: 1 },
+  certScoreLabel: { fontSize: 13, fontWeight: '700', color: '#FFFFFF', marginBottom: 8 },
+  certProgressBar: {
+    height: 6, borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden', marginBottom: 6,
+  },
+  certProgressFill: { height: 6, borderRadius: 3 },
+  certScoreSub: { fontSize: 10, color: 'rgba(255,255,255,0.65)', marginBottom: 10 },
+  certGradePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, alignSelf: 'flex-start',
+  },
+  certGradeVal: { fontSize: 16, fontWeight: '900' },
+  certGradeSub: { fontSize: 10, fontWeight: '600' },
 
-  /* Buttons */
-  resultActions: { flexDirection: 'row', gap: 12, padding: 16, paddingTop: 4 },
+  /* meta row */
+  certMeta: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  certMetaChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+  },
+  certMetaText: { fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: '500' },
+
+  /* ══════════════════════════════════════
+     MARKSHEET CARD
+  ══════════════════════════════════════ */
+  marksheetCard: {
+    marginHorizontal: 14, marginTop: -20, marginBottom: 14,
+    borderRadius: 24, backgroundColor: '#FFFFFF',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.10, shadowRadius: 24, elevation: 8,
+    overflow: 'hidden',
+  },
+  cardAccentBar: { height: 4 },
+  cardHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
+  },
+  cardHeaderTitle: { fontSize: 12, fontWeight: '800', color: '#374151', letterSpacing: 1.2 },
+  cardHeaderSub: { fontSize: 10, color: '#9CA3AF', marginTop: 2 },
+  cardSeal: {
+    width: 36, height: 36, borderRadius: 18, borderWidth: 1.5,
+    alignItems: 'center', justifyContent: 'center',
+  },
+
+  /* detail table */
+  tableSection: { borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  tableSectionTitle: {
+    fontSize: 10, fontWeight: '800', color: '#9CA3AF', letterSpacing: 1.5,
+    paddingHorizontal: 18, paddingTop: 14, paddingBottom: 8,
+  },
+  tableRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 18, paddingVertical: 10,
+  },
+  tableRowLabel: { fontSize: 12, color: '#6B7280', fontWeight: '500', width: 90 },
+  tableRowDivider: { width: 1, height: 14, backgroundColor: '#E5E7EB', marginHorizontal: 10 },
+  tableRowValue: { fontSize: 13, color: '#111827', fontWeight: '600', flex: 1 },
+
+  /* marks table */
+  marksSection: { borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  marksTableHead: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 18, paddingVertical: 7,
+    backgroundColor: '#F9FAFB', borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
+  },
+  marksHeadCell: { fontSize: 9, fontWeight: '700', color: '#9CA3AF', letterSpacing: 0.8, flex: 1 },
+  marksRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 18, paddingVertical: 9,
+  },
+  marksRowLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  marksRowIcon: {
+    width: 24, height: 24, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  marksRowLabel: { fontSize: 12, color: '#374151', fontWeight: '500' },
+  marksRowVal: { fontSize: 16, fontWeight: '800', width: 32, textAlign: 'center' },
+  marksRowBar: {
+    width: 60, height: 6, borderRadius: 3,
+    backgroundColor: '#F3F4F6', overflow: 'hidden', marginLeft: 10,
+  },
+  marksRowBarFill: { height: 6, borderRadius: 3 },
+  marksScoreRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 18, paddingVertical: 13, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)',
+  },
+  marksScoreLabel: { fontSize: 13, fontWeight: '800', letterSpacing: 0.5 },
+  marksScorePct: { fontSize: 22, fontWeight: '900' },
+
+  /* grade panel */
+  gradePanel: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    margin: 14, padding: 16, borderRadius: 18, borderWidth: 1.5,
+  },
+  gradePanelLeft: { flex: 1 },
+  gradePanelTitle: { fontSize: 12, fontWeight: '800', letterSpacing: 0.8 },
+  gradePanelGpa: { fontSize: 12, marginTop: 3 },
+  gradePanelStatus: { fontSize: 12, fontWeight: '700', marginTop: 5 },
+  gradeSeal: {
+    width: 60, height: 60, borderRadius: 30, borderWidth: 2.5,
+    alignItems: 'center', justifyContent: 'center', marginLeft: 12,
+  },
+  gradeSealLetter: { fontSize: 26, fontWeight: '900' },
+
+  /* action buttons */
+  resultActions: { flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingVertical: 14 },
   resultBtnOutline: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 7, paddingVertical: 14, borderRadius: 16, borderWidth: 1.5,
+    gap: 6, paddingVertical: 13, borderRadius: 14, borderWidth: 1.5,
   },
   resultBtnOutlineText: { fontSize: 14, fontWeight: '700' },
-  resultBtnFill: { flex: 1, borderRadius: 16, overflow: 'hidden' },
+  resultBtnFill: { flex: 1, borderRadius: 14, overflow: 'hidden' },
   resultBtnGrad: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 7, paddingVertical: 14,
+    gap: 6, paddingVertical: 13,
   },
   resultBtnFillText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
 
-  /* KP footer */
-  kpFooter: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6',
+  /* official footer */
+  certFooter: {
+    paddingHorizontal: 18, paddingBottom: 18, paddingTop: 4,
   },
-  kpFooterLogoWrap: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  kpFooterText: { fontSize: 12, color: '#6B7280' },
+  certFooterLine: { height: 1, backgroundColor: '#F3F4F6', marginBottom: 14 },
+  certFooterContent: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 8 },
+  certFooterLogo: {
+    width: 30, height: 30, borderRadius: 9,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  certFooterTitle: { fontSize: 11, fontWeight: '700', color: '#374151' },
+  certFooterSub: { fontSize: 10, color: '#9CA3AF', lineHeight: 15, marginTop: 2 },
+  certFooterDate: { fontSize: 10, color: '#9CA3AF', textAlign: 'right' },
 
-  /* ── Review section ── */
-  reviewSection: { paddingHorizontal: 16, paddingBottom: 8, gap: 10 },
+  /* ══════════════════════════════════════
+     REVIEW SECTION
+  ══════════════════════════════════════ */
+  reviewSection: { paddingHorizontal: 14, paddingBottom: 8 },
   reviewSectionHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4,
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12,
   },
-  reviewSectionTitle: { fontSize: 16, fontWeight: '800', color: '#111827' },
+  reviewHeaderIcon: {
+    width: 28, height: 28, borderRadius: 9,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  reviewSectionTitle: { fontSize: 15, fontWeight: '800', color: '#111827', flex: 1 },
+  reviewCountBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  reviewCountText: { fontSize: 11, fontWeight: '700' },
   reviewCard: {
-    borderRadius: 18, padding: 14, borderWidth: 1.5, marginBottom: 2,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03, shadowRadius: 8, elevation: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16, padding: 14, borderWidth: 1,
+    borderLeftWidth: 3, marginBottom: 8,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03, shadowRadius: 4, elevation: 1,
   },
   reviewCardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  reviewQBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  reviewQBadgeNum: { fontSize: 12, fontWeight: '800' },
-  reviewQuestion: { fontSize: 13, lineHeight: 19, flex: 1 },
-  reviewExpanded: { marginTop: 14, gap: 8 },
+  reviewQNum: {
+    width: 26, height: 26, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  reviewQNumText: { fontSize: 12, fontWeight: '800' },
+  reviewQuestion: { fontSize: 13, lineHeight: 19, flex: 1, color: '#111827' },
+  reviewCardRight: { alignItems: 'center', gap: 4 },
+  reviewExpanded: { marginTop: 12, gap: 7 },
   reviewOption: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     padding: 10, borderRadius: 12, borderWidth: 1,
   },
   reviewOptText: { fontSize: 13, lineHeight: 18 },
   solutionBox: {
-    borderRadius: 14, padding: 12, gap: 6, backgroundColor: '#EEF2FF',
+    borderRadius: 12, padding: 12, gap: 5, backgroundColor: '#EEF2FF', marginTop: 4,
   },
   solutionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   solutionLabel: { fontSize: 12, fontWeight: '700', color: '#4F46E5' },
