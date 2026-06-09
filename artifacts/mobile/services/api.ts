@@ -124,7 +124,19 @@ export const otpApi = {
     otpReq<OtpVerifyResult>('/verify-otp', { email, otp }),
 };
 
+export interface AppSettings {
+  aiApiKey?: string;
+  razorpayKey?: string;
+  razorpayKeyId?: string;
+  paymentGateway?: string;
+  premiumPrice?: number;
+  premiumCurrency?: string;
+  appName?: string;
+  [key: string]: unknown;
+}
+
 export const eduApi = {
+  getSettings: () => req<AppSettings>('/settings'),
   getBoards: () => req<Board[]>('/boards'),
   getStandards: (boardId: string) => req<Standard[]>(`/boards/${boardId}/standards`),
   getSubjects: (boardId: string, stdId: string) =>

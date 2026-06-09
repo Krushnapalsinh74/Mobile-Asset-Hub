@@ -1,15 +1,47 @@
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { useAppSettings } from '@/hooks/useAppSettings';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
   const { studentName, studentEmail, boardName, standardName, clearAll } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const {
+    settings,
+    isLoading: settingsLoading,
+    isError: settingsError,
+    razorpayKey,
+    aiApiKey,
+    premiumPrice,
+    premiumCurrency,
+    paymentGateway,
+    appName,
+    refetch: refetchSettings,
+  } = useAppSettings();
+
+  const initials = (studentName ?? 'S')
+    .trim()
+    .split(/\s+/)
+    .map((w: string) => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
 
   const handleClearData = () => {
     const doSignOut = async () => {
@@ -50,59 +82,220 @@ export default function SettingsScreen() {
     }
   };
 
+  const handlePayment = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    if (!razorpayKey) {
+      Alert.alert('Payment unavailable', 'Payment configuration is not loaded yet. Please try again.');
+      return;
+    }
+
+    const amount = premiumPrice ?? 999;
+    const currency = premiumCurrency ?? 'INR';
+    const name = appName ?? 'EduLearn Premium';
+
+    const html = `<!DOCTYPE html><html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Payment</title>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+</head>
+<body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#f8f7ff;">
+  <p style="font-family:sans-serif;color:#4F46E5">Opening payment...</p>
+  <script>
+    var options = {
+      key: "${razorpayKey}",
+      amount: ${amount * 100},
+      currency: "${currency}",
+      name: "${name}",
+      description: "Premium Subscription",
+      prefill: {
+        email: "${studentEmail ?? ''}",
+        name: "${studentName ?? ''}"
+      },
+      theme: { color: "#4F46E5" },
+      handler: function(response) {
+        window.location.href = "eduapp://payment-success?payment_id=" + response.razorpay_payment_id;
+      },
+      modal: {
+        ondismiss: function() {
+          window.location.href = "eduapp://payment-cancel";
+        }
+      }
+    };
+    var rzp = new Razorpay(options);
+    rzp.open();
+  </script>
+</body>
+</html>`;
+
+    const blob = encodeURIComponent(html);
+    const dataUrl = `data:text/html;charset=utf-8,${blob}`;
+
+    await WebBrowser.openBrowserAsync(dataUrl, {
+      toolbarColor: '#4F46E5',
+      controlsColor: '#FFFFFF',
+    });
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 16,
-            backgroundColor: colors.card,
-            borderBottomColor: colors.border,
-          },
-        ]}
+      <LinearGradient
+        colors={['#3730A3', '#4F46E5', '#7C3AED']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 16 }]}
       >
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <View style={[styles.backCircle, { backgroundColor: colors.secondary }]}>
-            <Ionicons name="arrow-back" size={20} color={colors.text} />
+          <View style={styles.backCircle}>
+            <Ionicons name="arrow-back" size={20} color="#FFF" />
           </View>
         </Pressable>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Settings</Text>
-      </View>
+        <Text style={styles.headerTitle}>Settings</Text>
+        <View style={{ width: 38 }} />
+      </LinearGradient>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 24 },
+          { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 32 },
         ]}
       >
         {/* Profile card */}
-        <View style={[styles.profileCard, { backgroundColor: colors.primaryLight, borderColor: colors.primary + '30' }]}>
-          <View style={[styles.avatarCircle, { backgroundColor: colors.primary }]}>
-            <Text style={styles.avatarText}>
-              {(studentName ?? 'S').charAt(0).toUpperCase()}
-            </Text>
+        <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.profileCard}>
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarText}>{initials}</Text>
           </View>
           <View style={styles.profileInfo}>
-            <Text style={[styles.profileName, { color: colors.text }]} numberOfLines={1}>
-              {studentName ?? 'Student'}
-            </Text>
+            <Text style={styles.profileName} numberOfLines={1}>{studentName ?? 'Student'}</Text>
             {studentEmail ? (
-              <Text style={[styles.profileEmail, { color: colors.mutedForeground }]} numberOfLines={1}>
-                {studentEmail}
-              </Text>
+              <Text style={styles.profileEmail} numberOfLines={1}>{studentEmail}</Text>
             ) : null}
           </View>
+          <View style={styles.profileBadge}>
+            <Ionicons name="person-circle-outline" size={22} color="rgba(255,255,255,0.8)" />
+          </View>
+        </LinearGradient>
+
+        {/* ── APP SETTINGS FROM /settings API ── */}
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>App Configuration</Text>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {settingsLoading ? (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
+                Loading configuration…
+              </Text>
+            </View>
+          ) : settingsError ? (
+            <View style={styles.errorRow}>
+              <Ionicons name="cloud-offline-outline" size={20} color="#EF4444" />
+              <Text style={[styles.errorText, { color: '#EF4444' }]}>
+                Could not load settings
+              </Text>
+              <Pressable onPress={() => refetchSettings()} style={styles.retryLink}>
+                <Text style={[styles.retryLinkText, { color: colors.primary }]}>Retry</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              {/* AI API Key */}
+              <View style={styles.configRow}>
+                <View style={[styles.configIcon, { backgroundColor: aiApiKey ? '#D1FAE5' : '#FEE2E2' }]}>
+                  <Ionicons
+                    name={aiApiKey ? 'sparkles' : 'sparkles-outline'}
+                    size={16}
+                    color={aiApiKey ? '#10B981' : '#EF4444'}
+                  />
+                </View>
+                <View style={styles.configInfo}>
+                  <Text style={[styles.configLabel, { color: colors.text }]}>AI Engine</Text>
+                  <Text style={[styles.configValue, { color: colors.mutedForeground }]}>
+                    {aiApiKey ? `Configured (${aiApiKey.slice(0, 8)}…)` : 'Not configured'}
+                  </Text>
+                </View>
+                <View style={[styles.statusDot, { backgroundColor: aiApiKey ? '#10B981' : '#EF4444' }]} />
+              </View>
+
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+              {/* Payment Gateway */}
+              <View style={styles.configRow}>
+                <View style={[styles.configIcon, { backgroundColor: razorpayKey ? '#EDE9FE' : '#FEE2E2' }]}>
+                  <Ionicons
+                    name="card-outline"
+                    size={16}
+                    color={razorpayKey ? '#8B5CF6' : '#EF4444'}
+                  />
+                </View>
+                <View style={styles.configInfo}>
+                  <Text style={[styles.configLabel, { color: colors.text }]}>Payment Gateway</Text>
+                  <Text style={[styles.configValue, { color: colors.mutedForeground }]}>
+                    {razorpayKey
+                      ? `${paymentGateway ?? 'Razorpay'} · ${razorpayKey.slice(0, 12)}…`
+                      : 'Not configured'}
+                  </Text>
+                </View>
+                <View style={[styles.statusDot, { backgroundColor: razorpayKey ? '#8B5CF6' : '#EF4444' }]} />
+              </View>
+
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+              {/* App Name */}
+              <View style={styles.configRow}>
+                <View style={[styles.configIcon, { backgroundColor: '#EEF2FF' }]}>
+                  <Ionicons name="information-circle-outline" size={16} color="#4F46E5" />
+                </View>
+                <View style={styles.configInfo}>
+                  <Text style={[styles.configLabel, { color: colors.text }]}>App Name</Text>
+                  <Text style={[styles.configValue, { color: colors.mutedForeground }]}>
+                    {appName || 'EduLearn'}
+                  </Text>
+                </View>
+              </View>
+            </>
+          )}
         </View>
 
-        {/* Board & class */}
+        {/* ── PREMIUM / RAZORPAY ── */}
+        {razorpayKey ? (
+          <>
+            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Subscription</Text>
+            <Pressable onPress={handlePayment} style={{ marginBottom: 20 }}>
+              <LinearGradient colors={['#F59E0B', '#EF4444']} style={styles.premiumCard}>
+                <View style={styles.premiumLeft}>
+                  <View style={styles.premiumIconWrap}>
+                    <Ionicons name="star" size={22} color="#FFF" />
+                  </View>
+                  <View>
+                    <Text style={styles.premiumTitle}>Go Premium ✨</Text>
+                    <Text style={styles.premiumSub}>
+                      Unlimited tests, AI Tutor & more
+                    </Text>
+                    {premiumPrice && (
+                      <Text style={styles.premiumPrice}>
+                        {premiumCurrency ?? '₹'} {premiumPrice}/month
+                      </Text>
+                    )}
+                  </View>
+                </View>
+                <View style={styles.premiumChevron}>
+                  <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
+                </View>
+              </LinearGradient>
+            </Pressable>
+          </>
+        ) : null}
+
+        {/* ── EDUCATION INFO ── */}
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Education</Text>
-        <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.infoRow}>
-            <View style={[styles.infoIcon, { backgroundColor: colors.primaryLight }]}>
-              <Ionicons name="school-outline" size={16} color={colors.primary} />
+            <View style={[styles.infoIcon, { backgroundColor: '#EEF2FF' }]}>
+              <Ionicons name="school-outline" size={16} color="#4F46E5" />
             </View>
             <View style={styles.infoText}>
               <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Board</Text>
@@ -111,8 +304,8 @@ export default function SettingsScreen() {
           </View>
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <View style={styles.infoRow}>
-            <View style={[styles.infoIcon, { backgroundColor: colors.primaryLight }]}>
-              <Ionicons name="layers-outline" size={16} color={colors.primary} />
+            <View style={[styles.infoIcon, { backgroundColor: '#EEF2FF' }]}>
+              <Ionicons name="layers-outline" size={16} color="#4F46E5" />
             </View>
             <View style={styles.infoText}>
               <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Class</Text>
@@ -121,14 +314,14 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Actions */}
+        {/* ── ACCOUNT ACTIONS ── */}
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Account</Text>
-        <View style={[styles.actionsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Pressable
             style={styles.actionRow}
             onPress={() => { Haptics.selectionAsync(); handleChangeBoard(); }}
           >
-            <View style={[styles.actionIcon, { backgroundColor: '#6366F1' + '18' }]}>
+            <View style={[styles.actionIcon, { backgroundColor: '#EEF2FF' }]}>
               <Ionicons name="swap-horizontal-outline" size={18} color="#6366F1" />
             </View>
             <View style={styles.actionText}>
@@ -146,7 +339,7 @@ export default function SettingsScreen() {
             style={styles.actionRow}
             onPress={() => { Haptics.selectionAsync(); handleClearData(); }}
           >
-            <View style={[styles.actionIcon, { backgroundColor: '#EF4444' + '18' }]}>
+            <View style={[styles.actionIcon, { backgroundColor: '#FEE2E2' }]}>
               <Ionicons name="trash-outline" size={18} color="#EF4444" />
             </View>
             <View style={styles.actionText}>
@@ -159,7 +352,9 @@ export default function SettingsScreen() {
           </Pressable>
         </View>
 
-        <Text style={[styles.version, { color: colors.mutedForeground }]}>EduApp Student</Text>
+        <Text style={[styles.version, { color: colors.mutedForeground }]}>
+          {appName || 'EduLearn'} · v1.0.0
+        </Text>
       </ScrollView>
     </View>
   );
@@ -167,97 +362,116 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
+    paddingBottom: 20,
   },
   backBtn: {},
   backCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#FFF' },
+
   content: { padding: 16, gap: 0 },
+
   profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 24,
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    borderRadius: 22, padding: 18, marginBottom: 24,
   },
   avatarCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 52, height: 52, borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { fontSize: 22, fontWeight: '700', color: '#FFFFFF', fontFamily: 'Inter_700Bold' },
+  avatarText: { fontSize: 20, fontWeight: '800', color: '#FFF' },
   profileInfo: { flex: 1 },
-  profileName: { fontSize: 16, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  profileEmail: { fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  profileName: { fontSize: 16, fontWeight: '700', color: '#FFF' },
+  profileEmail: { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 3 },
+  profileBadge: {},
+
   sectionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    fontFamily: 'Inter_600SemiBold',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    marginBottom: 8,
-    marginTop: 4,
+    fontSize: 11, fontWeight: '700',
+    letterSpacing: 0.8, textTransform: 'uppercase',
+    marginBottom: 8, marginTop: 4,
   },
-  infoCard: {
-    borderRadius: 20,
-    borderWidth: 1,
-    marginBottom: 20,
-    overflow: 'hidden',
+
+  card: {
+    borderRadius: 20, borderWidth: 1,
+    marginBottom: 20, overflow: 'hidden',
   },
+
+  loadingRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    padding: 16,
+  },
+  loadingText: { fontSize: 13 },
+
+  errorRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    padding: 16,
+  },
+  errorText: { flex: 1, fontSize: 13 },
+  retryLink: {},
+  retryLinkText: { fontSize: 13, fontWeight: '600' },
+
+  configRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 14,
+  },
+  configIcon: {
+    width: 36, height: 36, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  configInfo: { flex: 1 },
+  configLabel: { fontSize: 14, fontWeight: '600' },
+  configValue: { fontSize: 11, marginTop: 2, fontFamily: 'monospace' },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+
+  premiumCard: {
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: 22, padding: 18, gap: 14,
+  },
+  premiumLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  premiumIconWrap: {
+    width: 48, height: 48, borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  premiumTitle: { fontSize: 16, fontWeight: '800', color: '#FFF' },
+  premiumSub: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
+  premiumPrice: { fontSize: 13, fontWeight: '700', color: '#FFF', marginTop: 4 },
+  premiumChevron: {},
+
   infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
     padding: 14,
   },
   infoIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 36, height: 36, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
   },
   infoText: { flex: 1 },
-  infoLabel: { fontSize: 11, fontFamily: 'Inter_400Regular' },
-  infoValue: { fontSize: 14, fontWeight: '600', fontFamily: 'Inter_600SemiBold', marginTop: 1 },
+  infoLabel: { fontSize: 11 },
+  infoValue: { fontSize: 14, fontWeight: '600', marginTop: 1 },
   divider: { height: 1, marginLeft: 62 },
-  actionsCard: {
-    borderRadius: 20,
-    borderWidth: 1,
-    marginBottom: 24,
-    overflow: 'hidden',
-  },
+
   actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
     padding: 14,
   },
   actionIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 38, height: 38, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
   },
   actionText: { flex: 1 },
-  actionLabel: { fontSize: 14, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
-  actionDesc: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
-  version: { fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center', marginTop: 8 },
+  actionLabel: { fontSize: 14, fontWeight: '600' },
+  actionDesc: { fontSize: 12, marginTop: 1 },
+
+  version: { fontSize: 12, textAlign: 'center', marginTop: 8 },
 });
