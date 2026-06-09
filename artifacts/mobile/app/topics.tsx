@@ -172,20 +172,47 @@ export default function TopicsScreen() {
 
   function handleAction(action: 'test' | 'chat' | 'explanation') {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const topics = allTopics.filter(t => selected.has(getId(t)));
+
+    // When no topics selected in select mode → fall back to testing the whole chapter(s)
+    const selectedTopics = allTopics.filter(t => selected.has(getId(t)));
+    const useWholeChapter = selectedTopics.length === 0;
+    const topics = useWholeChapter ? allTopics : selectedTopics;
     if (topics.length === 0) return;
+
     const first = topics[0]!;
 
     if (action === 'test') {
+      // Group selected topics by their chapter so multi-chapter works correctly
+      const chapterMap = new Map<string, {
+        subjectId: string; subjectName: string;
+        chapterName: string; topicNames: string[];
+      }>();
+      for (const t of topics) {
+        const cid = t._chapterId;
+        if (!chapterMap.has(cid)) {
+          chapterMap.set(cid, {
+            subjectId: t._subjectId,
+            subjectName: t._subjectName,
+            chapterName: t._chapterName,
+            topicNames: [],
+          });
+        }
+        chapterMap.get(cid)!.topicNames.push(t.name);
+      }
+      const entries = [...chapterMap.entries()];
+
       router.push({
         pathname: '/test-config' as any,
         params: {
-          subjectId: first._subjectId,
-          subjectName: first._subjectName,
-          chapterId: first._chapterId,
-          chapterName: first._chapterName,
-          topicIds: topics.map(t => getId(t)).join(','),
-          topicNames: topics.map(t => t.name).join('|||'),
+          subjectId: entries.map(([, v]) => v.subjectId).join(','),
+          subjectName: entries.map(([, v]) => v.subjectName).join('|||'),
+          chapterId: entries.map(([cid]) => cid).join(','),
+          chapterName: entries.map(([, v]) => v.chapterName).join('|||'),
+          // Pass topic names per chapter (pipe-sep within chapter, double-pipe between chapters)
+          // For single chapter: "Topic A|||Topic B"
+          // For multi-chapter: "Topic A|||Topic B::Topic C|||Topic D"
+          topicNamesByChapter: entries.map(([, v]) => v.topicNames.join('|||')).join('::'),
+          wholeChapter: useWholeChapter ? '1' : '0',
         },
       });
     } else if (action === 'chat') {
@@ -439,7 +466,7 @@ export default function TopicsScreen() {
       )}
 
       {/* ── BOTTOM ACTION BAR ── */}
-      {selectMode && selected.size > 0 && (
+      {selectMode && (
         <View style={[
           styles.bottomBar,
           {
@@ -449,37 +476,59 @@ export default function TopicsScreen() {
           },
         ]}>
           <View style={styles.bottomCount}>
-            <View style={[styles.countBubble, { backgroundColor: colors.primary }]}>
-              <Text style={styles.countBubbleText}>{selected.size}</Text>
-            </View>
+            {selected.size > 0 ? (
+              <View style={[styles.countBubble, { backgroundColor: colors.primary }]}>
+                <Text style={styles.countBubbleText}>{selected.size}</Text>
+              </View>
+            ) : (
+              <View style={[styles.countBubble, { backgroundColor: '#6B7280' }]}>
+                <Ionicons name="layers-outline" size={13} color="#FFF" />
+              </View>
+            )}
             <Text style={[styles.bottomCountLabel, { color: colors.mutedForeground }]}>
-              {selected.size === allTopics.length ? 'All topics' : selected.size === 1 ? '1 topic' : `${selected.size} topics`}
+              {selected.size === 0
+                ? 'Whole chapter'
+                : selected.size === allTopics.length
+                ? 'All topics'
+                : selected.size === 1
+                ? '1 topic'
+                : `${selected.size} topics`}
             </Text>
           </View>
 
           <View style={styles.bottomActions}>
-            <Pressable
-              style={[styles.actionBtn, { backgroundColor: '#10B981' + '18', borderColor: '#10B981' + '40' }]}
-              onPress={() => handleAction('explanation')}
-            >
-              <Ionicons name="bulb-outline" size={16} color="#10B981" />
-              <Text style={[styles.actionBtnText, { color: '#10B981' }]}>Study</Text>
-            </Pressable>
+            {selected.size > 0 && (
+              <Pressable
+                style={[styles.actionBtn, { backgroundColor: '#10B981' + '18', borderColor: '#10B981' + '40' }]}
+                onPress={() => handleAction('explanation')}
+              >
+                <Ionicons name="bulb-outline" size={16} color="#10B981" />
+                <Text style={[styles.actionBtnText, { color: '#10B981' }]}>Study</Text>
+              </Pressable>
+            )}
+
+            {selected.size > 0 && (
+              <Pressable
+                style={[styles.actionBtn, { backgroundColor: '#6366F1' + '18', borderColor: '#6366F1' + '40' }]}
+                onPress={() => handleAction('chat')}
+              >
+                <Ionicons name="chatbubbles-outline" size={16} color="#6366F1" />
+                <Text style={[styles.actionBtnText, { color: '#6366F1' }]}>AI Chat</Text>
+              </Pressable>
+            )}
 
             <Pressable
-              style={[styles.actionBtn, { backgroundColor: '#6366F1' + '18', borderColor: '#6366F1' + '40' }]}
-              onPress={() => handleAction('chat')}
-            >
-              <Ionicons name="chatbubbles-outline" size={16} color="#6366F1" />
-              <Text style={[styles.actionBtnText, { color: '#6366F1' }]}>AI Tutor</Text>
-            </Pressable>
-
-            <Pressable
-              style={[styles.actionBtn, { backgroundColor: '#F59E0B' + '18', borderColor: '#F59E0B' + '40' }]}
+              style={[styles.actionBtn, {
+                backgroundColor: '#F59E0B' + '18',
+                borderColor: '#F59E0B' + '40',
+                flex: selected.size === 0 ? 1 : undefined,
+              }]}
               onPress={() => handleAction('test')}
             >
               <Ionicons name="trophy-outline" size={16} color="#F59E0B" />
-              <Text style={[styles.actionBtnText, { color: '#F59E0B' }]}>Test</Text>
+              <Text style={[styles.actionBtnText, { color: '#F59E0B' }]}>
+                {selected.size === 0 ? 'Test Full Chapter' : 'Test'}
+              </Text>
             </Pressable>
           </View>
         </View>

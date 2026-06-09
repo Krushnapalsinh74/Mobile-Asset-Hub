@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal,
   Platform,
@@ -104,15 +104,21 @@ export default function TestQuizScreen() {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [expandedReview, setExpandedReview] = useState<Set<number>>(new Set());
 
+  // Store answers in a ref so doSubmit doesn't need it as a dep
+  // (prevents timer from restarting on every answer selection)
+  const answersRef = useRef(answers);
+  useEffect(() => { answersRef.current = answers; }, [answers]);
+
   const doSubmit = useCallback(async () => {
     if (submitting || submitted) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSubmitting(true);
     setShowSubmitModal(false);
 
+    const currentAnswers = answersRef.current;
     let correct = 0;
     questions.forEach((q, i) => {
-      const userAns = answers[i];
+      const userAns = currentAnswers[i];
       if (userAns && isAnswerCorrect(q, userAns)) correct++;
     });
     setScore(correct);
@@ -143,9 +149,10 @@ export default function TestQuizScreen() {
 
     setSubmitted(true);
     setSubmitting(false);
-  }, [submitting, submitted, questions, answers, studentName, boardId, boardName, standardId, standardName, subjectName, chapterName, addTestResult]);
+    // answersRef intentionally not in deps — use ref to avoid timer restart on every answer
+  }, [submitting, submitted, questions, studentName, boardId, boardName, standardId, standardName, subjectName, chapterName, addTestResult]);
 
-  // Countdown timer
+  // Countdown timer — stable dep on doSubmit (no longer changes per answer)
   useEffect(() => {
     if (submitted) return;
     const id = setInterval(() => {

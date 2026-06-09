@@ -49,11 +49,21 @@ export default function TestConfigScreen() {
     subjectName: paramSubjectName,
     chapterId: paramChapterId,
     chapterName: paramChapterName,
+    // From topics.tsx (multi-topic selection grouped by chapter)
+    topicNamesByChapter: paramTopicNamesByChapter,
+    wholeChapter: paramWholeChapter,
+    // From topic-dashboard (single topic)
+    topicId: paramTopicId,
+    topicName: paramTopicName,
   } = useLocalSearchParams<{
     subjectId?: string;
     subjectName?: string;
     chapterId?: string;
     chapterName?: string;
+    topicNamesByChapter?: string;
+    wholeChapter?: string;
+    topicId?: string;
+    topicName?: string;
   }>();
 
   const { boardId, standardId, boardName, standardName } = useApp();
@@ -76,6 +86,19 @@ export default function TestConfigScreen() {
     () => (paramSubjectName ?? '').split('|||').filter(Boolean),
     [paramSubjectName],
   );
+
+  // Preset topic names per chapter index (from topics.tsx selection)
+  // Format: "Topic A|||Topic B::Topic C|||Topic D" (chapters separated by ::, topics by |||)
+  const presetTopicNamesByChapterIndex: string[][] = useMemo(() => {
+    if (paramWholeChapter === '1') return chapterIds.map(() => []);
+    if (paramTopicName) return [[paramTopicName]]; // single topic from topic-dashboard
+    if (paramTopicNamesByChapter) {
+      return paramTopicNamesByChapter.split('::').map(chunk =>
+        chunk.split('|||').filter(Boolean)
+      );
+    }
+    return chapterIds.map(() => []);
+  }, [paramTopicNamesByChapter, paramWholeChapter, paramTopicName, chapterIds]);
 
   const [configs, setConfigs] = useState<Record<string, ChapterConfig>>(() => {
     const result: Record<string, ChapterConfig> = {};
@@ -203,12 +226,39 @@ export default function TestConfigScreen() {
       const API_BATCH = 10;
 
       const chapterResults: any[][] = await Promise.all(
-        configList.map(async cfg => {
+        configList.map(async (cfg, chapterIdx) => {
           const needed = cfg.count;
           // How many batches we need (cap at 8 to avoid hammering the server)
           const numBatches = Math.min(Math.ceil(needed / API_BATCH), 8);
 
-          setLoadingMsg(`Fetching ${needed} questions for "${cfg.chapterName}"…`);
+          // Resolve which topics to focus on for this chapter:
+          // 1. If the topic filter UI was expanded and has explicit toggles → use those
+          // 2. Else fall back to preset topic names passed in via params (from topics screen)
+          // 3. If none → generate from the whole chapter (no topic filter)
+          let resolvedTopicName: string | undefined;
+
+          if (cfg.expanded) {
+            // User interacted with the topics UI — use checked topics
+            const topicQuery = topicQueries[chapterIdx];
+            const loadedTopics: Topic[] = topicQuery?.data ?? [];
+            const activeTopicNames = loadedTopics
+              .filter(t => topicStates[getId(t)]?.selected !== false)
+              .map(t => t.name);
+            if (activeTopicNames.length > 0 && activeTopicNames.length < loadedTopics.length) {
+              resolvedTopicName = activeTopicNames.join(', ');
+            }
+          } else {
+            // Use preset topics from topics screen or topic-dashboard
+            const presetForChapter = presetTopicNamesByChapterIndex[chapterIdx] ?? [];
+            if (presetForChapter.length > 0) {
+              resolvedTopicName = presetForChapter.join(', ');
+            }
+          }
+
+          const label = resolvedTopicName
+            ? `"${resolvedTopicName.slice(0, 40)}…"`
+            : `"${cfg.chapterName}"`;
+          setLoadingMsg(`Fetching ${needed} questions for ${label}…`);
 
           const batchCalls = Array.from({ length: numBatches }, (_, i) =>
             eduApi
@@ -217,6 +267,7 @@ export default function TestConfigScreen() {
                 standard: standardId ?? standardName ?? '',
                 subject: cfg.subjectName,
                 chapter: cfg.chapterName,
+                ...(resolvedTopicName ? { topic: resolvedTopicName } : {}),
                 options: {
                   mode: 'mcq',
                   count: API_BATCH,
@@ -348,6 +399,18 @@ export default function TestConfigScreen() {
             <Text style={styles.statChipText}>{chapterIds.length} Chapter{chapterIds.length > 1 ? 's' : ''}</Text>
           </View>
         </View>
+
+        {/* Topic scope badge — show if topics were pre-selected */}
+        {presetTopicNamesByChapterIndex.some(arr => arr.length > 0) && paramWholeChapter !== '1' && (
+          <View style={styles.topicScopePill}>
+            <Ionicons name="bookmark-outline" size={12} color="rgba(255,255,255,0.9)" />
+            <Text style={styles.topicScopeText} numberOfLines={1}>
+              {presetTopicNamesByChapterIndex.flat().length === 1
+                ? `Topic: ${presetTopicNamesByChapterIndex.flat()[0]}`
+                : `${presetTopicNamesByChapterIndex.flat().length} topics selected`}
+            </Text>
+          </View>
+        )}
       </LinearGradient>
 
       {/* ── SCROLLABLE CONTENT ── */}
@@ -652,6 +715,12 @@ const styles = StyleSheet.create({
   statChip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   statChipText: { fontSize: 12, color: 'rgba(255,255,255,0.85)', fontWeight: '600' },
   statChipDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.4)' },
+  topicScopePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, alignSelf: 'flex-start',
+  },
+  topicScopeText: { fontSize: 11, color: 'rgba(255,255,255,0.9)', fontWeight: '600', maxWidth: 260 },
   scrollContent: { padding: 16, gap: 12 },
   sectionLabel: {
     fontSize: 10, letterSpacing: 0.8,
