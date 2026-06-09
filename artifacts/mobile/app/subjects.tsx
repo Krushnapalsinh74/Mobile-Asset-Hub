@@ -265,20 +265,20 @@ export default function SubjectsScreen() {
         </View>
 
         {/* ── PROGRESS BAR ── */}
-        {totalTopics > 0 && (
-          <View style={[styles.progressSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.progressHeader}>
-              <Text style={[styles.progressLabel, { color: colors.text }]}>Overall Progress</Text>
-              <Text style={[styles.progressPct, { color: colors.accent }]}>{overallPct}%</Text>
-            </View>
-            <View style={[styles.progressTrack, { backgroundColor: colors.muted }]}>
-              <View style={[styles.progressFill, { width: `${overallPct}%` as any, backgroundColor: colors.accent }]} />
-            </View>
-            <Text style={[styles.progressSub, { color: colors.mutedForeground }]}>
-              {totalExplored} of {totalTopics} topics explored
-            </Text>
+        <View style={[styles.progressSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.progressHeader}>
+            <Text style={[styles.progressLabel, { color: colors.text }]}>Overall Progress</Text>
+            <Text style={[styles.progressPct, { color: colors.accent }]}>{overallPct}%</Text>
           </View>
-        )}
+          <View style={[styles.progressTrack, { backgroundColor: colors.muted }]}>
+            <View style={[styles.progressFill, { width: `${Math.max(overallPct, 0)}%` as any, backgroundColor: colors.accent }]} />
+          </View>
+          <Text style={[styles.progressSub, { color: colors.mutedForeground }]}>
+            {totalTopics > 0
+              ? `${totalExplored} of ${totalTopics} topics explored`
+              : 'Start exploring subjects to track your progress'}
+          </Text>
+        </View>
 
         {/* ── QUICK ACTIONS ── */}
         <View style={styles.section}>
@@ -343,71 +343,76 @@ export default function SubjectsScreen() {
         )}
 
         {/* ── PERFORMANCE ── */}
-        {mcqTests.length > 0 && (
-          <View style={[styles.section, styles.px]}>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Performance</Text>
-              {improvement !== null && (
-                <View style={[styles.trendPill, {
-                  backgroundColor: improvement > 0 ? '#F0FDF4' : improvement < 0 ? '#FEF2F2' : colors.muted,
+        <View style={[styles.section, styles.px]}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Performance</Text>
+            {improvement !== null && (
+              <View style={[styles.trendPill, {
+                backgroundColor: improvement > 0 ? '#F0FDF4' : improvement < 0 ? '#FEF2F2' : colors.muted,
+              }]}>
+                <Ionicons
+                  name={improvement > 0 ? 'trending-up' : improvement < 0 ? 'trending-down' : 'remove'}
+                  size={13}
+                  color={improvement > 0 ? '#10B981' : improvement < 0 ? '#EF4444' : colors.mutedForeground}
+                />
+                <Text style={[styles.trendText, {
+                  color: improvement > 0 ? '#10B981' : improvement < 0 ? '#EF4444' : colors.mutedForeground,
                 }]}>
-                  <Ionicons
-                    name={improvement > 0 ? 'trending-up' : improvement < 0 ? 'trending-down' : 'remove'}
-                    size={13}
-                    color={improvement > 0 ? '#10B981' : improvement < 0 ? '#EF4444' : colors.mutedForeground}
-                  />
-                  <Text style={[styles.trendText, {
-                    color: improvement > 0 ? '#10B981' : improvement < 0 ? '#EF4444' : colors.mutedForeground,
-                  }]}>
-                    {improvement > 0 ? '+' : ''}{improvement}%
-                  </Text>
-                </View>
-              )}
-            </View>
-            <View style={[styles.perfCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              {recentBars.length > 0 && (
-                <View style={styles.barsSection}>
-                  <Text style={[styles.barsHint, { color: colors.mutedForeground }]}>Last {recentBars.length} tests</Text>
-                  <View style={styles.barsRow}>
-                    {recentBars.map((t, i) => {
-                      const pct = t.percentage ?? 0;
-                      const isLatest = i === recentBars.length - 1;
-                      return (
-                        <View key={i} style={styles.barCol}>
-                          <View style={[styles.barTrack, { backgroundColor: colors.muted }]}>
-                            <View
-                              style={[styles.barFill, {
-                                height: `${Math.max(8, pct)}%` as any,
-                                backgroundColor: isLatest ? colors.accent : colors.accent + '55',
-                              }]}
-                            />
-                          </View>
-                          <Text style={[styles.barLabel, {
-                            color: isLatest ? colors.text : colors.mutedForeground,
-                            fontWeight: isLatest ? '700' : '400',
-                          }]}>{pct}%</Text>
-                        </View>
-                      );
-                    })}
-                  </View>
-                </View>
-              )}
-              <View style={[styles.perfStatsRow, { borderTopColor: colors.border }]}>
-                {[
-                  { label: 'Latest', val: latestPct !== null ? `${latestPct}%` : '–' },
-                  { label: 'Average', val: avgScore !== null ? `${avgScore}%` : '–' },
-                  { label: 'Best', val: bestScore !== null ? `${bestScore}%` : '–' },
-                  { label: 'Tests', val: String(mcqTests.length) },
-                ].map((s, i) => (
-                  <View key={i} style={styles.perfStat}>
-                    <Text style={[styles.perfStatVal, { color: colors.text }]}>{s.val}</Text>
-                    <Text style={[styles.perfStatLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
-                  </View>
-                ))}
+                  {improvement > 0 ? '+' : ''}{improvement}%
+                </Text>
               </View>
+            )}
+          </View>
+          <View style={[styles.perfCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {recentBars.length > 0 ? (
+              <View style={styles.barsSection}>
+                <Text style={[styles.barsHint, { color: colors.mutedForeground }]}>Last {recentBars.length} tests</Text>
+                <View style={styles.barsRow}>
+                  {recentBars.map((t, i) => {
+                    const pct = t.percentage ?? 0;
+                    const isLatest = i === recentBars.length - 1;
+                    return (
+                      <View key={i} style={styles.barCol}>
+                        <View style={[styles.barTrack, { backgroundColor: colors.muted }]}>
+                          <View
+                            style={[styles.barFill, {
+                              height: `${Math.max(8, pct)}%` as any,
+                              backgroundColor: isLatest ? colors.accent : colors.accent + '55',
+                            }]}
+                          />
+                        </View>
+                        <Text style={[styles.barLabel, {
+                          color: isLatest ? colors.text : colors.mutedForeground,
+                          fontWeight: isLatest ? '700' : '400',
+                        }]}>{pct}%</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : (
+              <View style={styles.barsEmpty}>
+                <Ionicons name="bar-chart-outline" size={28} color={colors.mutedForeground} />
+                <Text style={[styles.barsEmptyText, { color: colors.mutedForeground }]}>
+                  Take a test to see your score graph here
+                </Text>
+              </View>
+            )}
+            <View style={[styles.perfStatsRow, { borderTopColor: colors.border }]}>
+              {[
+                { label: 'Latest', val: latestPct !== null ? `${latestPct}%` : '–' },
+                { label: 'Average', val: avgScore !== null ? `${avgScore}%` : '–' },
+                { label: 'Best', val: bestScore !== null ? `${bestScore}%` : '–' },
+                { label: 'Tests', val: String(mcqTests.length) },
+              ].map((s, i) => (
+                <View key={i} style={styles.perfStat}>
+                  <Text style={[styles.perfStatVal, { color: colors.text }]}>{s.val}</Text>
+                  <Text style={[styles.perfStatLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
+                </View>
+              ))}
             </View>
           </View>
-        )}
+        </View>
 
         {/* ── SUBJECTS GRID ── */}
         <View style={[styles.section, styles.px]}>
@@ -584,12 +589,21 @@ export default function SubjectsScreen() {
         </View>
 
         {/* ── RECENT TESTS ── */}
-        {testHistory.length > 0 && (
-          <View style={[styles.section, styles.px]}>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Tests</Text>
+        <View style={[styles.section, styles.px]}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Tests</Text>
+            {testHistory.length > 0 && (
               <Text style={[styles.sectionSub, { color: colors.mutedForeground }]}>{testHistory.length} total</Text>
+            )}
+          </View>
+          {testHistory.length === 0 ? (
+            <View style={[styles.testsEmpty, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Ionicons name="trophy-outline" size={28} color={colors.mutedForeground} />
+              <Text style={[styles.testsEmptyText, { color: colors.mutedForeground }]}>
+                No tests yet — pick a subject and start a quiz!
+              </Text>
             </View>
+          ) : (
             <View style={{ gap: 8 }}>
               {testHistory.slice(0, 5).map((t, i) => {
                 const pct = t.percentage ?? null;
@@ -623,8 +637,8 @@ export default function SubjectsScreen() {
                 );
               })}
             </View>
-          </View>
-        )}
+          )}
+        </View>
 
       </ScrollView>
 
@@ -776,6 +790,11 @@ const styles = StyleSheet.create({
   barTrack: { flex: 1, width: '100%', borderRadius: 5, overflow: 'hidden', justifyContent: 'flex-end' },
   barFill: { width: '100%', borderRadius: 5 },
   barLabel: { fontSize: 10 },
+  barsEmpty: {
+    alignItems: 'center', justifyContent: 'center', gap: 10,
+    paddingVertical: 28, paddingHorizontal: 20,
+  },
+  barsEmptyText: { fontSize: 13, textAlign: 'center', lineHeight: 18 },
   perfStatsRow: { flexDirection: 'row', borderTopWidth: 1, paddingVertical: 14 },
   perfStat: { flex: 1, alignItems: 'center' },
   perfStatVal: { fontSize: 17, fontWeight: '800' },
@@ -843,6 +862,11 @@ const styles = StyleSheet.create({
   testCardMeta: { fontSize: 11, marginBottom: 6 },
   testCardBar: { height: 3, borderRadius: 2, overflow: 'hidden' },
   testCardBarFill: { height: 3, borderRadius: 2 },
+  testsEmpty: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    padding: 18, borderRadius: 16, borderWidth: 1,
+  },
+  testsEmptyText: { flex: 1, fontSize: 13, lineHeight: 18 },
 
   /* ── Multi-select bar ── */
   multiBar: {
