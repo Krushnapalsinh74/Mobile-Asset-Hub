@@ -20,15 +20,31 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'];
 
-function getCorrectOptionIndex(q: Question): number {
-  const answer = q.answer?.trim() ?? '';
-  const letter = answer.match(/^([A-Da-d])/)?.[1]?.toUpperCase();
-  if (letter) return letter.charCodeAt(0) - 65;
-  if (q.solution) {
-    const m = q.solution.match(/correct[^A-Da-d]*([A-Da-d])[.)\s,]/i);
-    if (m) return m[1].toUpperCase().charCodeAt(0) - 65;
+function extractCorrectLetter(q: Question): string | null {
+  if (q.answer) {
+    const m = q.answer.trim().match(/^([A-Da-d])/);
+    if (m) return m[1].toUpperCase();
   }
-  return -1;
+  if (q.solution) {
+    const patterns = [
+      /correct(?:\s+option)?(?:\s+answer)?(?:\s+is)?[:\s]+(?:option\s+)?([A-Da-d])[.)\s,]/i,
+      /answer\s+is\s+(?:option\s+)?([A-Da-d])[.)\s,]/i,
+      /option\s+([A-Da-d])\s+is\s+(?:the\s+)?correct/i,
+      /\(([A-Da-d])\)\s+is\s+(?:the\s+)?correct/i,
+      /therefore[^A-Da-d]*([A-Da-d])\s+is\s+(?:the\s+)?(?:correct|right)/i,
+    ];
+    for (const p of patterns) {
+      const match = q.solution.match(p);
+      if (match) return match[1].toUpperCase();
+    }
+  }
+  return null;
+}
+
+function getCorrectOptionIndex(q: Question): number {
+  const letter = extractCorrectLetter(q);
+  if (!letter) return -1;
+  return letter.charCodeAt(0) - 'A'.charCodeAt(0);
 }
 
 type CardStatus = 'unknown' | 'known' | 'practice';

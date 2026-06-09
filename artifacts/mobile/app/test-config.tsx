@@ -228,8 +228,8 @@ export default function TestConfigScreen() {
       const chapterResults: any[][] = await Promise.all(
         configList.map(async (cfg, chapterIdx) => {
           const needed = cfg.count;
-          // How many batches we need (cap at 8 to avoid hammering the server)
-          const numBatches = Math.min(Math.ceil(needed / API_BATCH), 8);
+          // How many batches we need (cap at 10 to support up to 100 questions)
+          const numBatches = Math.min(Math.ceil(needed / API_BATCH), 10);
 
           // Resolve which topics to focus on for this chapter:
           // 1. If the topic filter UI was expanded and has explicit toggles → use those

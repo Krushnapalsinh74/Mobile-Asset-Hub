@@ -129,8 +129,8 @@ export default function SubjectsScreen() {
   const firstName = getFirstName(studentName);
   const initials = getInitials(studentName);
 
-  const totalExplored = Object.values(subjectProgress).reduce((s, p) => s + (p.explored ?? 0), 0);
-  const totalTopics = Object.values(subjectProgress).reduce((s, p) => s + (p.total ?? 0), 0);
+  const totalExplored = Object.values(subjectProgress ?? {}).reduce((s, p) => s + (p.explored ?? 0), 0);
+  const totalTopics = Object.values(subjectProgress ?? {}).reduce((s, p) => s + (p.total ?? 0), 0);
   const overallPct = totalTopics > 0 ? Math.min(100, Math.round((totalExplored / totalTopics) * 100)) : 0;
 
   const mcqTests = testHistory.filter(t => t.mode === 'mcq' && t.percentage !== null);

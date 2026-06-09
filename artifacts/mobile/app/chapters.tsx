@@ -39,7 +39,8 @@ export default function ChaptersScreen() {
   const subjectIds = useMemo(() => (subjectId ?? '').split(',').filter(Boolean), [subjectId]);
   const subjectNames = useMemo(() => (subjectName ?? '').split('|||').filter(Boolean), [subjectName]);
   const isMultiSubject = subjectIds.length > 1;
-  const cacheKey = subjectIds.join(',');
+  // Include board+standard in cache key so switching boards clears old selections
+  const cacheKey = `${boardId ?? ''}_${standardId ?? ''}_${subjectIds.join(',')}`;
 
   // Restore selections from cache when navigating back
   const [selectMode, setSelectMode] = useState(() => _selectionCache[cacheKey]?.selectMode ?? false);

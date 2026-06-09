@@ -64,7 +64,7 @@ export default function ChatScreen() {
     setInput('');
 
     const userMsg: Message = {
-      id: Date.now().toString() + 'u',
+      id: `${Date.now()}_${Math.random().toString(36).slice(2)}_u`,
       role: 'user',
       content: text,
     };
