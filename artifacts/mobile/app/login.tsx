@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-type Step = 'email' | 'otp';
+type Step = 'email' | 'otp' | 'name';
 
 const STATS = [
   { value: '2M+', label: 'Students', icon: 'people', color: '#10B981' },
@@ -31,6 +31,7 @@ export default function LoginScreen() {
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
+  const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -80,10 +81,25 @@ export default function LoginScreen() {
         return;
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      const name = res.name ?? email.split('@')[0];
-      await setStudent(name, email);
-      router.replace('/onboarding');
+      if (res.name) {
+        await setStudent(res.name, email);
+        router.replace('/onboarding');
+      } else {
+        setStep('name');
+      }
     } catch (e: any) { setError(e?.message ?? 'Verification failed. Please try again.'); }
+    finally { setLoading(false); }
+  };
+
+  const handleSaveName = async () => {
+    const trimmed = name.trim();
+    if (trimmed.length < 2) { setError('Please enter your name (at least 2 characters).'); return; }
+    setError(''); setLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await setStudent(trimmed, email);
+      router.replace('/onboarding');
+    } catch (e: any) { setError(e?.message ?? 'Something went wrong. Please try again.'); }
     finally { setLoading(false); }
   };
 
@@ -351,6 +367,68 @@ export default function LoginScreen() {
                     Demo: enter any 6 digits to proceed
                   </Text>
                 </View>
+              </>
+            )}
+
+            {step === 'name' && (
+              <>
+                {/* Header */}
+                <View style={styles.cardHeader}>
+                  <LinearGradient colors={['#FEF3C7', '#FDE68A']} style={styles.stepIconWrap}>
+                    <Ionicons name="person-outline" size={22} color="#D97706" />
+                  </LinearGradient>
+                  <View style={styles.cardHeaderText}>
+                    <Text style={[styles.cardHeading, { color: colors.text }]}>What's your name?</Text>
+                    <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>
+                      So we can personalise your experience
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={[styles.label, { color: colors.text }]}>Full name</Text>
+                <View style={[styles.inputWrap, { backgroundColor: colors.muted, borderColor: error ? '#EF4444' : colors.border }]}>
+                  <Ionicons name="person-outline" size={17} color={colors.mutedForeground} />
+                  <TextInput
+                    style={[styles.input, { color: colors.text }]}
+                    placeholder="e.g. Priya Sharma"
+                    placeholderTextColor={colors.mutedForeground}
+                    value={name}
+                    onChangeText={(t) => { setName(t); setError(''); }}
+                    autoFocus
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    returnKeyType="done"
+                    onSubmitEditing={handleSaveName}
+                    editable={!loading}
+                  />
+                </View>
+
+                {!!error && (
+                  <View style={styles.errorRow}>
+                    <Ionicons name="alert-circle-outline" size={13} color="#EF4444" />
+                    <Text style={[styles.errorText, { color: '#EF4444' }]}>{error}</Text>
+                  </View>
+                )}
+
+                <Pressable
+                  style={[styles.button, { opacity: (name.trim().length < 2 || loading) ? 0.45 : 1 }]}
+                  onPress={handleSaveName}
+                  disabled={name.trim().length < 2 || loading}
+                >
+                  <LinearGradient
+                    colors={['#4F46E5', '#7C3AED']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.buttonGrad}
+                  >
+                    {loading ? <ActivityIndicator color="#FFFFFF" /> : (
+                      <>
+                        <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" />
+                        <Text style={styles.buttonText}>Continue</Text>
+                      </>
+                    )}
+                  </LinearGradient>
+                </Pressable>
               </>
             )}
           </View>

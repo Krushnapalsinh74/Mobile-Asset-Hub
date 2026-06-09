@@ -30,14 +30,14 @@ const SUBJECT_THEMES: Array<{
   colors: [string, string];
   icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
 }> = [
-  { colors: ['#6366F1', '#8B5CF6'], icon: 'calculator-outline' },
-  { colors: ['#F59E0B', '#EF4444'], icon: 'flask-outline' },
-  { colors: ['#10B981', '#059669'], icon: 'leaf-outline' },
-  { colors: ['#EF4444', '#F97316'], icon: 'reader-outline' },
-  { colors: ['#06B6D4', '#3B82F6'], icon: 'globe-outline' },
-  { colors: ['#8B5CF6', '#EC4899'], icon: 'planet-outline' },
-  { colors: ['#F97316', '#F59E0B'], icon: 'people-outline' },
-  { colors: ['#14B8A6', '#06B6D4'], icon: 'code-outline' },
+  { colors: ['#6366F1', '#818CF8'], icon: 'calculator-outline' },
+  { colors: ['#F59E0B', '#FBBF24'], icon: 'flask-outline' },
+  { colors: ['#10B981', '#34D399'], icon: 'leaf-outline' },
+  { colors: ['#EF4444', '#F87171'], icon: 'reader-outline' },
+  { colors: ['#06B6D4', '#22D3EE'], icon: 'globe-outline' },
+  { colors: ['#8B5CF6', '#A78BFA'], icon: 'planet-outline' },
+  { colors: ['#F97316', '#FB923C'], icon: 'people-outline' },
+  { colors: ['#14B8A6', '#2DD4BF'], icon: 'code-outline' },
 ];
 
 function getTheme(name: string, index: number) {
@@ -596,7 +596,7 @@ export default function SubjectsScreen() {
 
                       {/* Icon */}
                       <View style={styles.subjectCardIcon}>
-                        <Ionicons name={theme.icon} size={28} color="#FFF" />
+                        <Ionicons name={theme.icon} size={20} color="#FFF" />
                       </View>
 
                       {/* Name */}
@@ -893,34 +893,34 @@ const styles = StyleSheet.create({
   },
   emptyText: { flex: 1, fontSize: 13, lineHeight: 19 },
 
-  subjectsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  subjectsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   subjectCard: {
-    width: CARD_WIDTH, borderRadius: 22, overflow: 'hidden',
+    width: CARD_WIDTH, borderRadius: 16, overflow: 'hidden',
   },
   subjectCardGradient: {
-    padding: 16, minHeight: 150,
-    borderRadius: 22, justifyContent: 'flex-end',
+    padding: 12, minHeight: 108,
+    borderRadius: 16, justifyContent: 'flex-end',
   },
   selectCheckmark: {
-    position: 'absolute', top: 12, right: 12,
-    width: 24, height: 24, borderRadius: 8,
+    position: 'absolute', top: 8, right: 8,
+    width: 20, height: 20, borderRadius: 6,
     alignItems: 'center', justifyContent: 'center',
   },
   subjectCardIcon: {
-    position: 'absolute', top: 14, left: 14,
-    width: 52, height: 52, borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    position: 'absolute', top: 10, left: 10,
+    width: 38, height: 38, borderRadius: 11,
+    backgroundColor: 'rgba(255,255,255,0.22)',
     alignItems: 'center', justifyContent: 'center',
   },
   subjectCardName: {
-    fontSize: 14, fontWeight: '800', color: '#FFF',
-    marginBottom: 8, lineHeight: 18,
+    fontSize: 13, fontWeight: '700', color: '#FFF',
+    marginBottom: 6, lineHeight: 17,
   },
   subjectCardBar: {
-    height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)',
-    overflow: 'hidden', marginBottom: 6,
+    height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)',
+    overflow: 'hidden', marginBottom: 4,
   },
-  subjectCardBarFill: { height: 4, borderRadius: 2, backgroundColor: '#FFF' },
+  subjectCardBarFill: { height: 3, borderRadius: 2, backgroundColor: '#FFF' },
   subjectCardMeta: { fontSize: 10, color: 'rgba(255,255,255,0.75)', fontWeight: '600' },
   selBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   selBtnText: { fontSize: 12, fontWeight: '600' },
