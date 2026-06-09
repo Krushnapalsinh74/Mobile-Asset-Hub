@@ -135,6 +135,38 @@ export interface AppSettings {
   [key: string]: unknown;
 }
 
+// ── Local Express backend (port 8080) ────────────────────────────────────
+function getLocalBase(): string {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  if (domain) return `https://${domain.replace(/^https?:\/\//, '')}:8080`;
+  return 'http://localhost:8080';
+}
+
+async function localReq<T>(path: string, init?: RequestInit): Promise<T> {
+  const url = getLocalBase() + path;
+  const r = await fetch(url, {
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...init?.headers },
+  });
+  if (!r.ok) {
+    const msg = await r.text().catch(() => '');
+    throw new Error(`Profile API error ${r.status}: ${msg}`);
+  }
+  return r.json() as Promise<T>;
+}
+
+export interface UserProfile {
+  email: string;
+  name: string;
+  selectedBoards: string[];
+  standard: string;
+  isPremium: boolean;
+}
+
+export const localApi = {
+  getProfile: () => localReq<UserProfile>('/api/user/profile'),
+};
+
 export const eduApi = {
   getSettings: () => req<AppSettings>('/settings'),
   getBoards: () => req<Board[]>('/boards'),

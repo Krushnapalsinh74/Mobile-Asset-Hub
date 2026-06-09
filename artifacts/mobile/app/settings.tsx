@@ -1,6 +1,7 @@
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { useAppSettings } from '@/hooks/useAppSettings';
+import { useUserProfile } from '@/hooks/useUserProfile';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -34,8 +35,12 @@ export default function SettingsScreen() {
     appName,
     refetch: refetchSettings,
   } = useAppSettings();
+  const { profile, isLoading: profileLoading, isError: profileError } = useUserProfile();
 
-  const initials = (studentName ?? 'S')
+  const displayName = profile?.name ?? studentName ?? 'Student';
+  const displayEmail = profile?.email ?? studentEmail ?? '';
+
+  const initials = displayName
     .trim()
     .split(/\s+/)
     .map((w: string) => w[0])
@@ -164,21 +169,85 @@ export default function SettingsScreen() {
           { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 32 },
         ]}
       >
-        {/* Profile card */}
-        <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.profileCard}>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>{initials}</Text>
+        {/* ── PROFILE CARD ── */}
+        {profileLoading ? (
+          <View style={[styles.profileLoadingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={[styles.profileLoadingText, { color: colors.mutedForeground }]}>Loading profile…</Text>
           </View>
-          <View style={styles.profileInfo}>
-            <Text style={styles.profileName} numberOfLines={1}>{studentName ?? 'Student'}</Text>
-            {studentEmail ? (
-              <Text style={styles.profileEmail} numberOfLines={1}>{studentEmail}</Text>
+        ) : (
+          <View style={styles.profileCardWrapper}>
+            <LinearGradient
+              colors={['#3730A3', '#4F46E5', '#7C3AED']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.profileCard}
+            >
+              {/* decorative blob */}
+              <View style={styles.profileBlob} />
+
+              {/* Avatar + name row */}
+              <View style={styles.profileTopRow}>
+                <View style={styles.avatarCircle}>
+                  <Text style={styles.avatarText}>{initials}</Text>
+                </View>
+
+                <View style={styles.profileInfo}>
+                  <View style={styles.profileNameRow}>
+                    <Text style={styles.profileName} numberOfLines={1}>{displayName}</Text>
+                    {profile?.isPremium ? (
+                      <View style={styles.premiumBadge}>
+                        <Text style={styles.premiumBadgeIcon}>👑</Text>
+                        <Text style={styles.premiumBadgeText}>Premium</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  {displayEmail ? (
+                    <Text style={styles.profileEmail} numberOfLines={1}>{displayEmail}</Text>
+                  ) : null}
+                </View>
+              </View>
+
+              {/* Details row — standard + boards */}
+              {profile && (
+                <View style={styles.profileDetails}>
+                  <View style={styles.profileDetailChip}>
+                    <Ionicons name="layers-outline" size={12} color="rgba(255,255,255,0.9)" />
+                    <Text style={styles.profileDetailText}>{profile.standard}</Text>
+                  </View>
+                  {profile.selectedBoards.map((b) => (
+                    <View key={b} style={styles.profileDetailChip}>
+                      <Ionicons name="school-outline" size={12} color="rgba(255,255,255,0.9)" />
+                      <Text style={styles.profileDetailText}>{b}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {profileError && !profile && (
+                <Text style={styles.profileErrorNote}>Could not load profile details</Text>
+              )}
+            </LinearGradient>
+
+            {/* Upgrade button for free users — rendered below the card */}
+            {profile && !profile.isPremium && razorpayKey ? (
+              <Pressable
+                style={styles.upgradeBtn}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handlePayment(); }}
+              >
+                <LinearGradient
+                  colors={['#F59E0B', '#F97316']}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={styles.upgradeBtnGrad}
+                >
+                  <Text style={styles.upgradeBtnIcon}>⚡</Text>
+                  <Text style={styles.upgradeBtnText}>Upgrade to Premium</Text>
+                  <Ionicons name="arrow-forward" size={14} color="#FFF" />
+                </LinearGradient>
+              </Pressable>
             ) : null}
           </View>
-          <View style={styles.profileBadge}>
-            <Ionicons name="person-circle-outline" size={22} color="rgba(255,255,255,0.8)" />
-          </View>
-        </LinearGradient>
+        )}
 
         {/* ── APP SETTINGS FROM /settings API ── */}
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>App Configuration</Text>
@@ -380,20 +449,73 @@ const styles = StyleSheet.create({
 
   content: { padding: 16, gap: 0 },
 
+  // ── Profile card ──────────────────────────────────────────────────────
+  profileCardWrapper: { marginBottom: 24 },
+
+  profileLoadingCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderRadius: 22, borderWidth: 1, padding: 20, marginBottom: 24,
+  },
+  profileLoadingText: { fontSize: 13 },
+
   profileCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    borderRadius: 22, padding: 18, marginBottom: 24,
+    borderRadius: 22, padding: 20, overflow: 'hidden', gap: 14,
   },
+  profileBlob: {
+    position: 'absolute', width: 160, height: 160, borderRadius: 80,
+    backgroundColor: 'rgba(255,255,255,0.07)', top: -50, right: -40,
+  },
+  profileTopRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   avatarCircle: {
-    width: 52, height: 52, borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    width: 56, height: 56, borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.22)',
     alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)',
   },
-  avatarText: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+  avatarText: { fontSize: 22, fontWeight: '800', color: '#FFF' },
   profileInfo: { flex: 1 },
-  profileName: { fontSize: 16, fontWeight: '700', color: '#FFF' },
-  profileEmail: { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 3 },
-  profileBadge: {},
+  profileNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  profileName: { fontSize: 17, fontWeight: '800', color: '#FFF' },
+  profileEmail: { fontSize: 12, color: 'rgba(255,255,255,0.72)', marginTop: 4 },
+
+  premiumBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#FCD34D',
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  premiumBadgeIcon: { fontSize: 11 },
+  premiumBadgeText: { fontSize: 10, fontWeight: '800', color: '#78350F', letterSpacing: 0.4 },
+
+  profileDetails: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  profileDetailChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+  },
+  profileDetailText: { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.92)' },
+  profileErrorNote: { fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
+
+  upgradeBtn: {
+    marginTop: 10,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  upgradeBtnGrad: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 13, paddingHorizontal: 20, borderRadius: 16,
+  },
+  upgradeBtnIcon: { fontSize: 15 },
+  upgradeBtnText: { fontSize: 14, fontWeight: '800', color: '#FFF', letterSpacing: 0.3 },
 
   sectionLabel: {
     fontSize: 11, fontWeight: '700',
