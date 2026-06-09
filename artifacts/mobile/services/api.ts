@@ -168,6 +168,7 @@ export const eduApi = {
     standard: string;
     subject: string;
     chapter: string;
+    topic?: string;
     options: { mode: 'mcq'; count: number; seed?: number; difficulty?: string };
     freshQuestions?: boolean;
   }) => req<Record<string, unknown>>('/generate-questions', {
