@@ -117,38 +117,9 @@ export default function ChaptersScreen() {
 
   function toggleItem(id: string) {
     Haptics.selectionAsync();
-
-    if (!isMultiSubject) {
-      // Single subject: plain toggle
-      setSelected(prev => {
-        const next = new Set(prev);
-        if (next.has(id)) next.delete(id); else next.add(id);
-        return next;
-      });
-      return;
-    }
-
-    // Multi-subject: auto-select same-position chapter across ALL subjects
-    const chapter = allChapters.find(c => getId(c) === id);
-    if (!chapter) return;
-
-    const subjectChapters = chaptersBySubject[chapter._subjectId] ?? [];
-    const chapterIndex = subjectChapters.findIndex(c => getId(c) === id);
-
-    // Collect same-index chapter from every subject
-    const toToggle = new Set<string>([id]);
-    for (const [sid, chapters] of Object.entries(chaptersBySubject)) {
-      if (sid === chapter._subjectId) continue;
-      const sameIndex = chapters[chapterIndex];
-      if (sameIndex) toToggle.add(getId(sameIndex));
-    }
-
     setSelected(prev => {
       const next = new Set(prev);
-      const isSelected = next.has(id);
-      for (const cId of toToggle) {
-        if (isSelected) next.delete(cId); else next.add(cId);
-      }
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   }
