@@ -5,6 +5,7 @@ import type { Chapter } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -234,77 +235,69 @@ export default function ChaptersScreen() {
     else singleQuery.refetch();
   };
 
+  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* ── HEADER ── */}
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 14,
-            backgroundColor: colors.card,
-            borderBottomColor: colors.border,
-          },
-        ]}
+      {/* ── GRADIENT HEADER ── */}
+      <LinearGradient
+        colors={['#3730A3', '#4F46E5', '#7C3AED']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.header, { paddingTop: topPad + 14 }]}
       >
-        <Pressable onPress={() => {
-          if (selectMode) { setSelectMode(false); setSelected(new Set()); }
-          else router.back();
-        }}>
-          <View style={[styles.backCircle, { backgroundColor: colors.secondary }]}>
-            <Ionicons name="arrow-back" size={20} color={colors.text} />
-          </View>
-        </Pressable>
+        <View style={styles.blob1} />
+        <View style={styles.blob2} />
 
-        <View style={styles.headerText}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            {selectMode ? (selected.size === 0 ? 'Select Chapters' : `${selected.size} selected`) : 'Chapters'}
-          </Text>
-          {displayTitle && !selectMode ? (
-            <Text style={[styles.headerSub, { color: colors.mutedForeground }]} numberOfLines={1}>
-              {displayTitle}
+        <View style={styles.headerRow}>
+          <Pressable onPress={() => {
+            if (selectMode) { setSelectMode(false); setSelected(new Set()); }
+            else router.back();
+          }}>
+            <View style={styles.backCircle}>
+              <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+            </View>
+          </Pressable>
+
+          <View style={styles.headerText}>
+            <Text style={styles.headerTitle}>
+              {selectMode ? (selected.size === 0 ? 'Select Chapters' : `${selected.size} selected`) : 'Chapters'}
             </Text>
+            {displayTitle && !selectMode ? (
+              <Text style={styles.headerSub} numberOfLines={1}>{displayTitle}</Text>
+            ) : null}
+          </View>
+
+          {selectMode && allChapters.length > 0 ? (
+            <Pressable
+              style={[styles.headerBtn, { backgroundColor: allSelected ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.18)' }]}
+              onPress={selectAll}
+            >
+              <Ionicons name={allSelected ? 'checkmark-circle' : 'ellipse-outline'} size={15} color="#FFFFFF" />
+              <Text style={styles.headerBtnText}>All</Text>
+            </Pressable>
+          ) : null}
+
+          {allChapters.length > 1 ? (
+            <Pressable
+              style={[styles.headerBtn, { backgroundColor: selectMode ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.18)' }]}
+              onPress={toggleSelectMode}
+            >
+              <Ionicons name={selectMode ? 'close' : 'checkmark-done-outline'} size={15} color="#FFFFFF" />
+              <Text style={styles.headerBtnText}>{selectMode ? 'Cancel' : 'Select'}</Text>
+            </Pressable>
           ) : null}
         </View>
 
-        {/* Select-All when in select mode */}
-        {selectMode && allChapters.length > 0 ? (
-          <Pressable
-            style={[styles.selectAllBtn, { backgroundColor: allSelected ? colors.primaryLight : colors.secondary }]}
-            onPress={selectAll}
-          >
-            <Ionicons
-              name={allSelected ? 'checkmark-circle' : 'ellipse-outline'}
-              size={15}
-              color={allSelected ? colors.primary : colors.mutedForeground}
-            />
-            <Text style={[styles.selectAllText, { color: allSelected ? colors.primary : colors.mutedForeground }]}>All</Text>
-          </Pressable>
-        ) : null}
-
-        {/* Select mode toggle */}
-        {allChapters.length > 1 ? (
-          <Pressable
-            style={[styles.selectToggle, { backgroundColor: selectMode ? colors.primary + '18' : colors.secondary, borderColor: selectMode ? colors.primary : colors.border }]}
-            onPress={toggleSelectMode}
-          >
-            <Ionicons name={selectMode ? 'close' : 'checkmark-done-outline'} size={15} color={selectMode ? colors.primary : colors.mutedForeground} />
-            <Text style={[styles.selectToggleText, { color: selectMode ? colors.primary : colors.mutedForeground }]}>
-              {selectMode ? 'Cancel' : 'Select'}
+        {isMultiSubject && !selectMode && (
+          <View style={styles.subjectBanner}>
+            <Ionicons name="layers-outline" size={13} color="rgba(255,255,255,0.85)" />
+            <Text style={styles.subjectBannerText} numberOfLines={1}>
+              {subjectIds.length} subjects combined
             </Text>
-          </Pressable>
-        ) : null}
-      </View>
-
-      {/* ── SUBJECT BANNER (multi-subject) ── */}
-      {isMultiSubject && !selectMode && (
-        <View style={[styles.subjectBanner, { backgroundColor: colors.primaryLight, borderBottomColor: colors.border }]}>
-          <Ionicons name="layers-outline" size={13} color={colors.primary} />
-          <Text style={[styles.subjectBannerText, { color: colors.primary }]} numberOfLines={1}>
-            {subjectIds.length} subjects combined
-          </Text>
-        </View>
-      )}
+          </View>
+        )}
+      </LinearGradient>
 
       {/* ── LOADING / ERROR ── */}
       {isLoading && (
@@ -482,28 +475,37 @@ export default function ChaptersScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1,
+    paddingHorizontal: 16, paddingBottom: 16,
+    overflow: 'hidden', gap: 10,
   },
-  backCircle: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  blob1: {
+    position: 'absolute', width: 200, height: 200, borderRadius: 100,
+    backgroundColor: 'rgba(255,255,255,0.06)', top: -60, right: -40,
+  },
+  blob2: {
+    position: 'absolute', width: 130, height: 130, borderRadius: 65,
+    backgroundColor: 'rgba(255,255,255,0.05)', bottom: -20, left: -30,
+  },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  backCircle: {
+    width: 40, height: 40, borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center', justifyContent: 'center',
+  },
   headerText: { flex: 1 },
-  headerTitle: { fontSize: 18, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  headerSub: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
-  selectAllBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20,
+  headerTitle: { fontSize: 19, fontWeight: '800', color: '#FFFFFF' },
+  headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 1 },
+  headerBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
   },
-  selectAllText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
-  selectToggle: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1,
-  },
-  selectToggleText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
+  headerBtnText: { fontSize: 12, color: '#FFFFFF', fontWeight: '700' },
   subjectBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 16, paddingVertical: 9, borderBottomWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, alignSelf: 'flex-start',
   },
-  subjectBannerText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
+  subjectBannerText: { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.9)' },
   list: { padding: 16, gap: 8 },
   listHeader: { gap: 8, marginBottom: 4 },
   searchBar: {

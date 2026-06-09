@@ -5,6 +5,7 @@ import type { Topic } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueries } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
@@ -303,24 +304,51 @@ export default function TestConfigScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* ── HEADER ── */}
-      <View style={[styles.header, { paddingTop: topPad, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <Pressable onPress={() => router.back()}>
-          <View style={[styles.backCircle, { backgroundColor: colors.secondary }]}>
-            <Ionicons name="arrow-back" size={20} color={colors.text} />
+      {/* ── GRADIENT HEADER ── */}
+      <LinearGradient
+        colors={['#3730A3', '#4F46E5', '#7C3AED']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.header, { paddingTop: topPad }]}
+      >
+        <View style={styles.headerBlob1} />
+        <View style={styles.headerBlob2} />
+        <View style={styles.headerRow}>
+          <Pressable onPress={() => router.back()}>
+            <View style={styles.backCircle}>
+              <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+            </View>
+          </Pressable>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>Generate Test</Text>
+            <Text style={styles.headerSub}>
+              {chapterIds.length} chapter{chapterIds.length > 1 ? 's' : ''} · MCQ
+            </Text>
           </View>
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Generate Test</Text>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
-            {chapterIds.length} chapter{chapterIds.length > 1 ? 's' : ''} · MCQ only
-          </Text>
+          <View style={styles.mcqBadge}>
+            <Ionicons name="trophy-outline" size={14} color="#FFFFFF" />
+            <Text style={styles.mcqBadgeText}>MCQ</Text>
+          </View>
         </View>
-        <View style={[styles.mcqBadge, { backgroundColor: colors.primary + '18' }]}>
-          <Ionicons name="checkmark-circle-outline" size={13} color={colors.primary} />
-          <Text style={[styles.mcqBadgeText, { color: colors.primary }]}>MCQ</Text>
+
+        {/* Quick stat chips */}
+        <View style={styles.statChips}>
+          <View style={styles.statChip}>
+            <Ionicons name="help-circle-outline" size={13} color="rgba(255,255,255,0.85)" />
+            <Text style={styles.statChipText}>{totalQuestions} Questions</Text>
+          </View>
+          <View style={styles.statChipDot} />
+          <View style={styles.statChip}>
+            <Ionicons name="star-outline" size={13} color="rgba(255,255,255,0.85)" />
+            <Text style={styles.statChipText}>{totalMarks} Marks</Text>
+          </View>
+          <View style={styles.statChipDot} />
+          <View style={styles.statChip}>
+            <Ionicons name="layers-outline" size={13} color="rgba(255,255,255,0.85)" />
+            <Text style={styles.statChipText}>{chapterIds.length} Chapter{chapterIds.length > 1 ? 's' : ''}</Text>
+          </View>
         </View>
-      </View>
+      </LinearGradient>
 
       {/* ── SCROLLABLE CONTENT ── */}
       <ScrollView
@@ -595,20 +623,35 @@ export default function TestConfigScreen() {
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1,
+    paddingHorizontal: 16, paddingBottom: 16,
+    overflow: 'hidden', gap: 10,
   },
+  headerBlob1: {
+    position: 'absolute', width: 200, height: 200, borderRadius: 100,
+    backgroundColor: 'rgba(255,255,255,0.07)', top: -60, right: -40,
+  },
+  headerBlob2: {
+    position: 'absolute', width: 120, height: 120, borderRadius: 60,
+    backgroundColor: 'rgba(255,255,255,0.05)', bottom: -20, left: -30,
+  },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   backCircle: {
-    width: 38, height: 38, borderRadius: 12,
+    width: 40, height: 40, borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  headerSub: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  headerTitle: { fontSize: 19, fontWeight: '800', color: '#FFFFFF' },
+  headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 1 },
   mcqBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
   },
-  mcqBadgeText: { fontSize: 11, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  mcqBadgeText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
+  statChips: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  statChip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  statChipText: { fontSize: 12, color: 'rgba(255,255,255,0.85)', fontWeight: '600' },
+  statChipDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.4)' },
   scrollContent: { padding: 16, gap: 12 },
   sectionLabel: {
     fontSize: 10, letterSpacing: 0.8,

@@ -4,6 +4,7 @@ import { eduApi } from '@/services/api';
 import type { ChatMessage } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
@@ -123,34 +124,37 @@ export default function ChatScreen() {
     }
   };
 
+  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 12,
-            backgroundColor: colors.card,
-            borderBottomColor: colors.border,
-          },
-        ]}
+      <LinearGradient
+        colors={['#3730A3', '#4F46E5', '#7C3AED']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.header, { paddingTop: topPad + 14 }]}
       >
-        <Pressable onPress={() => router.back()} style={styles.headerBack}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        <View style={styles.blob1} />
+        <View style={styles.blob2} />
+
+        <Pressable onPress={() => router.back()} style={styles.backCircle}>
+          <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
         </Pressable>
-        <View style={[styles.headerAvatar, { backgroundColor: colors.primary }]}>
-          <Ionicons name="sparkles" size={17} color="#FFFFFF" />
+
+        <View style={styles.headerAvatar}>
+          <Ionicons name="sparkles" size={20} color="#FFFFFF" />
         </View>
+
         <View style={styles.headerInfo}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>AI Tutor</Text>
-          <Text
-            style={[styles.headerSub, { color: colors.mutedForeground }]}
-            numberOfLines={1}
-          >
-            {contextSub}
-          </Text>
+          <Text style={styles.headerTitle}>AI Tutor</Text>
+          <Text style={styles.headerSub} numberOfLines={1}>{contextSub}</Text>
         </View>
-      </View>
+
+        <View style={styles.aiLivePill}>
+          <View style={styles.aiLiveDot} />
+          <Text style={styles.aiLiveText}>Live</Text>
+        </View>
+      </LinearGradient>
 
       <KeyboardAvoidingView
         style={styles.kav}
@@ -289,21 +293,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
+    paddingBottom: 14,
     gap: 10,
+    overflow: 'hidden',
   },
-  headerBack: { padding: 4 },
+  blob1: {
+    position: 'absolute', width: 180, height: 180, borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.07)', top: -50, right: -40,
+  },
+  blob2: {
+    position: 'absolute', width: 110, height: 110, borderRadius: 55,
+    backgroundColor: 'rgba(255,255,255,0.05)', bottom: -20, left: -20,
+  },
+  backCircle: {
+    width: 40, height: 40, borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center', justifyContent: 'center',
+  },
   headerAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 42, height: 42, borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center', justifyContent: 'center',
   },
   headerInfo: { flex: 1 },
-  headerTitle: { fontSize: 15, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  headerSub: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  headerTitle: { fontSize: 16, fontWeight: '800', color: '#FFFFFF' },
+  headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 1 },
+  aiLivePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20,
+  },
+  aiLiveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' },
+  aiLiveText: { fontSize: 11, color: '#FFFFFF', fontWeight: '700' },
   kav: { flex: 1 },
   messageList: { padding: 16, gap: 6, flexGrow: 1 },
   emptyWrap: {

@@ -22,9 +22,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 type Step = 'email' | 'otp';
 
 const STATS = [
-  { value: '2M+', label: 'Students' },
-  { value: '50K+', label: 'Questions' },
-  { value: '3', label: 'Boards' },
+  { value: '2M+', label: 'Students', icon: 'people', color: '#10B981' },
+  { value: '50K+', label: 'Questions', icon: 'help-circle', color: '#F59E0B' },
+  { value: '3', label: 'Boards', icon: 'school', color: '#EC4899' },
 ];
 
 export default function LoginScreen() {
@@ -47,10 +47,7 @@ export default function LoginScreen() {
     setResendCooldown(30);
     cooldownRef.current = setInterval(() => {
       setResendCooldown((prev) => {
-        if (prev <= 1) {
-          if (cooldownRef.current) clearInterval(cooldownRef.current);
-          return 0;
-        }
+        if (prev <= 1) { if (cooldownRef.current) clearInterval(cooldownRef.current); return 0; }
         return prev - 1;
       });
     }, 1000);
@@ -59,28 +56,21 @@ export default function LoginScreen() {
   const handleSendOtp = async () => {
     const trimmed = email.trim().toLowerCase();
     if (!isValidEmail(trimmed)) { setError('Please enter a valid email address.'); return; }
-    setError('');
-    setLoading(true);
+    setError(''); setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const res = await otpApi.sendOtp(trimmed);
-      if (res.success === false) { setError(res.message ?? 'Could not send OTP. Please try again.'); return; }
-      setEmail(trimmed);
-      setStep('otp');
-      startCooldown();
+      if (res.success === false) { setError(res.message ?? 'Could not send OTP.'); return; }
+      setEmail(trimmed); setStep('otp'); startCooldown();
       setTimeout(() => otpInputRef.current?.focus(), 300);
-    } catch (e: any) {
-      setError(e?.message ?? 'Failed to send OTP. Check your connection.');
-    } finally {
-      setLoading(false);
-    }
+    } catch (e: any) { setError(e?.message ?? 'Failed to send OTP. Check your connection.'); }
+    finally { setLoading(false); }
   };
 
   const handleVerifyOtp = async () => {
     const trimmedOtp = otp.trim();
     if (trimmedOtp.length < 4) { setError('Please enter the OTP sent to your email.'); return; }
-    setError('');
-    setLoading(true);
+    setError(''); setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const res = await otpApi.verifyOtp(email, trimmedOtp);
@@ -93,21 +83,15 @@ export default function LoginScreen() {
       const name = res.name ?? email.split('@')[0];
       await setStudent(name, email);
       router.replace('/onboarding');
-    } catch (e: any) {
-      setError(e?.message ?? 'Verification failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    } catch (e: any) { setError(e?.message ?? 'Verification failed. Please try again.'); }
+    finally { setLoading(false); }
   };
 
   const handleResend = async () => {
     if (resendCooldown > 0 || loading) return;
-    setError('');
-    setOtp('');
-    setLoading(true);
+    setError(''); setOtp(''); setLoading(true);
     try {
-      await otpApi.sendOtp(email);
-      startCooldown();
+      await otpApi.sendOtp(email); startCooldown();
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch { setError('Could not resend OTP. Try again.'); }
     finally { setLoading(false); }
@@ -127,37 +111,52 @@ export default function LoginScreen() {
       >
         {/* ── GRADIENT HERO ── */}
         <LinearGradient
-          colors={['#4F46E5', '#7C3AED']}
+          colors={['#3730A3', '#4F46E5', '#7C3AED']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[styles.hero, { paddingTop: topPad + 20 }]}
+          style={[styles.hero, { paddingTop: topPad + 24 }]}
         >
-          <View style={styles.heroContent}>
-            <View style={styles.heroBrand}>
-              <View style={styles.heroLogoWrap}>
-                <Ionicons name="school" size={32} color="#FFFFFF" />
-              </View>
-              <View>
-                <Text style={styles.heroAppName}>EduLearn</Text>
-                <Text style={styles.heroTagline}>Smart learning for Indian students</Text>
-              </View>
-            </View>
-            <Text style={styles.heroTitle}>
-              Master your{'\n'}board exams 🎯
-            </Text>
-            <Text style={styles.heroSub}>
-              AI-powered tests, instant feedback, and personalized learning paths
-            </Text>
+          {/* Decorative blobs */}
+          <View style={styles.blob1} />
+          <View style={styles.blob2} />
+          <View style={styles.blob3} />
 
-            {/* Stats strip */}
-            <View style={styles.statsStrip}>
-              {STATS.map((s, i) => (
-                <View key={s.label} style={[styles.statItem, i > 0 && styles.statItemBorder]}>
-                  <Text style={styles.statValue}>{s.value}</Text>
-                  <Text style={styles.statLabel}>{s.label}</Text>
-                </View>
-              ))}
+          {/* Brand row */}
+          <View style={styles.heroBrand}>
+            <LinearGradient
+              colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.15)']}
+              style={styles.heroLogoWrap}
+            >
+              <Ionicons name="school" size={30} color="#FFFFFF" />
+            </LinearGradient>
+            <View>
+              <Text style={styles.heroAppName}>EduLearn</Text>
+              <View style={styles.heroTagRow}>
+                <View style={styles.heroDot} />
+                <Text style={styles.heroTagline}>AI-Powered Learning</Text>
+              </View>
             </View>
+          </View>
+
+          {/* Hero text */}
+          <View style={styles.heroTextBlock}>
+            <Text style={styles.heroTitle}>Master Your{'\n'}Board Exams 🎯</Text>
+            <Text style={styles.heroSub}>
+              Personalised AI tests, instant explanations{'\n'}and smart revision for CBSE · ICSE · GSEB
+            </Text>
+          </View>
+
+          {/* Stats strip */}
+          <View style={styles.statsStrip}>
+            {STATS.map((s, i) => (
+              <View key={s.label} style={[styles.statItem, i > 0 && styles.statItemBorder]}>
+                <View style={[styles.statIconWrap, { backgroundColor: s.color + '30' }]}>
+                  <Ionicons name={s.icon as any} size={14} color={s.color} />
+                </View>
+                <Text style={styles.statValue}>{s.value}</Text>
+                <Text style={styles.statLabel}>{s.label}</Text>
+              </View>
+            ))}
           </View>
         </LinearGradient>
 
@@ -168,9 +167,9 @@ export default function LoginScreen() {
             {step === 'email' ? (
               <>
                 <View style={styles.cardHeader}>
-                  <View style={[styles.stepIcon, { backgroundColor: '#EEF2FF' }]}>
+                  <LinearGradient colors={['#EEF2FF', '#E0E7FF']} style={styles.stepIconWrap}>
                     <Ionicons name="mail-outline" size={22} color="#4F46E5" />
-                  </View>
+                  </LinearGradient>
                   <View style={styles.cardHeaderText}>
                     <Text style={[styles.cardHeading, { color: colors.text }]}>Sign in</Text>
                     <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>
@@ -180,43 +179,71 @@ export default function LoginScreen() {
                 </View>
 
                 <Text style={[styles.label, { color: colors.text }]}>Email address</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.muted, borderColor: error ? colors.destructive : 'transparent', color: colors.text }]}
-                  placeholder="you@example.com"
-                  placeholderTextColor={colors.mutedForeground}
-                  value={email}
-                  onChangeText={(t) => { setEmail(t); setError(''); }}
-                  autoFocus
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  returnKeyType="send"
-                  onSubmitEditing={handleSendOtp}
-                  editable={!loading}
-                />
+                <View style={[styles.inputWrap, { backgroundColor: colors.muted, borderColor: error ? '#EF4444' : colors.border }]}>
+                  <Ionicons name="at-outline" size={17} color={colors.mutedForeground} />
+                  <TextInput
+                    style={[styles.input, { color: colors.text }]}
+                    placeholder="you@example.com"
+                    placeholderTextColor={colors.mutedForeground}
+                    value={email}
+                    onChangeText={(t) => { setEmail(t); setError(''); }}
+                    autoFocus
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="send"
+                    onSubmitEditing={handleSendOtp}
+                    editable={!loading}
+                  />
+                  {isValidEmail(email) && (
+                    <View style={styles.validDot}>
+                      <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+                    </View>
+                  )}
+                </View>
 
                 {!!error && (
                   <View style={styles.errorRow}>
-                    <Ionicons name="alert-circle-outline" size={13} color={colors.destructive} />
-                    <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
+                    <Ionicons name="alert-circle-outline" size={13} color="#EF4444" />
+                    <Text style={[styles.errorText, { color: '#EF4444' }]}>{error}</Text>
                   </View>
                 )}
 
                 <Pressable
-                  style={[styles.button, { backgroundColor: '#4F46E5', opacity: (!isValidEmail(email) || loading) ? 0.45 : 1 }]}
+                  style={[styles.button, { opacity: (!isValidEmail(email) || loading) ? 0.45 : 1 }]}
                   onPress={handleSendOtp}
                   disabled={!isValidEmail(email) || loading}
                 >
-                  {loading ? <ActivityIndicator color="#FFFFFF" /> : (
-                    <>
-                      <Text style={styles.buttonText}>Send OTP</Text>
-                      <Ionicons name="send-outline" size={16} color="#FFFFFF" />
-                    </>
-                  )}
+                  <LinearGradient
+                    colors={['#4F46E5', '#7C3AED']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.buttonGrad}
+                  >
+                    {loading ? <ActivityIndicator color="#FFFFFF" /> : (
+                      <>
+                        <Text style={styles.buttonText}>Send OTP</Text>
+                        <Ionicons name="send-outline" size={16} color="#FFFFFF" />
+                      </>
+                    )}
+                  </LinearGradient>
                 </Pressable>
+
+                {/* Trust row */}
+                <View style={styles.trustRow}>
+                  {['CBSE', 'ICSE', 'GSEB'].map((b) => (
+                    <View key={b} style={[styles.trustBadge, { backgroundColor: '#EEF2FF' }]}>
+                      <Text style={[styles.trustBadgeText, { color: '#4F46E5' }]}>{b}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={[styles.trustNote, { color: colors.mutedForeground }]}>
+                  Aligned with NCERT curriculum for all boards
+                </Text>
               </>
             ) : (
               <>
+                {/* Back */}
                 <Pressable
                   style={styles.backRow}
                   onPress={() => {
@@ -225,19 +252,22 @@ export default function LoginScreen() {
                     setResendCooldown(0);
                   }}
                 >
-                  <Ionicons name="arrow-back" size={15} color="#4F46E5" />
-                  <Text style={[styles.backText, { color: '#4F46E5' }]}>Back</Text>
+                  <View style={[styles.backCircle, { backgroundColor: '#EEF2FF' }]}>
+                    <Ionicons name="arrow-back" size={14} color="#4F46E5" />
+                  </View>
+                  <Text style={[styles.backText, { color: '#4F46E5' }]}>Back to email</Text>
                 </Pressable>
 
-                <View style={styles.otpHeader}>
-                  <View style={[styles.stepIcon, { backgroundColor: '#D1FAE5' }]}>
-                    <Text style={{ fontSize: 22 }}>📧</Text>
-                  </View>
+                {/* OTP header */}
+                <View style={styles.otpHeaderWrap}>
+                  <LinearGradient colors={['#D1FAE5', '#A7F3D0']} style={styles.stepIconWrap}>
+                    <Ionicons name="mail-unread-outline" size={22} color="#059669" />
+                  </LinearGradient>
                   <View style={styles.cardHeaderText}>
-                    <Text style={[styles.cardHeading, { color: colors.text }]}>Verify your email</Text>
+                    <Text style={[styles.cardHeading, { color: colors.text }]}>Check your inbox</Text>
                     <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>
-                      6-digit code sent to{' '}
-                      <Text style={{ color: '#4F46E5', fontFamily: 'Inter_600SemiBold' }}>{email}</Text>
+                      Code sent to{' '}
+                      <Text style={{ color: '#4F46E5', fontWeight: '700' }}>{email}</Text>
                     </Text>
                   </View>
                 </View>
@@ -245,8 +275,15 @@ export default function LoginScreen() {
                 <Text style={[styles.label, { color: colors.text }]}>One-time password</Text>
                 <TextInput
                   ref={otpInputRef}
-                  style={[styles.input, styles.otpInput, { backgroundColor: colors.muted, borderColor: error ? colors.destructive : 'transparent', color: colors.text }]}
-                  placeholder="······"
+                  style={[
+                    styles.otpInput,
+                    {
+                      backgroundColor: colors.muted,
+                      borderColor: error ? '#EF4444' : '#4F46E5' + '30',
+                      color: colors.text,
+                    },
+                  ]}
+                  placeholder="· · · · · ·"
                   placeholderTextColor={colors.mutedForeground}
                   value={otp}
                   onChangeText={(t) => { setOtp(t.replace(/\D/g, '')); setError(''); }}
@@ -260,61 +297,63 @@ export default function LoginScreen() {
 
                 {!!error && (
                   <View style={styles.errorRow}>
-                    <Ionicons name="alert-circle-outline" size={13} color={colors.destructive} />
-                    <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
+                    <Ionicons name="alert-circle-outline" size={13} color="#EF4444" />
+                    <Text style={[styles.errorText, { color: '#EF4444' }]}>{error}</Text>
                   </View>
                 )}
 
                 <Pressable
-                  style={[styles.button, { backgroundColor: '#4F46E5', opacity: (otp.length < 4 || loading) ? 0.45 : 1 }]}
+                  style={[styles.button, { opacity: (otp.length < 4 || loading) ? 0.45 : 1 }]}
                   onPress={handleVerifyOtp}
                   disabled={otp.length < 4 || loading}
                 >
-                  {loading ? <ActivityIndicator color="#FFFFFF" /> : (
-                    <>
-                      <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" />
-                      <Text style={styles.buttonText}>
-                        {otp.length >= 4 ? 'Verify & Continue' : `Enter ${6 - otp.length} more digits`}
-                      </Text>
-                    </>
-                  )}
+                  <LinearGradient
+                    colors={['#059669', '#10B981']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.buttonGrad}
+                  >
+                    {loading ? <ActivityIndicator color="#FFFFFF" /> : (
+                      <>
+                        <Ionicons name="shield-checkmark-outline" size={18} color="#FFFFFF" />
+                        <Text style={styles.buttonText}>
+                          {otp.length >= 4 ? 'Verify & Continue' : `Enter ${Math.max(6 - otp.length, 2)} more digits`}
+                        </Text>
+                      </>
+                    )}
+                  </LinearGradient>
                 </Pressable>
 
+                {/* Resend */}
                 <View style={styles.resendRow}>
                   {resendCooldown > 0 ? (
-                    <Text style={[styles.resendText, { color: colors.mutedForeground }]}>
-                      Resend in <Text style={{ color: '#4F46E5', fontFamily: 'Inter_600SemiBold' }}>{resendCooldown}s</Text>
-                    </Text>
+                    <View style={[styles.cooldownPill, { backgroundColor: colors.muted }]}>
+                      <Ionicons name="time-outline" size={13} color={colors.mutedForeground} />
+                      <Text style={[styles.cooldownText, { color: colors.mutedForeground }]}>
+                        Resend in <Text style={{ color: '#4F46E5', fontWeight: '700' }}>{resendCooldown}s</Text>
+                      </Text>
+                    </View>
                   ) : (
-                    <Pressable onPress={handleResend} disabled={loading}>
-                      <View style={styles.resendBtn}>
-                        <Ionicons name="refresh-outline" size={13} color="#4F46E5" />
-                        <Text style={[styles.resendBtnText, { color: '#4F46E5' }]}>Resend OTP</Text>
-                      </View>
+                    <Pressable
+                      onPress={handleResend}
+                      disabled={loading}
+                      style={[styles.resendBtn, { backgroundColor: '#EEF2FF' }]}
+                    >
+                      <Ionicons name="refresh-outline" size={13} color="#4F46E5" />
+                      <Text style={[styles.resendBtnText, { color: '#4F46E5' }]}>Resend OTP</Text>
                     </Pressable>
                   )}
                 </View>
 
                 <View style={[styles.demoHint, { backgroundColor: colors.muted }]}>
+                  <Text style={{ fontSize: 16 }}>💡</Text>
                   <Text style={[styles.demoHintText, { color: colors.mutedForeground }]}>
-                    💡 Demo: enter any 6 digits to proceed
+                    Demo: enter any 6 digits to proceed
                   </Text>
                 </View>
               </>
             )}
           </View>
-
-          {/* Trust badges */}
-          <View style={styles.trustRow}>
-            {['CBSE', 'ICSE', 'GSEB'].map((b) => (
-              <View key={b} style={[styles.trustBadge, { backgroundColor: colors.primaryLight }]}>
-                <Text style={[styles.trustBadgeText, { color: '#4F46E5' }]}>{b}</Text>
-              </View>
-            ))}
-          </View>
-          <Text style={[styles.trustNote, { color: colors.mutedForeground }]}>
-            Aligned with NCERT curriculum for all boards
-          </Text>
 
           <View style={{ height: insets.bottom + 20 }} />
         </View>
@@ -326,156 +365,128 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   hero: {
     paddingHorizontal: 24,
-    paddingBottom: 36,
+    paddingBottom: 40,
+    gap: 20,
+    overflow: 'hidden',
   },
-  heroContent: { gap: 16 },
-  heroBrand: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 8,
+
+  /* Blobs */
+  blob1: {
+    position: 'absolute', width: 260, height: 260, borderRadius: 130,
+    backgroundColor: 'rgba(255,255,255,0.07)', top: -80, right: -70,
   },
+  blob2: {
+    position: 'absolute', width: 180, height: 180, borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.06)', bottom: -40, left: -50,
+  },
+  blob3: {
+    position: 'absolute', width: 100, height: 100, borderRadius: 50,
+    backgroundColor: 'rgba(255,255,255,0.05)', top: 60, left: 40,
+  },
+
+  /* Brand */
+  heroBrand: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   heroLogoWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 60, height: 60, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center',
   },
-  heroAppName: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    fontFamily: 'Inter_700Bold',
-  },
-  heroTagline: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.7)',
-    fontFamily: 'Inter_400Regular',
-    marginTop: 1,
-  },
+  heroAppName: { fontSize: 24, fontWeight: '800', color: '#FFFFFF' },
+  heroTagRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 },
+  heroDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#10B981' },
+  heroTagline: { fontSize: 12, color: 'rgba(255,255,255,0.7)' },
+
+  /* Hero text */
+  heroTextBlock: { gap: 10 },
   heroTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    fontFamily: 'Inter_700Bold',
-    lineHeight: 36,
+    fontSize: 30, fontWeight: '800', color: '#FFFFFF', lineHeight: 38,
   },
   heroSub: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.75)',
-    fontFamily: 'Inter_400Regular',
-    lineHeight: 21,
+    fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 22,
   },
+
+  /* Stats */
   statsStrip: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
     overflow: 'hidden',
-    marginTop: 4,
   },
-  statItem: { flex: 1, alignItems: 'center', paddingVertical: 12 },
-  statItemBorder: { borderLeftWidth: 1, borderLeftColor: 'rgba(255,255,255,0.2)' },
-  statValue: { fontSize: 18, fontWeight: '800', color: '#FFFFFF', fontFamily: 'Inter_700Bold' },
-  statLabel: { fontSize: 11, color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter_400Regular', marginTop: 2 },
-  formArea: { paddingHorizontal: 20, paddingTop: 20, gap: 16 },
+  statItem: { flex: 1, alignItems: 'center', paddingVertical: 14, gap: 3 },
+  statItemBorder: { borderLeftWidth: 1, borderLeftColor: 'rgba(255,255,255,0.18)' },
+  statIconWrap: {
+    width: 28, height: 28, borderRadius: 9,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 2,
+  },
+  statValue: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
+  statLabel: { fontSize: 10, color: 'rgba(255,255,255,0.65)', letterSpacing: 0.2 },
+
+  /* Form */
+  formArea: { paddingHorizontal: 20, paddingTop: 22, gap: 16 },
   card: {
-    borderRadius: 28,
-    padding: 24,
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 24,
-    elevation: 8,
-    gap: 0,
+    borderRadius: 28, padding: 24, gap: 0,
+    shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12, shadowRadius: 24, elevation: 8,
   },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 22,
-  },
-  otpHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 20,
-    marginTop: 4,
-  },
-  stepIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
+  cardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 22 },
+  otpHeaderWrap: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 20 },
+  stepIconWrap: {
+    width: 50, height: 50, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   cardHeaderText: { flex: 1 },
-  cardHeading: { fontSize: 18, fontWeight: '700', fontFamily: 'Inter_700Bold', marginBottom: 3 },
-  cardSub: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 19 },
-  backRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginBottom: 18,
-    alignSelf: 'flex-start',
+  cardHeading: { fontSize: 19, fontWeight: '700', marginBottom: 3 },
+  cardSub: { fontSize: 13, lineHeight: 19 },
+
+  /* Back row */
+  backRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20, alignSelf: 'flex-start' },
+  backCircle: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  backText: { fontSize: 13, fontWeight: '600' },
+
+  /* Input */
+  label: { fontSize: 13, fontWeight: '600', marginBottom: 8 },
+  inputWrap: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderWidth: 1.5, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 12,
   },
-  backText: { fontSize: 13, fontFamily: 'Inter_500Medium', fontWeight: '500' },
-  label: { fontSize: 13, fontWeight: '600', fontFamily: 'Inter_600SemiBold', marginBottom: 8 },
-  input: {
-    borderWidth: 2,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    marginBottom: 12,
-    fontFamily: 'Inter_400Regular',
-  },
+  input: { flex: 1, fontSize: 16, padding: 0 },
+  validDot: { marginLeft: 4 },
+
   otpInput: {
-    fontSize: 28,
-    letterSpacing: 10,
-    textAlign: 'center',
-    fontFamily: 'Inter_700Bold',
-    fontWeight: '700',
-    paddingVertical: 16,
+    borderWidth: 1.5, borderRadius: 18, paddingHorizontal: 16, paddingVertical: 18,
+    fontSize: 32, letterSpacing: 12, textAlign: 'center', fontWeight: '800', marginBottom: 12,
   },
-  errorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 12,
-    marginTop: -4,
+
+  /* Error */
+  errorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, marginTop: -4 },
+  errorText: { fontSize: 12, flex: 1 },
+
+  /* Button */
+  button: { borderRadius: 18, overflow: 'hidden', marginTop: 4 },
+  buttonGrad: {
+    padding: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9,
   },
-  errorText: { fontSize: 12, fontFamily: 'Inter_400Regular', flex: 1 },
-  button: {
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 4,
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  resendRow: { alignItems: 'center', marginTop: 16, paddingVertical: 4 },
-  resendText: { fontSize: 13, fontFamily: 'Inter_400Regular' },
-  resendBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  resendBtnText: { fontSize: 13, fontFamily: 'Inter_500Medium', fontWeight: '600' },
-  demoHint: {
-    borderRadius: 12,
-    padding: 10,
-    alignItems: 'center',
-    marginTop: 14,
-  },
-  demoHintText: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  trustRow: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
+  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+
+  /* Trust */
+  trustRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 20 },
   trustBadge: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
-  trustBadgeText: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  trustNote: { textAlign: 'center', fontSize: 12, fontFamily: 'Inter_400Regular' },
+  trustBadgeText: { fontSize: 12, fontWeight: '700' },
+  trustNote: { textAlign: 'center', fontSize: 12, marginTop: 8 },
+
+  /* Resend */
+  resendRow: { alignItems: 'center', marginTop: 16 },
+  cooldownPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20,
+  },
+  cooldownText: { fontSize: 13 },
+  resendBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20,
+  },
+  resendBtnText: { fontSize: 13, fontWeight: '600' },
+  demoHint: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, padding: 12, alignSelf: 'stretch', marginTop: 14 },
+  demoHintText: { fontSize: 12, flex: 1 },
 });

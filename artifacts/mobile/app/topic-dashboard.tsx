@@ -86,9 +86,14 @@ export default function TopicDashboardScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* ── HERO HEADER ── */}
       <LinearGradient
-        colors={['#4F46E5', '#6366F1']}
+        colors={['#3730A3', '#4F46E5', '#7C3AED']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={[styles.hero, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 16 }]}
       >
+        <View style={styles.blob1} />
+        <View style={styles.blob2} />
+
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <View style={styles.backCircle}>
             <Ionicons name="arrow-back" size={20} color="#FFF" />
@@ -99,7 +104,7 @@ export default function TopicDashboardScreen() {
           <Ionicons name="document-text" size={28} color="#FFF" />
         </View>
 
-        <View style={[styles.breadcrumbPill]}>
+        <View style={styles.breadcrumbPill}>
           <Ionicons name="navigate-outline" size={10} color="rgba(255,255,255,0.7)" />
           <Text style={styles.breadcrumbText} numberOfLines={1}>
             {subjectName}  ›  {chapterName}
@@ -190,11 +195,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 28,
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  blob1: {
+    position: 'absolute', width: 220, height: 220, borderRadius: 110,
+    backgroundColor: 'rgba(255,255,255,0.07)', top: -70, right: -60,
+  },
+  blob2: {
+    position: 'absolute', width: 150, height: 150, borderRadius: 75,
+    backgroundColor: 'rgba(255,255,255,0.05)', bottom: -30, left: -40,
   },
   backBtn: { alignSelf: 'flex-start', marginBottom: 20 },
   backCircle: {
-    width: 38, height: 38, borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    width: 40, height: 40, borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center', justifyContent: 'center',
   },
   topicIconWrap: {
