@@ -237,7 +237,7 @@ export default function TestQuizScreen() {
 
             {/* top bar — back + branding */}
             <View style={styles.certTopBar}>
-              <Pressable style={styles.certBackBtn} onPress={() => { router.back(); router.back(); }}>
+              <Pressable style={styles.certBackBtn} onPress={() => router.replace('/subjects' as any)}>
                 <Ionicons name="close" size={18} color="rgba(255,255,255,0.9)" />
               </Pressable>
               <View style={styles.certBranding}>
@@ -414,7 +414,7 @@ export default function TestQuizScreen() {
             <View style={styles.resultActions}>
               <Pressable
                 style={[styles.resultBtnOutline, { borderColor: '#4F46E5' }]}
-                onPress={() => { router.back(); router.back(); }}
+                onPress={() => router.replace('/subjects' as any)}
               >
                 <Ionicons name="home-outline" size={15} color="#4F46E5" />
                 <Text style={[styles.resultBtnOutlineText, { color: '#4F46E5' }]}>Home</Text>

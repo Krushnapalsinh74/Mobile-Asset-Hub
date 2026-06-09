@@ -15,12 +15,11 @@ type TabDef = {
 
 const TABS: TabDef[] = [
   { key: 'home',     label: 'Home',     icon: 'home-outline',     activeIcon: 'home' },
-  { key: 'practice', label: 'Practice', icon: 'trophy-outline',   activeIcon: 'trophy' },
   { key: 'settings', label: 'Settings', icon: 'settings-outline', activeIcon: 'settings' },
 ];
 
 function handleTabPress(key: string) {
-  if (key === 'home' || key === 'practice') router.push('/subjects' as any);
+  if (key === 'home') router.replace('/subjects' as any);
   else if (key === 'settings') router.push('/settings' as any);
 }
 
