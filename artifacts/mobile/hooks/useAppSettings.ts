@@ -25,6 +25,6 @@ export function useAppSettings() {
     premiumPrice: (settings.premiumPrice ?? null) as number | null,
     premiumCurrency: (settings.premiumCurrency ?? 'INR') as string,
     paymentGateway: (settings.paymentGateway ?? 'razorpay') as string,
-    appName: (settings.appName ?? 'EduLearn') as string,
+    appName: (settings.appName ?? 'Knowledge Park') as string,
   };
 }

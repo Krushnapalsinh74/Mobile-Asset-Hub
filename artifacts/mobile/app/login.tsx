@@ -130,7 +130,7 @@ export default function LoginScreen() {
               <Ionicons name="school" size={30} color="#FFFFFF" />
             </LinearGradient>
             <View>
-              <Text style={styles.heroAppName}>EduLearn</Text>
+              <Text style={styles.heroAppName}>Knowledge Park</Text>
               <View style={styles.heroTagRow}>
                 <View style={styles.heroDot} />
                 <Text style={styles.heroTagline}>AI-Powered Learning</Text>

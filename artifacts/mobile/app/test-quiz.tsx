@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Modal,
   Platform,
@@ -19,6 +19,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D', 'E'];
+const APP_NAME = 'Knowledge Park';
 
 function extractCorrectLetter(q: Question): string | null {
   if (q.answer) {
@@ -59,6 +60,20 @@ function formatTime(s: number) {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
+function getGrade(pct: number): { grade: string; gpa: string; color: string; bg: string } {
+  if (pct >= 90) return { grade: 'A+', gpa: '10.0', color: '#065F46', bg: '#D1FAE5' };
+  if (pct >= 80) return { grade: 'A',  gpa: '9.0',  color: '#059669', bg: '#ECFDF5' };
+  if (pct >= 70) return { grade: 'B+', gpa: '8.0',  color: '#2563EB', bg: '#EFF6FF' };
+  if (pct >= 60) return { grade: 'B',  gpa: '7.0',  color: '#3B82F6', bg: '#EFF6FF' };
+  if (pct >= 50) return { grade: 'C',  gpa: '6.0',  color: '#D97706', bg: '#FEF3C7' };
+  if (pct >= 40) return { grade: 'D',  gpa: '5.0',  color: '#EA580C', bg: '#FFF7ED' };
+  return              { grade: 'F',  gpa: '0.0',  color: '#DC2626', bg: '#FEE2E2' };
+}
+
+function getDateString() {
+  return new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 export default function TestQuizScreen() {
   const { questionsJson, subjectName, chapterName } = useLocalSearchParams<{
     questionsJson: string;
@@ -70,21 +85,17 @@ export default function TestQuizScreen() {
   const { studentName, boardId, boardName, standardId, standardName, addTestResult } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const navScrollRef = useRef<ScrollView>(null);
 
   const questions: Question[] = useMemo(() => {
     try {
       const parsed = JSON.parse(questionsJson ?? '[]');
       return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
+    } catch { return []; }
   }, [questionsJson]);
 
   const totalTime = questions.length * 90;
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [flagged, setFlagged] = useState<Set<number>>(new Set());
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [score, setScore] = useState(0);
@@ -139,11 +150,7 @@ export default function TestQuizScreen() {
     if (submitted) return;
     const id = setInterval(() => {
       setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(id);
-          doSubmit();
-          return 0;
-        }
+        if (prev <= 1) { clearInterval(id); doSubmit(); return 0; }
         return prev - 1;
       });
       setElapsed(e => e + 1);
@@ -160,24 +167,14 @@ export default function TestQuizScreen() {
     setAnswers(prev => ({ ...prev, [currentIndex]: answer }));
   };
 
-  const toggleFlag = () => {
-    Haptics.selectionAsync();
-    setFlagged(prev => {
-      const next = new Set(prev);
-      if (next.has(currentIndex)) next.delete(currentIndex);
-      else next.add(currentIndex);
-      return next;
-    });
+  const goNext = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (currentIndex < questions.length - 1) {
+      setCurrentIndex(i => i + 1);
+    } else {
+      setShowSubmitModal(true);
+    }
   };
-
-  const goTo = (i: number) => {
-    Haptics.selectionAsync();
-    setCurrentIndex(i);
-    navScrollRef.current?.scrollTo({ x: i * 40, animated: true });
-  };
-
-  const goNext = () => { if (currentIndex < questions.length - 1) goTo(currentIndex + 1); };
-  const goPrev = () => { if (currentIndex > 0) goTo(currentIndex - 1); };
 
   if (questions.length === 0) {
     return (
@@ -189,118 +186,206 @@ export default function TestQuizScreen() {
         <Text style={[styles.errorSub, { color: colors.mutedForeground }]}>
           Try selecting a different chapter or question type
         </Text>
-        <Pressable onPress={() => router.back()} style={[styles.actionBtn, { backgroundColor: colors.primary }]}>
-          <Text style={styles.actionBtnText}>Go Back</Text>
+        <Pressable onPress={() => router.back()} style={styles.actionBtn}>
+          <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.actionBtnGrad}>
+            <Text style={styles.actionBtnText}>Go Back</Text>
+          </LinearGradient>
         </Pressable>
       </View>
     );
   }
 
   const percentage = submitted ? Math.round((score / questions.length) * 100) : 0;
-  const isGood = percentage >= 70;
 
-  // ── RESULT SCREEN ──
+  /* ════════════════════════════════════
+     RESULT SCREEN — Knowledge Park card
+  ════════════════════════════════════ */
   if (submitted) {
-    const resultEmoji = percentage >= 90 ? '🏆' : percentage >= 70 ? '🌟' : percentage >= 50 ? '💪' : '📚';
-    const resultMsg = percentage >= 90 ? 'Outstanding performance!'
-      : percentage >= 70 ? 'Great job! Keep it up.'
-      : percentage >= 50 ? 'Good effort, keep practicing!'
-      : 'Keep studying, you can do it!';
-
-    const gradColors: [string, string] = isGood
-      ? ['#065F46', '#10B981']
-      : percentage >= 50
-      ? ['#92400E', '#F59E0B']
-      : ['#312E81', '#4F46E5'];
+    const gradeInfo = getGrade(percentage);
+    const wrong = questions.length - score - (questions.length - answeredCount);
+    const skipped = questions.length - answeredCount;
+    const isPassing = percentage >= 40;
+    const headerGrad: [string, string, string] = percentage >= 70
+      ? ['#064E3B', '#065F46', '#059669']
+      : percentage >= 40
+      ? ['#451A03', '#92400E', '#D97706']
+      : ['#1E1B4B', '#312E81', '#4F46E5'];
 
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: '#F0F4FF' }]}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}>
-          {/* Result header */}
+
+          {/* ── KP Official Header ── */}
           <LinearGradient
-            colors={gradColors}
+            colors={headerGrad}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={[styles.resultHeader, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 24 }]}
+            style={[styles.resultHeader, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 20 }]}
           >
-            <View style={styles.resultEmojiWrap}>
-              <Text style={styles.resultEmoji}>{resultEmoji}</Text>
+            <View style={styles.resultHBlob1} />
+            <View style={styles.resultHBlob2} />
+
+            {/* KP Branding */}
+            <View style={styles.kpBrand}>
+              <View style={styles.kpLogoWrap}>
+                <Ionicons name="school" size={22} color="#FFFFFF" />
+              </View>
+              <View>
+                <Text style={styles.kpName}>{APP_NAME}</Text>
+                <Text style={styles.kpTagline}>Official Test Result</Text>
+              </View>
             </View>
-            <Text style={styles.resultTitle}>Test Complete!</Text>
-            <Text style={styles.resultScore}>{score}/{questions.length}</Text>
-            <Text style={styles.resultPercent}>{percentage}% Correct</Text>
-            <Text style={styles.resultMsg}>{resultMsg}</Text>
-            <View style={styles.resultMeta}>
-              <View style={styles.resultMetaItem}>
-                <Ionicons name="time-outline" size={13} color="rgba(255,255,255,0.7)" />
-                <Text style={styles.resultMetaText}>{formatTime(elapsed)}</Text>
+
+            {/* Divider */}
+            <View style={styles.kpDivider} />
+
+            {/* Score circle */}
+            <View style={styles.scoreCircleWrap}>
+              <View style={styles.scoreCircleOuter}>
+                <View style={styles.scoreCircleInner}>
+                  <Text style={styles.scoreCirclePct}>{percentage}%</Text>
+                  <Text style={styles.scoreCircleLabel}>Score</Text>
+                </View>
               </View>
-              <View style={styles.resultMetaDot} />
-              <View style={styles.resultMetaItem}>
-                <Ionicons name="checkmark-circle-outline" size={13} color="rgba(255,255,255,0.7)" />
-                <Text style={styles.resultMetaText}>{score} correct</Text>
+              <View style={[styles.gradeBadge, { backgroundColor: gradeInfo.bg }]}>
+                <Text style={[styles.gradeText, { color: gradeInfo.color }]}>{gradeInfo.grade}</Text>
               </View>
-              <View style={styles.resultMetaDot} />
-              <View style={styles.resultMetaItem}>
-                <Ionicons name="close-circle-outline" size={13} color="rgba(255,255,255,0.7)" />
-                <Text style={styles.resultMetaText}>{questions.length - score} wrong</Text>
+            </View>
+
+            <Text style={styles.resultStatusText}>
+              {isPassing ? '✅ PASSED' : '❌ NOT PASSED'}
+            </Text>
+
+            {/* Meta strip */}
+            <View style={styles.kpMetaStrip}>
+              <View style={styles.kpMetaItem}>
+                <Ionicons name="person-outline" size={11} color="rgba(255,255,255,0.7)" />
+                <Text style={styles.kpMetaText}>{studentName || 'Student'}</Text>
+              </View>
+              <View style={styles.kpMetaDot} />
+              <View style={styles.kpMetaItem}>
+                <Ionicons name="book-outline" size={11} color="rgba(255,255,255,0.7)" />
+                <Text style={styles.kpMetaText}>{subjectName}</Text>
+              </View>
+              <View style={styles.kpMetaDot} />
+              <View style={styles.kpMetaItem}>
+                <Ionicons name="calendar-outline" size={11} color="rgba(255,255,255,0.7)" />
+                <Text style={styles.kpMetaText}>{getDateString()}</Text>
               </View>
             </View>
           </LinearGradient>
 
-          {/* Stats grid */}
-          <View style={[styles.statsGrid, { paddingHorizontal: 20 }]}>
+          {/* ── Official Marksheet ── */}
+          <View style={styles.marksheet}>
+
+            {/* Header row */}
+            <View style={[styles.marksheetHeader, { borderBottomColor: '#E5E7EB' }]}>
+              <Text style={styles.marksheetTitle}>PERFORMANCE REPORT</Text>
+              <View style={[styles.marksheetBadge, { backgroundColor: isPassing ? '#D1FAE5' : '#FEE2E2' }]}>
+                <Text style={[styles.marksheetBadgeText, { color: isPassing ? '#065F46' : '#991B1B' }]}>
+                  {isPassing ? 'PASS' : 'FAIL'}
+                </Text>
+              </View>
+            </View>
+
+            {/* Info rows */}
             {[
-              { label: 'Correct', val: score, color: '#10B981', bg: '#D1FAE5' },
-              { label: 'Wrong', val: questions.length - score - (answeredCount - score < 0 ? 0 : 0), color: '#EF4444', bg: '#FEE2E2' },
-              { label: 'Skipped', val: questions.length - answeredCount, color: '#F59E0B', bg: '#FEF3C7' },
-              { label: 'Score', val: `${percentage}%`, color: colors.primary, bg: colors.primaryLight },
-            ].map((s, i) => (
-              <View key={i} style={[styles.statCard, { backgroundColor: s.bg }]}>
-                <Text style={[styles.statCardVal, { color: s.color }]}>{s.val}</Text>
-                <Text style={[styles.statCardLabel, { color: s.color }]}>{s.label}</Text>
+              { label: 'Student Name', value: studentName || 'Student' },
+              { label: 'Board', value: boardName || boardId || '—' },
+              { label: 'Standard', value: standardName || standardId || '—' },
+              { label: 'Subject', value: subjectName || '—' },
+              { label: 'Chapter', value: (chapterName || '—').split('|||')[0] || '—' },
+              { label: 'Test Type', value: 'MCQ' },
+              { label: 'Test Date', value: getDateString() },
+              { label: 'Time Taken', value: formatTime(elapsed) },
+            ].map((row, i) => (
+              <View key={i} style={[styles.marksheetRow, { backgroundColor: i % 2 === 0 ? '#FAFAFA' : '#FFFFFF', borderBottomColor: '#F3F4F6' }]}>
+                <Text style={styles.marksheetRowLabel}>{row.label}</Text>
+                <Text style={styles.marksheetRowValue} numberOfLines={1}>{row.value}</Text>
               </View>
             ))}
+
+            {/* Score table */}
+            <View style={styles.scoreTable}>
+              <Text style={styles.scoreTableTitle}>MARKS SUMMARY</Text>
+              <View style={styles.scoreTableGrid}>
+                {[
+                  { label: 'Total Qs', val: String(questions.length), color: '#4F46E5', bg: '#EEF2FF' },
+                  { label: 'Attempted', val: String(answeredCount), color: '#0284C7', bg: '#E0F2FE' },
+                  { label: 'Correct', val: String(score), color: '#059669', bg: '#D1FAE5' },
+                  { label: 'Wrong', val: String(Math.max(0, wrong)), color: '#DC2626', bg: '#FEE2E2' },
+                  { label: 'Skipped', val: String(skipped), color: '#D97706', bg: '#FEF3C7' },
+                  { label: 'Score %', val: `${percentage}%`, color: gradeInfo.color, bg: gradeInfo.bg },
+                ].map((s, i) => (
+                  <View key={i} style={[styles.scoreCell, { backgroundColor: s.bg }]}>
+                    <Text style={[styles.scoreCellVal, { color: s.color }]}>{s.val}</Text>
+                    <Text style={[styles.scoreCellLabel, { color: s.color + 'BB' }]}>{s.label}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            {/* Grade row */}
+            <View style={[styles.gradeRow, { backgroundColor: gradeInfo.bg, borderColor: gradeInfo.color + '30' }]}>
+              <View>
+                <Text style={[styles.gradeRowLabel, { color: gradeInfo.color }]}>Overall Grade</Text>
+                <Text style={[styles.gradeRowSub, { color: gradeInfo.color + 'AA' }]}>GPA: {gradeInfo.gpa} / 10.0</Text>
+              </View>
+              <View style={[styles.gradeCircle, { borderColor: gradeInfo.color }]}>
+                <Text style={[styles.gradeCircleText, { color: gradeInfo.color }]}>{gradeInfo.grade}</Text>
+              </View>
+            </View>
+
+            {/* Action buttons */}
+            <View style={styles.resultActions}>
+              <Pressable
+                style={[styles.resultBtnOutline, { borderColor: '#4F46E5' }]}
+                onPress={() => { router.back(); router.back(); }}
+              >
+                <Ionicons name="home-outline" size={16} color="#4F46E5" />
+                <Text style={[styles.resultBtnOutlineText, { color: '#4F46E5' }]}>Home</Text>
+              </Pressable>
+              <Pressable style={styles.resultBtnFill} onPress={() => router.back()}>
+                <LinearGradient colors={['#4F46E5', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.resultBtnGrad}>
+                  <Ionicons name="refresh" size={16} color="#FFF" />
+                  <Text style={styles.resultBtnFillText}>Try Again</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
+
+            {/* KP Footer */}
+            <View style={styles.kpFooter}>
+              <View style={[styles.kpFooterLogoWrap, { backgroundColor: '#EEF2FF' }]}>
+                <Ionicons name="school" size={14} color="#4F46E5" />
+              </View>
+              <Text style={styles.kpFooterText}>
+                This result is generated by <Text style={{ color: '#4F46E5', fontWeight: '700' }}>{APP_NAME}</Text>
+              </Text>
+            </View>
           </View>
 
-          {/* Action buttons */}
-          <View style={[styles.resultActions, { paddingHorizontal: 20 }]}>
-            <Pressable
-              style={[styles.resultBtn, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
-              onPress={() => { router.back(); router.back(); }}
-            >
-              <Ionicons name="home-outline" size={16} color={colors.text} />
-              <Text style={[styles.resultBtnText, { color: colors.text }]}>Home</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.resultBtn, { backgroundColor: colors.primary }]}
-              onPress={() => router.back()}
-            >
-              <Ionicons name="refresh" size={16} color="#FFF" />
-              <Text style={[styles.resultBtnText, { color: '#FFFFFF' }]}>Try Again</Text>
-            </Pressable>
-          </View>
+          {/* ── Question Review ── */}
+          <View style={styles.reviewSection}>
+            <View style={styles.reviewSectionHeader}>
+              <Ionicons name="list-circle-outline" size={18} color="#4F46E5" />
+              <Text style={styles.reviewSectionTitle}>Question-wise Review</Text>
+            </View>
 
-          {/* Question review */}
-          <View style={{ paddingHorizontal: 20, marginTop: 8 }}>
-            <Text style={[styles.reviewTitle, { color: colors.text }]}>Question Review</Text>
             {questions.map((q, index) => {
               const userAns = answers[index];
               const correctIdx = getCorrectOptionIndex(q);
               const userCorrect = userAns ? isAnswerCorrect(q, userAns) : false;
               const isExpanded = expandedReview.has(index);
+              const status = userAns ? (userCorrect ? 'correct' : 'wrong') : 'skipped';
+              const statusColor = status === 'correct' ? '#059669' : status === 'wrong' ? '#DC2626' : '#D97706';
+              const statusBg = status === 'correct' ? '#D1FAE5' : status === 'wrong' ? '#FEE2E2' : '#FEF3C7';
 
               return (
                 <Pressable
                   key={index}
-                  style={[styles.reviewCard, {
-                    backgroundColor: colors.card,
-                    borderColor: userAns
-                      ? (userCorrect ? '#10B981' : '#EF4444')
-                      : colors.border,
-                    borderWidth: userAns ? 1.5 : 1,
-                  }]}
+                  style={[styles.reviewCard, { backgroundColor: '#FFFFFF', borderColor: statusColor + '30' }]}
                   onPress={() => {
+                    Haptics.selectionAsync();
                     setExpandedReview(prev => {
                       const next = new Set(prev);
                       if (next.has(index)) next.delete(index); else next.add(index);
@@ -309,31 +394,19 @@ export default function TestQuizScreen() {
                   }}
                 >
                   <View style={styles.reviewCardHeader}>
-                    <View style={[styles.qNumBadge, {
-                      backgroundColor: userAns ? (userCorrect ? '#D1FAE5' : '#FEE2E2') : colors.secondary,
-                    }]}>
-                      <Text style={[styles.qNumText, {
-                        color: userAns ? (userCorrect ? '#065F46' : '#991B1B') : colors.mutedForeground,
-                      }]}>Q{index + 1}</Text>
+                    <View style={[styles.reviewQBadge, { backgroundColor: statusBg }]}>
+                      <Text style={[styles.reviewQBadgeNum, { color: statusColor }]}>Q{index + 1}</Text>
                     </View>
-                    <Text style={[styles.reviewQuestion, { color: colors.text, flex: 1 }]} numberOfLines={isExpanded ? undefined : 2}>
+                    <Text style={[styles.reviewQuestion, { color: '#111827' }]} numberOfLines={isExpanded ? undefined : 2}>
                       {q.question}
                     </Text>
                     <View style={{ alignItems: 'center', gap: 4 }}>
-                      {userAns ? (
-                        <Ionicons
-                          name={userCorrect ? 'checkmark-circle' : 'close-circle'}
-                          size={22}
-                          color={userCorrect ? '#10B981' : '#EF4444'}
-                        />
-                      ) : (
-                        <Ionicons name="remove-circle-outline" size={22} color="#F59E0B" />
-                      )}
                       <Ionicons
-                        name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                        size={14}
-                        color={colors.mutedForeground}
+                        name={status === 'correct' ? 'checkmark-circle' : status === 'wrong' ? 'close-circle' : 'remove-circle-outline'}
+                        size={22}
+                        color={statusColor}
                       />
+                      <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={13} color="#9CA3AF" />
                     </View>
                   </View>
 
@@ -343,40 +416,34 @@ export default function TestQuizScreen() {
                         const isCorrectOpt = oi === correctIdx;
                         const isUserChoice = userAns === opt;
                         const isWrong = isUserChoice && !userCorrect;
-
                         return (
-                          <View
-                            key={oi}
-                            style={[styles.reviewOption, {
-                              backgroundColor: isCorrectOpt ? '#D1FAE5' : isWrong ? '#FEE2E2' : colors.background,
-                              borderColor: isCorrectOpt ? '#10B981' : isWrong ? '#EF4444' : colors.border,
-                              borderWidth: (isCorrectOpt || isWrong) ? 1.5 : 1,
-                            }]}
-                          >
+                          <View key={oi} style={[styles.reviewOption, {
+                            backgroundColor: isCorrectOpt ? '#D1FAE5' : isWrong ? '#FEE2E2' : '#F9FAFB',
+                            borderColor: isCorrectOpt ? '#059669' : isWrong ? '#DC2626' : '#E5E7EB',
+                          }]}>
                             <View style={[styles.optionLetter, {
-                              backgroundColor: isCorrectOpt ? '#10B981' : isWrong ? '#EF4444' : colors.secondary,
+                              backgroundColor: isCorrectOpt ? '#059669' : isWrong ? '#DC2626' : '#E5E7EB',
                             }]}>
-                              <Text style={[styles.optionLetterText, {
-                                color: (isCorrectOpt || isWrong) ? '#FFFFFF' : colors.mutedForeground,
-                              }]}>{OPTION_LABELS[oi]}</Text>
+                              <Text style={[styles.optionLetterText, { color: (isCorrectOpt || isWrong) ? '#FFFFFF' : '#6B7280' }]}>
+                                {OPTION_LABELS[oi]}
+                              </Text>
                             </View>
-                            <Text style={[styles.reviewOptText, {
-                              color: isCorrectOpt ? '#065F46' : isWrong ? '#991B1B' : colors.text,
-                              flex: 1,
-                            }]}>{opt}</Text>
-                            {isCorrectOpt && <Ionicons name="checkmark-circle" size={16} color="#10B981" />}
-                            {isWrong && <Ionicons name="close-circle" size={16} color="#EF4444" />}
+                            <Text style={[styles.reviewOptText, { color: isCorrectOpt ? '#065F46' : isWrong ? '#991B1B' : '#374151', flex: 1 }]}>
+                              {opt}
+                            </Text>
+                            {isCorrectOpt && <Ionicons name="checkmark-circle" size={15} color="#059669" />}
+                            {isWrong && <Ionicons name="close-circle" size={15} color="#DC2626" />}
                           </View>
                         );
                       })}
                       {(q.solution || q.tip) && (
-                        <View style={[styles.solutionBox, { backgroundColor: colors.primaryLight }]}>
+                        <View style={styles.solutionBox}>
                           <View style={styles.solutionHeader}>
-                            <Ionicons name="bulb" size={13} color={colors.primary} />
-                            <Text style={[styles.solutionLabel, { color: colors.primary }]}>Explanation</Text>
+                            <Ionicons name="bulb" size={13} color="#4F46E5" />
+                            <Text style={styles.solutionLabel}>Explanation</Text>
                           </View>
-                          {q.solution && <Text style={[styles.solutionText, { color: colors.text }]}>{q.solution}</Text>}
-                          {q.tip && <Text style={[styles.tipText, { color: colors.mutedForeground }]}>💡 {q.tip}</Text>}
+                          {q.solution && <Text style={styles.solutionText}>{q.solution}</Text>}
+                          {q.tip && <Text style={styles.tipText}>💡 {q.tip}</Text>}
                         </View>
                       )}
                     </View>
@@ -390,91 +457,89 @@ export default function TestQuizScreen() {
     );
   }
 
-  // ── QUIZ SCREEN ──
+  /* ════════════════════════════════════
+     QUIZ SCREEN — One question at a time
+  ════════════════════════════════════ */
   const q = questions[currentIndex]!;
   const userAns = answers[currentIndex];
-  const isFlagged = flagged.has(currentIndex);
   const isLastQ = currentIndex === questions.length - 1;
-  const answerPct = questions.length > 0 ? answeredCount / questions.length : 0;
-
-  const statusFor = (i: number) => {
-    if (i === currentIndex) return 'current';
-    if (flagged.has(i)) return 'flagged';
-    if (answers[i] !== undefined) return 'answered';
-    return 'unanswered';
-  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* ── STICKY HEADER ── */}
-      <View style={[
-        styles.header,
-        {
-          paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 8,
-          backgroundColor: colors.card,
-          borderBottomColor: colors.border,
-        },
-      ]}>
-        <View style={styles.headerRow}>
-          <Pressable onPress={() => router.back()} style={[styles.closeCircle, { backgroundColor: colors.secondary }]}>
-            <Ionicons name="close" size={18} color={colors.text} />
+      {/* ── GRADIENT HEADER ── */}
+      <LinearGradient
+        colors={['#3730A3', '#4F46E5', '#7C3AED']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.quizHeader, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 10 }]}
+      >
+        <View style={styles.quizHeaderBlob1} />
+        <View style={styles.quizHeaderBlob2} />
+
+        <View style={styles.quizHeaderRow}>
+          <Pressable
+            style={styles.qCloseBtn}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="close" size={18} color="#FFFFFF" />
           </Pressable>
-          <View style={styles.headerCenter}>
-            <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
-              {chapterName || subjectName}
+
+          <View style={styles.qHeaderCenter}>
+            <Text style={styles.qHeaderTitle} numberOfLines={1}>
+              {APP_NAME}
             </Text>
-            <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
-              Q {currentIndex + 1} of {questions.length}
-            </Text>
-          </View>
-          <View style={[
-            styles.timerPill,
-            {
-              backgroundColor: isLowTime ? '#FEE2E2' : colors.primaryLight,
-              borderColor: isLowTime ? '#EF4444' : 'transparent',
-            },
-          ]}>
-            {isLowTime && <Ionicons name="alert-circle" size={12} color="#EF4444" />}
-            <Text style={[styles.timerText, { color: isLowTime ? '#EF4444' : colors.primary }]}>
-              {formatTime(timeLeft)}
+            <Text style={styles.qHeaderSub}>
+              Question {currentIndex + 1} of {questions.length}
             </Text>
           </View>
+
+          <View style={[styles.qTimerPill, { backgroundColor: isLowTime ? '#DC2626' : 'rgba(255,255,255,0.2)' }]}>
+            {isLowTime && <Ionicons name="alert-circle" size={11} color="#FFFFFF" />}
+            <Text style={styles.qTimerText}>{formatTime(timeLeft)}</Text>
+          </View>
+        </View>
+
+        {/* Progress dots */}
+        <View style={styles.progressDots}>
+          {questions.map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.progressDot,
+                {
+                  backgroundColor: i < currentIndex
+                    ? 'rgba(255,255,255,0.9)'
+                    : i === currentIndex
+                    ? '#FFFFFF'
+                    : 'rgba(255,255,255,0.3)',
+                  width: i === currentIndex ? 22 : 7,
+                },
+              ]}
+            />
+          ))}
         </View>
 
         {/* Progress bar */}
-        <View style={[styles.progressBarTrack, { backgroundColor: colors.border, marginTop: 8 }]}>
-          <View style={[styles.progressBarFill, {
-            backgroundColor: answerPct === 1 ? '#10B981' : colors.primary,
-            width: `${Math.max(2, answerPct * 100)}%` as any,
+        <View style={styles.quizProgressTrack}>
+          <View style={[styles.quizProgressFill, {
+            width: `${Math.max(2, ((currentIndex + (userAns ? 1 : 0)) / questions.length) * 100)}%` as any,
           }]} />
         </View>
-        <View style={styles.progressLabels}>
-          <Text style={[styles.progressLabelText, { color: colors.mutedForeground }]}>
-            {answeredCount}/{questions.length} answered
-          </Text>
-          <Text style={[styles.progressLabelText, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
-            {Math.round(answerPct * 100)}%
-          </Text>
-        </View>
-      </View>
+      </LinearGradient>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 160, paddingTop: 16, paddingHorizontal: 16 }}
+        contentContainerStyle={[styles.quizScroll, { paddingBottom: 200 }]}
       >
         {/* Question card */}
         <View style={[styles.questionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.questionCardTop}>
-            <View style={[styles.qNumBadge, { backgroundColor: colors.primaryLight }]}>
-              <Text style={[styles.qNumText, { color: colors.primary }]}>Q{currentIndex + 1}</Text>
+            <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.qNumBadge}>
+              <Text style={styles.qNumBadgeText}>Q {currentIndex + 1}</Text>
+            </LinearGradient>
+            <View style={[styles.mcqPill, { backgroundColor: colors.muted }]}>
+              <Text style={[styles.mcqPillText, { color: colors.mutedForeground }]}>MCQ</Text>
             </View>
-            <Pressable onPress={toggleFlag} style={[styles.flagBtn, { backgroundColor: isFlagged ? '#FEF3C7' : colors.secondary }]}>
-              <Ionicons
-                name={isFlagged ? 'flag' : 'flag-outline'}
-                size={15}
-                color={isFlagged ? '#F59E0B' : colors.mutedForeground}
-              />
-            </Pressable>
           </View>
           <Text style={[styles.questionText, { color: colors.text }]}>{q.question}</Text>
           {chapterName && (
@@ -496,138 +561,89 @@ export default function TestQuizScreen() {
                 style={[
                   styles.option,
                   {
-                    backgroundColor: isSelected ? colors.primaryLight : colors.card,
-                    borderColor: isSelected ? colors.primary : colors.border,
+                    backgroundColor: isSelected ? '#EEF2FF' : colors.card,
+                    borderColor: isSelected ? '#4F46E5' : colors.border,
                     borderWidth: isSelected ? 2 : 1,
                   },
                 ]}
                 onPress={() => setAnswer(opt)}
               >
-                <View style={[styles.optionLetter, {
-                  backgroundColor: isSelected ? colors.primary : colors.secondary,
-                }]}>
-                  <Text style={[styles.optionLetterText, { color: isSelected ? '#FFFFFF' : colors.mutedForeground }]}>
-                    {label}
-                  </Text>
-                </View>
-                <Text style={[styles.optionText, {
-                  color: colors.text,
-                  fontFamily: isSelected ? 'Inter_600SemiBold' : 'Inter_400Regular',
-                }]}>{opt}</Text>
-                {isSelected && (
-                  <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                {isSelected ? (
+                  <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.optionLetter}>
+                    <Text style={[styles.optionLetterText, { color: '#FFFFFF' }]}>{label}</Text>
+                  </LinearGradient>
+                ) : (
+                  <View style={[styles.optionLetter, { backgroundColor: colors.muted }]}>
+                    <Text style={[styles.optionLetterText, { color: colors.mutedForeground }]}>{label}</Text>
+                  </View>
                 )}
+                <Text style={[styles.optionText, { color: colors.text, fontWeight: isSelected ? '700' : '400' }]}>
+                  {opt}
+                </Text>
+                {isSelected && <Ionicons name="checkmark-circle" size={20} color="#4F46E5" />}
               </Pressable>
             );
           })}
         </View>
 
-        {/* Question navigator */}
-        <View style={[styles.navigatorCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.navigatorTitle, { color: colors.mutedForeground }]}>Question Navigator</Text>
-          <ScrollView
-            ref={navScrollRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.navigatorRow}
-          >
-            {questions.map((_, i) => {
-              const s = statusFor(i);
-              return (
-                <Pressable
-                  key={i}
-                  style={[
-                    styles.navBubble,
-                    {
-                      backgroundColor:
-                        s === 'current' ? colors.primary
-                        : s === 'answered' ? '#10B981'
-                        : s === 'flagged' ? '#F59E0B'
-                        : colors.secondary,
-                      transform: s === 'current' ? [{ scale: 1.15 }] : [],
-                      shadowColor: s === 'current' ? colors.primary : 'transparent',
-                      shadowOpacity: s === 'current' ? 0.35 : 0,
-                      shadowRadius: 8,
-                      elevation: s === 'current' ? 4 : 0,
-                    },
-                  ]}
-                  onPress={() => goTo(i)}
-                >
-                  <Text style={[styles.navBubbleText, {
-                    color: s === 'unanswered' ? colors.mutedForeground : '#FFFFFF',
-                  }]}>{i + 1}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-          <View style={styles.navLegend}>
-            {[
-              { color: colors.primary, label: 'Current' },
-              { color: '#10B981', label: 'Answered' },
-              { color: '#F59E0B', label: 'Flagged' },
-              { color: colors.secondary, label: 'Not visited' },
-            ].map(({ color, label }) => (
-              <View key={label} style={styles.navLegendItem}>
-                <View style={[styles.navLegendDot, { backgroundColor: color }]} />
-                <Text style={[styles.navLegendText, { color: colors.mutedForeground }]}>{label}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
+        {/* Skip hint */}
+        {!userAns && (
+          <Pressable style={styles.skipHint} onPress={goNext}>
+            <Text style={[styles.skipHintText, { color: colors.mutedForeground }]}>
+              Skip this question →
+            </Text>
+          </Pressable>
+        )}
       </ScrollView>
 
-      {/* ── FIXED BOTTOM NAVIGATION ── */}
-      <View style={[
-        styles.bottomNav,
-        {
-          backgroundColor: colors.background,
-          borderTopColor: colors.border,
-          paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 8,
-        },
-      ]}>
-        <View style={styles.navBtns}>
-          <Pressable
-            style={[styles.navBtn, {
-              borderColor: colors.border,
-              opacity: currentIndex === 0 ? 0.4 : 1,
-              backgroundColor: colors.card,
-            }]}
-            onPress={goPrev}
-            disabled={currentIndex === 0}
-          >
-            <Ionicons name="arrow-back" size={16} color={colors.text} />
-            <Text style={[styles.navBtnText, { color: colors.text }]}>Previous</Text>
-          </Pressable>
-
-          {isLastQ ? (
-            <Pressable
-              style={[styles.navBtn, styles.navBtnPrimary, { backgroundColor: colors.primary }]}
-              onPress={() => setShowSubmitModal(true)}
-            >
-              <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
-              <Text style={[styles.navBtnText, { color: '#FFFFFF' }]}>Submit</Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              style={[styles.navBtn, {
-                backgroundColor: colors.primaryLight,
-                borderColor: colors.primary + '40',
-              }]}
-              onPress={goNext}
-            >
-              <Text style={[styles.navBtnText, { color: colors.primary }]}>Next</Text>
-              <Ionicons name="arrow-forward" size={16} color={colors.primary} />
-            </Pressable>
-          )}
+      {/* ── FIXED BOTTOM — Next / Submit ── */}
+      <View style={[styles.bottomNav, {
+        backgroundColor: colors.background,
+        borderTopColor: colors.border,
+        paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 8,
+      }]}>
+        {/* Answered indicator */}
+        <View style={styles.bottomInfo}>
+          <Text style={[styles.bottomInfoText, { color: colors.mutedForeground }]}>
+            {answeredCount} of {questions.length} answered
+          </Text>
+          <Text style={[styles.bottomInfoPct, { color: '#4F46E5' }]}>
+            {Math.round((answeredCount / questions.length) * 100)}%
+          </Text>
         </View>
 
-        {isLastQ && (
+        {isLastQ ? (
           <Pressable
-            style={[styles.submitAllBtn, { backgroundColor: colors.primary }]}
+            style={[styles.nextBtn, { opacity: submitting ? 0.6 : 1 }]}
             onPress={() => setShowSubmitModal(true)}
+            disabled={submitting}
           >
-            <Ionicons name="checkmark-done" size={18} color="#FFFFFF" />
-            <Text style={styles.submitAllBtnText}>Submit All Answers</Text>
+            <LinearGradient
+              colors={['#059669', '#10B981']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.nextBtnGrad}
+            >
+              <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+              <Text style={styles.nextBtnText}>Submit & View Results</Text>
+            </LinearGradient>
+          </Pressable>
+        ) : (
+          <Pressable
+            style={[styles.nextBtn, { opacity: userAns ? 1 : 0.55 }]}
+            onPress={userAns ? goNext : undefined}
+          >
+            <LinearGradient
+              colors={['#4F46E5', '#7C3AED']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.nextBtnGrad}
+            >
+              <Text style={styles.nextBtnText}>
+                {userAns ? 'Next Question' : 'Select an option'}
+              </Text>
+              {userAns && <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />}
+            </LinearGradient>
           </Pressable>
         )}
       </View>
@@ -645,24 +661,29 @@ export default function TestQuizScreen() {
             onPress={e => e.stopPropagation()}
           >
             <View style={styles.modalHandle} />
+
+            {/* KP branding in modal */}
+            <View style={styles.modalBrand}>
+              <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.modalBrandIcon}>
+                <Ionicons name="school" size={18} color="#FFFFFF" />
+              </LinearGradient>
+              <Text style={[styles.modalBrandText, { color: colors.text }]}>{APP_NAME}</Text>
+            </View>
+
             <Text style={[styles.modalTitle, { color: colors.text }]}>Submit Test?</Text>
             <Text style={[styles.modalSub, { color: colors.mutedForeground }]}>
               {answeredCount} of {questions.length} questions answered
               {questions.length - answeredCount > 0 && (
-                <>
-                  {' · '}
-                  <Text style={{ color: '#EF4444', fontFamily: 'Inter_600SemiBold' }}>
-                    {questions.length - answeredCount} unanswered
-                  </Text>
-                </>
+                <Text style={{ color: '#EF4444', fontWeight: '700' }}>
+                  {' · '}{questions.length - answeredCount} unanswered
+                </Text>
               )}
             </Text>
 
             <View style={styles.modalStats}>
               {[
-                { label: 'Answered', val: answeredCount, color: '#10B981', bg: '#D1FAE5' },
-                { label: 'Unanswered', val: questions.length - answeredCount, color: '#EF4444', bg: '#FEE2E2' },
-                { label: 'Flagged', val: flagged.size, color: '#F59E0B', bg: '#FEF3C7' },
+                { label: 'Answered', val: answeredCount, color: '#059669', bg: '#D1FAE5' },
+                { label: 'Unanswered', val: questions.length - answeredCount, color: '#DC2626', bg: '#FEE2E2' },
               ].map(({ label, val, color, bg }) => (
                 <View key={label} style={[styles.modalStatBox, { backgroundColor: bg }]}>
                   <Text style={[styles.modalStatVal, { color }]}>{val}</Text>
@@ -672,14 +693,21 @@ export default function TestQuizScreen() {
             </View>
 
             <Pressable
-              style={[styles.modalSubmitBtn, { backgroundColor: colors.primary, opacity: submitting ? 0.65 : 1 }]}
+              style={[styles.modalSubmitBtn, { opacity: submitting ? 0.65 : 1 }]}
               onPress={doSubmit}
               disabled={submitting}
             >
-              <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-              <Text style={styles.modalSubmitBtnText}>
-                {submitting ? 'Submitting…' : 'Yes, Submit Test'}
-              </Text>
+              <LinearGradient
+                colors={['#059669', '#10B981']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.modalSubmitBtnGrad}
+              >
+                <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                <Text style={styles.modalSubmitBtnText}>
+                  {submitting ? 'Submitting…' : 'Yes, Submit & See Results'}
+                </Text>
+              </LinearGradient>
             </Pressable>
 
             <Pressable
@@ -699,273 +727,285 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24 },
   emptyIconWrap: { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  errorTitle: { fontSize: 18, fontWeight: '700', fontFamily: 'Inter_700Bold', textAlign: 'center' },
-  errorSub: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center' },
-  actionBtn: { paddingHorizontal: 28, paddingVertical: 14, borderRadius: 16, marginTop: 8 },
-  actionBtnText: { color: '#FFF', fontWeight: '700', fontFamily: 'Inter_700Bold', fontSize: 15 },
+  errorTitle: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
+  errorSub: { fontSize: 14, textAlign: 'center' },
+  actionBtn: { borderRadius: 16, overflow: 'hidden', marginTop: 8 },
+  actionBtnGrad: { paddingHorizontal: 28, paddingVertical: 14, alignItems: 'center' },
+  actionBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
 
-  // Header
-  header: {
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
+  /* ── Quiz header ── */
+  quizHeader: {
+    paddingHorizontal: 16, paddingBottom: 14,
+    overflow: 'hidden', gap: 10,
   },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  closeCircle: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  headerCenter: { flex: 1 },
-  headerTitle: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  headerSub: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 1 },
-  timerPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
+  quizHeaderBlob1: {
+    position: 'absolute', width: 180, height: 180, borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.07)', top: -50, right: -40,
   },
-  timerText: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  progressBarTrack: { height: 4, borderRadius: 2, overflow: 'hidden' },
-  progressBarFill: { height: 4, borderRadius: 2 },
-  progressLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
-  progressLabelText: { fontSize: 10, fontFamily: 'Inter_400Regular' },
+  quizHeaderBlob2: {
+    position: 'absolute', width: 110, height: 110, borderRadius: 55,
+    backgroundColor: 'rgba(255,255,255,0.05)', bottom: -20, left: -20,
+  },
+  quizHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  qCloseBtn: {
+    width: 38, height: 38, borderRadius: 13,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  qHeaderCenter: { flex: 1 },
+  qHeaderTitle: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
+  qHeaderSub: { fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 1 },
+  qTimerPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20,
+  },
+  qTimerText: { fontSize: 12, fontWeight: '800', color: '#FFFFFF' },
+  progressDots: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap',
+  },
+  progressDot: { height: 7, borderRadius: 4 },
+  quizProgressTrack: {
+    height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden',
+  },
+  quizProgressFill: {
+    height: 3, borderRadius: 2, backgroundColor: '#FFFFFF',
+  },
 
-  // Question card
+  /* ── Quiz scroll ── */
+  quizScroll: { padding: 16, gap: 12 },
+
+  /* ── Question card ── */
   questionCard: {
-    borderRadius: 20,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    borderRadius: 22, borderWidth: 1, padding: 18,
+    shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06, shadowRadius: 16, elevation: 3,
   },
-  questionCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  qNumBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  qNumText: { fontSize: 11, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  flagBtn: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  questionText: { fontSize: 15, fontFamily: 'Inter_400Regular', lineHeight: 24, color: '#111827' },
-  questionMeta: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 8 },
+  questionCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  qNumBadge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
+  qNumBadgeText: { fontSize: 12, fontWeight: '800', color: '#FFFFFF' },
+  mcqPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  mcqPillText: { fontSize: 11, fontWeight: '600' },
+  questionText: { fontSize: 16, lineHeight: 26, fontWeight: '500' },
+  questionMeta: { fontSize: 11, marginTop: 10 },
 
-  // Options
-  optionsWrap: { gap: 10, marginBottom: 16 },
+  /* ── Options ── */
+  optionsWrap: { gap: 10 },
   option: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 16, borderRadius: 18, borderWidth: 1,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03, shadowRadius: 4, elevation: 1,
   },
   optionLetter: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
+    width: 36, height: 36, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  optionLetterText: { fontSize: 13, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  optionText: { flex: 1, fontSize: 14, lineHeight: 20 },
+  optionLetterText: { fontSize: 14, fontWeight: '800' },
+  optionText: { flex: 1, fontSize: 15, lineHeight: 21 },
+  skipHint: { alignItems: 'center', paddingVertical: 8 },
+  skipHintText: { fontSize: 13 },
 
-  // Navigator
-  navigatorCard: {
-    borderRadius: 20,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 12,
-  },
-  navigatorTitle: { fontSize: 11, fontWeight: '600', fontFamily: 'Inter_600SemiBold', marginBottom: 10 },
-  navigatorRow: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
-  navBubble: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navBubbleText: { fontSize: 11, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  navLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 10 },
-  navLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  navLegendDot: { width: 10, height: 10, borderRadius: 3 },
-  navLegendText: { fontSize: 10, fontFamily: 'Inter_400Regular' },
-
-  // Bottom navigation
+  /* ── Bottom nav ── */
   bottomNav: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    gap: 10,
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, gap: 8,
   },
-  navBtns: { flexDirection: 'row', gap: 10 },
-  navBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 13,
-    borderRadius: 16,
-    borderWidth: 1.5,
+  bottomInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  bottomInfoText: { fontSize: 12 },
+  bottomInfoPct: { fontSize: 13, fontWeight: '700' },
+  nextBtn: { borderRadius: 18, overflow: 'hidden' },
+  nextBtnGrad: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    paddingVertical: 17,
   },
-  navBtnPrimary: { borderWidth: 0 },
-  navBtnText: { fontSize: 14, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
-  submitAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 18,
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  submitAllBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  nextBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
 
-  // Submit modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
+  /* ── Modal ── */
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 24,
-    paddingBottom: 36,
-    gap: 0,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    padding: 24, paddingBottom: 36, gap: 0,
   },
   modalHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#E5E7EB',
-    alignSelf: 'center',
-    marginBottom: 20,
+    width: 40, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB',
+    alignSelf: 'center', marginBottom: 20,
   },
-  modalTitle: { fontSize: 20, fontWeight: '700', fontFamily: 'Inter_700Bold', textAlign: 'center', marginBottom: 8 },
-  modalSub: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center', marginBottom: 20, lineHeight: 20 },
+  modalBrand: { flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center', marginBottom: 16 },
+  modalBrandIcon: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  modalBrandText: { fontSize: 18, fontWeight: '800' },
+  modalTitle: { fontSize: 20, fontWeight: '700', textAlign: 'center', marginBottom: 8 },
+  modalSub: { fontSize: 13, textAlign: 'center', marginBottom: 20, lineHeight: 20 },
   modalStats: { flexDirection: 'row', gap: 10, marginBottom: 20 },
   modalStatBox: { flex: 1, borderRadius: 16, padding: 14, alignItems: 'center', gap: 4 },
-  modalStatVal: { fontSize: 22, fontWeight: '800', fontFamily: 'Inter_700Bold' },
-  modalStatLabel: { fontSize: 11, fontFamily: 'Inter_400Regular' },
-  modalSubmitBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 16,
-    borderRadius: 18,
-    marginBottom: 12,
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 4,
+  modalStatVal: { fontSize: 24, fontWeight: '800' },
+  modalStatLabel: { fontSize: 11 },
+  modalSubmitBtn: { borderRadius: 18, overflow: 'hidden', marginBottom: 12 },
+  modalSubmitBtnGrad: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16,
   },
-  modalSubmitBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  modalCancelBtn: {
-    paddingVertical: 14,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    alignItems: 'center',
-  },
-  modalCancelBtnText: { fontSize: 15, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  modalSubmitBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  modalCancelBtn: { paddingVertical: 14, borderRadius: 16, borderWidth: 1.5, alignItems: 'center' },
+  modalCancelBtnText: { fontSize: 15, fontWeight: '600' },
 
-  // Result screen
+  /* ══════════════════════════════
+     RESULT SCREEN
+  ══════════════════════════════ */
   resultHeader: {
-    alignItems: 'center',
-    paddingBottom: 40,
-    paddingHorizontal: 24,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    marginBottom: -20,
+    paddingHorizontal: 24, paddingBottom: 32,
+    alignItems: 'center', gap: 10,
+    borderBottomLeftRadius: 36, borderBottomRightRadius: 36,
+    overflow: 'hidden',
   },
-  resultEmojiWrap: {
-    width: 88,
-    height: 88,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
+  resultHBlob1: {
+    position: 'absolute', width: 260, height: 260, borderRadius: 130,
+    backgroundColor: 'rgba(255,255,255,0.06)', top: -80, right: -60,
   },
-  resultEmoji: { fontSize: 44 },
-  resultTitle: { fontSize: 22, fontWeight: '700', color: '#FFFFFF', fontFamily: 'Inter_700Bold', marginBottom: 8 },
-  resultScore: { fontSize: 48, fontWeight: '800', color: '#FFFFFF', fontFamily: 'Inter_700Bold', lineHeight: 54 },
-  resultPercent: { fontSize: 16, color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter_600SemiBold', fontWeight: '600', marginTop: 4 },
-  resultMsg: { fontSize: 14, color: 'rgba(255,255,255,0.8)', fontFamily: 'Inter_400Regular', marginTop: 8, textAlign: 'center' },
-  resultMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 14,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
+  resultHBlob2: {
+    position: 'absolute', width: 160, height: 160, borderRadius: 80,
+    backgroundColor: 'rgba(255,255,255,0.05)', bottom: -30, left: -40,
   },
-  resultMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  resultMetaText: { fontSize: 11, color: 'rgba(255,255,255,0.8)', fontFamily: 'Inter_400Regular' },
-  resultMetaDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: 'rgba(255,255,255,0.4)' },
 
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    paddingTop: 30,
-    paddingBottom: 8,
+  /* KP brand in result header */
+  kpBrand: { flexDirection: 'row', alignItems: 'center', gap: 12, alignSelf: 'flex-start', marginBottom: 4 },
+  kpLogoWrap: {
+    width: 42, height: 42, borderRadius: 13,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center', justifyContent: 'center',
   },
-  statCard: { flex: 1, minWidth: '44%', borderRadius: 18, padding: 16, alignItems: 'center', gap: 4 },
-  statCardVal: { fontSize: 26, fontWeight: '800', fontFamily: 'Inter_700Bold' },
-  statCardLabel: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  resultActions: { flexDirection: 'row', gap: 12, paddingVertical: 12 },
-  resultBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 14,
-    borderRadius: 18,
+  kpName: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
+  kpTagline: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 1 },
+  kpDivider: {
+    alignSelf: 'stretch', height: 1,
+    backgroundColor: 'rgba(255,255,255,0.15)', marginVertical: 4,
   },
-  resultBtnText: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  reviewTitle: { fontSize: 16, fontWeight: '700', fontFamily: 'Inter_700Bold', marginBottom: 12, marginTop: 8 },
+
+  /* Score circle */
+  scoreCircleWrap: { alignItems: 'center', position: 'relative', marginTop: 8 },
+  scoreCircleOuter: {
+    width: 140, height: 140, borderRadius: 70,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)',
+  },
+  scoreCircleInner: {
+    width: 110, height: 110, borderRadius: 55,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  scoreCirclePct: { fontSize: 36, fontWeight: '900', color: '#FFFFFF', lineHeight: 42 },
+  scoreCircleLabel: { fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: '600' },
+  gradeBadge: {
+    position: 'absolute', bottom: -8, right: -16,
+    paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15, shadowRadius: 8, elevation: 5,
+  },
+  gradeText: { fontSize: 16, fontWeight: '900' },
+  resultStatusText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF', marginTop: 4 },
+  kpMetaStrip: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+    flexWrap: 'wrap', justifyContent: 'center',
+  },
+  kpMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  kpMetaText: { fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: '600' },
+  kpMetaDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.4)' },
+
+  /* ── Marksheet ── */
+  marksheet: {
+    margin: 16, borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08, shadowRadius: 24, elevation: 6,
+    overflow: 'hidden',
+  },
+  marksheetHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    padding: 16, borderBottomWidth: 1,
+  },
+  marksheetTitle: { fontSize: 12, fontWeight: '800', color: '#374151', letterSpacing: 1 },
+  marksheetBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
+  marksheetBadgeText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
+  marksheetRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 11, borderBottomWidth: 1,
+  },
+  marksheetRowLabel: { fontSize: 12, color: '#6B7280', fontWeight: '500' },
+  marksheetRowValue: { fontSize: 13, color: '#111827', fontWeight: '700', flex: 1, textAlign: 'right' },
+
+  /* Score table */
+  scoreTable: { padding: 16, gap: 12 },
+  scoreTableTitle: { fontSize: 11, fontWeight: '800', color: '#374151', letterSpacing: 1 },
+  scoreTableGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  scoreCell: {
+    width: '30%', flex: 1, minWidth: 80, borderRadius: 14,
+    padding: 12, alignItems: 'center', gap: 3,
+  },
+  scoreCellVal: { fontSize: 22, fontWeight: '900' },
+  scoreCellLabel: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.3 },
+
+  /* Grade row */
+  gradeRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    margin: 16, padding: 16, borderRadius: 18, borderWidth: 1.5,
+  },
+  gradeRowLabel: { fontSize: 15, fontWeight: '800' },
+  gradeRowSub: { fontSize: 12, marginTop: 2 },
+  gradeCircle: {
+    width: 52, height: 52, borderRadius: 26, borderWidth: 2.5,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  gradeCircleText: { fontSize: 20, fontWeight: '900' },
+
+  /* Buttons */
+  resultActions: { flexDirection: 'row', gap: 12, padding: 16, paddingTop: 4 },
+  resultBtnOutline: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 7, paddingVertical: 14, borderRadius: 16, borderWidth: 1.5,
+  },
+  resultBtnOutlineText: { fontSize: 14, fontWeight: '700' },
+  resultBtnFill: { flex: 1, borderRadius: 16, overflow: 'hidden' },
+  resultBtnGrad: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 7, paddingVertical: 14,
+  },
+  resultBtnFillText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+
+  /* KP footer */
+  kpFooter: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6',
+  },
+  kpFooterLogoWrap: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  kpFooterText: { fontSize: 12, color: '#6B7280' },
+
+  /* ── Review section ── */
+  reviewSection: { paddingHorizontal: 16, paddingBottom: 8, gap: 10 },
+  reviewSectionHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4,
+  },
+  reviewSectionTitle: { fontSize: 16, fontWeight: '800', color: '#111827' },
   reviewCard: {
-    borderRadius: 18,
-    padding: 14,
-    marginBottom: 10,
+    borderRadius: 18, padding: 14, borderWidth: 1.5, marginBottom: 2,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03, shadowRadius: 8, elevation: 1,
   },
   reviewCardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  reviewQuestion: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 19 },
+  reviewQBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  reviewQBadgeNum: { fontSize: 12, fontWeight: '800' },
+  reviewQuestion: { fontSize: 13, lineHeight: 19, flex: 1 },
   reviewExpanded: { marginTop: 14, gap: 8 },
   reviewOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 10,
-    borderRadius: 12,
-    borderWidth: 1,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    padding: 10, borderRadius: 12, borderWidth: 1,
   },
-  reviewOptText: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 18 },
-
-  // Explanation
+  reviewOptText: { fontSize: 13, lineHeight: 18 },
   solutionBox: {
-    borderRadius: 14,
-    padding: 12,
-    gap: 6,
+    borderRadius: 14, padding: 12, gap: 6, backgroundColor: '#EEF2FF',
   },
   solutionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  solutionLabel: { fontSize: 12, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-  solutionText: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 20 },
-  tipText: { fontSize: 12, fontFamily: 'Inter_400Regular', lineHeight: 18 },
+  solutionLabel: { fontSize: 12, fontWeight: '700', color: '#4F46E5' },
+  solutionText: { fontSize: 13, lineHeight: 20, color: '#374151' },
+  tipText: { fontSize: 12, lineHeight: 18, color: '#6B7280' },
 });

@@ -1,4 +1,4 @@
-# EduLearn
+# Knowledge Park
 
 AI-powered quiz and test prep app for Indian school students (CBSE/ICSE/GSEB).
 

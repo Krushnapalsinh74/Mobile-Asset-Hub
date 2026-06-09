@@ -92,7 +92,7 @@ export default function SettingsScreen() {
 
     const amount = premiumPrice ?? 999;
     const currency = premiumCurrency ?? 'INR';
-    const name = appName ?? 'EduLearn Premium';
+    const name = appName ?? 'Knowledge Park Premium';
 
     const html = `<!DOCTYPE html><html>
 <head>
@@ -252,7 +252,7 @@ export default function SettingsScreen() {
                 <View style={styles.configInfo}>
                   <Text style={[styles.configLabel, { color: colors.text }]}>App Name</Text>
                   <Text style={[styles.configValue, { color: colors.mutedForeground }]}>
-                    {appName || 'EduLearn'}
+                    {appName || 'Knowledge Park'}
                   </Text>
                 </View>
               </View>
@@ -353,7 +353,7 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={[styles.version, { color: colors.mutedForeground }]}>
-          {appName || 'EduLearn'} · v1.0.0
+          {appName || 'Knowledge Park'} · v1.0.0
         </Text>
       </ScrollView>
     </View>
