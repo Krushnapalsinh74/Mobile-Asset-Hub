@@ -125,17 +125,19 @@ export default function TopicsScreen() {
   const isExplanation = mode === 'explanation';
   const isMultiSubject = (rawSubjectIds?.split(',') ?? []).filter(Boolean).length > 1;
 
+  const getKey = (t: TaggedTopic) => `${t._subjectId}::${t._chapterId}::${getId(t)}`;
+
   function toggleSelectMode() {
     Haptics.selectionAsync();
     if (selectMode) { setSelected(new Set()); setSelectMode(false); }
     else setSelectMode(true);
   }
 
-  function toggleItem(id: string) {
+  function toggleItem(key: string) {
     Haptics.selectionAsync();
     setSelected(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   }
@@ -143,11 +145,11 @@ export default function TopicsScreen() {
   function selectAll() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (selected.size === allTopics.length) setSelected(new Set());
-    else setSelected(new Set(allTopics.map(t => getId(t))));
+    else setSelected(new Set(allTopics.map(t => getKey(t))));
   }
 
   function handleTopicPress(topic: TaggedTopic) {
-    if (selectMode) { toggleItem(getId(topic)); return; }
+    if (selectMode) { toggleItem(getKey(topic)); return; }
     Haptics.selectionAsync();
     if (isExplanation) {
       router.push({

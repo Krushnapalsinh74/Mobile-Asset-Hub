@@ -116,11 +116,13 @@ export default function ChaptersScreen() {
     }
   }
 
-  function toggleItem(id: string) {
+  const getKey = (c: TaggedChapter) => `${c._subjectId}::${getId(c)}`;
+
+  function toggleItem(key: string) {
     Haptics.selectionAsync();
     setSelected(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   }
@@ -128,11 +130,11 @@ export default function ChaptersScreen() {
   function selectAll() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (selected.size === allChapters.length) setSelected(new Set());
-    else setSelected(new Set(allChapters.map(c => getId(c))));
+    else setSelected(new Set(allChapters.map(c => getKey(c))));
   }
 
   function handleChapterPress(chapter: TaggedChapter) {
-    if (selectMode) { toggleItem(getId(chapter)); return; }
+    if (selectMode) { toggleItem(getKey(chapter)); return; }
     Haptics.selectionAsync();
     router.push({
       pathname: '/topics' as any,
@@ -148,7 +150,7 @@ export default function ChaptersScreen() {
 
   function handleGenerateTest() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const sel = allChapters.filter(c => selected.has(getId(c)));
+    const sel = allChapters.filter(c => selected.has(getKey(c)));
     if (sel.length === 0) return;
     router.push({
       pathname: '/test-config' as any,
@@ -163,7 +165,7 @@ export default function ChaptersScreen() {
 
   function handleProceed() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const sel = allChapters.filter(c => selected.has(getId(c)));
+    const sel = allChapters.filter(c => selected.has(getKey(c)));
     if (sel.length === 0) return;
 
     if (sel.length === 1) {
@@ -347,8 +349,8 @@ export default function ChaptersScreen() {
             </View>
           }
           renderItem={({ item, index }) => {
-            const id = getId(item);
-            const isSelected = selected.has(id);
+            const key = getKey(item);
+            const isSelected = selected.has(key);
             return (
               <Pressable
                 style={[
@@ -363,7 +365,7 @@ export default function ChaptersScreen() {
                 onLongPress={() => {
                   if (!selectMode) {
                     setSelectMode(true);
-                    setSelected(new Set([id]));
+                    setSelected(new Set([key]));
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   }
                 }}
