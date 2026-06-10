@@ -192,20 +192,39 @@ export default function TestConfigScreen() {
     );
   }
 
-  // Keep only real MCQ questions (must have options array with ≥2 items)
-  function filterMcq(qs: any[]): any[] {
-    return qs.filter(q => Array.isArray(q?.options) && q.options.length >= 2);
+  // Strip leading numbered prefixes like "Q1:", "Q2:", "1.", "1)" from question text
+  function stripQPrefix(text: string): string {
+    return text
+      .replace(/^Q\d+[:.)\s]+/i, '')   // Q1: Q2. Q3)
+      .replace(/^\d+[:.)\s]+/, '')      // 1: 1. 1)
+      .trim();
   }
 
-  // Remove duplicate questions by normalised question text
+  // Keep only real MCQ questions (must have options array with ≥2 items)
+  // Also normalise question text in-place (remove Q1/Q2 prefixes, strip option letter prefixes)
+  function filterMcq(qs: any[]): any[] {
+    return qs
+      .filter(q => Array.isArray(q?.options) && q.options.length >= 2)
+      .map(q => ({
+        ...q,
+        question: stripQPrefix(String(q.question ?? '')),
+        // Also strip "A)" / "A." / "A) " prefixes from options so they display cleanly
+        options: (q.options as string[]).map((opt: string) =>
+          opt.replace(/^[A-Da-d][).:\s]+/, '').trim()
+        ),
+      }));
+  }
+
+  // Remove duplicate questions by normalised question text (ignores Q-number prefix)
   function deduplicate(qs: any[]): any[] {
     const seen = new Set<string>();
     return qs.filter(q => {
-      const key = String(q?.question ?? '')
+      const key = stripQPrefix(String(q?.question ?? ''))
         .toLowerCase()
+        .replace(/[''""]/g, '"')   // normalise smart quotes
         .replace(/\s+/g, ' ')
         .trim()
-        .slice(0, 100);
+        .slice(0, 120);
       if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;
