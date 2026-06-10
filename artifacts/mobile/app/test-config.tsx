@@ -338,6 +338,14 @@ export default function TestConfigScreen() {
         return;
       }
 
+      // Block quiz if too few unique questions (not enough for a meaningful test)
+      if (allQuestions.length < 3) {
+        setError(
+          `Only ${allQuestions.length} unique question${allQuestions.length === 1 ? '' : 's'} found for this chapter — the API doesn't have enough content here yet. Please pick a different chapter.`
+        );
+        return;
+      }
+
 
       // Store questions in AsyncStorage to avoid URL param length limits
       // (large JSON passed via URL gets truncated, causing duplicate/missing questions)
