@@ -5,10 +5,11 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
+import { AppState, AppStateStatus, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -20,9 +21,20 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, staleTime: 1000 * 60 * 5 },
+    queries: {
+      retry: 1,
+      staleTime: 0,
+      refetchOnMount: false,
+      refetchOnWindowFocus: true,
+    },
   },
 });
+
+function onAppStateChange(status: AppStateStatus) {
+  if (Platform.OS !== 'web') {
+    focusManager.setFocused(status === 'active');
+  }
+}
 
 const HEADER_STYLE = {
   headerStyle: { backgroundColor: '#F5F7FF' },
@@ -70,6 +82,11 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', onAppStateChange);
+    return () => subscription.remove();
+  }, []);
 
   if (!fontsLoaded && !fontError) return null;
 
