@@ -4,11 +4,13 @@ import { useColors } from '@/hooks/useColors';
 import { eduApi } from '@/services/api';
 import type { Question } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Modal,
   Platform,
   Pressable,
@@ -84,7 +86,8 @@ function getDateString() {
 }
 
 export default function TestQuizScreen() {
-  const { questionsJson, subjectName, chapterName } = useLocalSearchParams<{
+  const { questionsKey, questionsJson, subjectName, chapterName } = useLocalSearchParams<{
+    questionsKey: string;
     questionsJson: string;
     subjectId: string;
     subjectName: string;
@@ -98,21 +101,53 @@ export default function TestQuizScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
-  const questions: Question[] = useMemo(() => {
-    try {
-      const parsed = JSON.parse(questionsJson ?? '[]');
-      return Array.isArray(parsed) ? parsed : [];
-    } catch { return []; }
-  }, [questionsJson]);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [questionsLoading, setQuestionsLoading] = useState(true);
 
-  const totalTime = questions.length * 90;
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        // Prefer AsyncStorage key (avoids URL length truncation)
+        if (questionsKey) {
+          const stored = await AsyncStorage.getItem(questionsKey);
+          if (!cancelled && stored) {
+            const parsed = JSON.parse(stored);
+            setQuestions(Array.isArray(parsed) ? parsed : []);
+            // Clean up after reading so storage doesn't grow unbounded
+            AsyncStorage.removeItem(questionsKey).catch(() => {});
+            return;
+          }
+        }
+        // Fallback: inline JSON (legacy / small sets)
+        if (questionsJson) {
+          const parsed = JSON.parse(questionsJson);
+          if (!cancelled) setQuestions(Array.isArray(parsed) ? parsed : []);
+        }
+      } catch {
+        if (!cancelled) setQuestions([]);
+      } finally {
+        if (!cancelled) setQuestionsLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [questionsKey, questionsJson]);
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(totalTime);
+  const [timeLeft, setTimeLeft] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+
+  // Set timer once questions finish loading
+  useEffect(() => {
+    if (!questionsLoading && questions.length > 0) {
+      setTimeLeft(questions.length * 90);
+    }
+  }, [questionsLoading, questions.length]);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [expandedReview, setExpandedReview] = useState<Set<number>>(new Set());
 
@@ -222,6 +257,17 @@ export default function TestQuizScreen() {
       setShowSubmitModal(true);
     }
   };
+
+  if (questionsLoading) {
+    return (
+      <View style={[styles.center, { flex: 1, backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[styles.errorSub, { color: colors.mutedForeground, marginTop: 16 }]}>
+          Loading questions…
+        </Text>
+      </View>
+    );
+  }
 
   if (questions.length === 0) {
     return (

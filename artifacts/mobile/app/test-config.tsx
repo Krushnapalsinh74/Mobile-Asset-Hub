@@ -3,6 +3,7 @@ import { useColors } from '@/hooks/useColors';
 import { eduApi, getId } from '@/services/api';
 import type { Topic } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueries } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -325,11 +326,16 @@ export default function TestConfigScreen() {
         );
       }
 
+      // Store questions in AsyncStorage to avoid URL param length limits
+      // (large JSON passed via URL gets truncated, causing duplicate/missing questions)
+      const questionsKey = `quiz_questions_${Date.now()}`;
+      await AsyncStorage.setItem(questionsKey, JSON.stringify(allQuestions));
+
       const first = configList[0]!;
       router.push({
         pathname: '/test-quiz' as any,
         params: {
-          questionsJson: JSON.stringify(allQuestions),
+          questionsKey,
           subjectId: first.subjectId,
           subjectName: first.subjectName,
           chapterId: chapterIds.join(','),
