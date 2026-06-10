@@ -319,12 +319,6 @@ export default function TestConfigScreen() {
         return;
       }
 
-      if (shortfalls.length > 0) {
-        setWarning(
-          `This chapter has a limited MCQ pool. Starting test with ${allQuestions.length} unique question${allQuestions.length !== 1 ? 's' : ''} ` +
-          `(${shortfalls.join('; ')}). To get more questions, select additional chapters or topics.`
-        );
-      }
 
       // Store questions in AsyncStorage to avoid URL param length limits
       // (large JSON passed via URL gets truncated, causing duplicate/missing questions)
