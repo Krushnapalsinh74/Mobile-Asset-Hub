@@ -224,11 +224,13 @@ export default function TestConfigScreen() {
     setWarning('');
 
     try {
-      // API caps ~10 questions per call. Run batches sequentially (not in
-      // parallel) so the server treats each as a fresh request and doesn't
-      // return the same cached set every time.
-      const API_BATCH = 10;
-      const BATCH_DELAY_MS = 600;
+      // The API has a fixed MCQ pool per chapter (~10 unique MCQs).
+      // It ignores the seed parameter and always returns the same set.
+      // Strategy: make ONE large request (count:50) to drain the pool,
+      // then try ONE more call after a delay only if we still need more.
+      // Stop immediately if the second call adds zero new unique questions.
+      const MAX_PER_CALL = 50;
+      const RETRY_DELAY_MS = 800;
 
       const sleep = (ms: number) =>
         new Promise<void>(resolve => setTimeout(resolve, ms));
@@ -239,7 +241,6 @@ export default function TestConfigScreen() {
       for (let chapterIdx = 0; chapterIdx < configList.length; chapterIdx++) {
         const cfg = configList[chapterIdx]!;
         const needed = cfg.count;
-        const numBatches = Math.min(Math.ceil(needed / API_BATCH), 10);
 
         let resolvedTopicName: string | undefined;
         if (cfg.expanded) {
@@ -262,18 +263,10 @@ export default function TestConfigScreen() {
           ? `"${resolvedTopicName.slice(0, 40)}…"`
           : `"${cfg.chapterName}"`;
 
-        const pool: any[] = [];
+        setLoadingMsg(`Fetching questions for ${label}…`);
 
-        for (let i = 0; i < numBatches; i++) {
-          setLoadingMsg(
-            `Fetching questions for ${label}… (batch ${i + 1}/${numBatches})`
-          );
-
-          // Unique seed per batch: time-based + batch index so the API
-          // cannot serve a cached result across calls.
-          const seed = Date.now() + i * 100_003 + Math.floor(Math.random() * 9_999);
-
-          const batch = await eduApi
+        const fetchBatch = () =>
+          eduApi
             .generateQuestions({
               board: boardId ?? boardName ?? '',
               standard: standardId ?? standardName ?? '',
@@ -282,8 +275,8 @@ export default function TestConfigScreen() {
               ...(resolvedTopicName ? { topic: resolvedTopicName } : {}),
               options: {
                 mode: 'mcq',
-                count: API_BATCH,
-                seed,
+                count: MAX_PER_CALL,
+                seed: Date.now() + Math.floor(Math.random() * 9_999),
                 difficulty: cfg.difficulty,
               },
               freshQuestions: true,
@@ -291,23 +284,30 @@ export default function TestConfigScreen() {
             .then(res => filterMcq(parseQuestionsFromResponse(res)))
             .catch(() => [] as any[]);
 
-          pool.push(...batch);
+        // First call — gets the full pool the API has for this chapter
+        const firstBatch = await fetchBatch();
+        const pool = [...firstBatch];
+        let unique = deduplicate(pool);
 
-          // Stop early if we already have enough unique questions
-          const unique = deduplicate(pool);
-          if (unique.length >= needed) break;
-
-          // Wait before the next batch so the server generates fresh content
-          if (i < numBatches - 1) await sleep(BATCH_DELAY_MS);
+        // Only retry if we still need more AND the first call returned something
+        if (unique.length < needed && firstBatch.length > 0) {
+          setLoadingMsg(`Looking for more questions for ${label}…`);
+          await sleep(RETRY_DELAY_MS);
+          const secondBatch = await fetchBatch();
+          pool.push(...secondBatch);
+          const uniqueAfter = deduplicate(pool);
+          // If the retry added NO new questions, the API pool is exhausted — stop
+          if (uniqueAfter.length > unique.length) {
+            unique = uniqueAfter;
+          }
         }
 
-        const unique = deduplicate(pool);
         const result = unique.slice(0, needed);
         chapterResults.push(result);
 
         if (result.length < needed) {
           shortfalls.push(
-            `"${cfg.chapterName}": ${result.length} of ${needed} unique questions available`
+            `"${cfg.chapterName}": ${result.length}/${needed} unique MCQs available`
           );
         }
       }
@@ -321,8 +321,8 @@ export default function TestConfigScreen() {
 
       if (shortfalls.length > 0) {
         setWarning(
-          `Only ${allQuestions.length} unique question${allQuestions.length !== 1 ? 's' : ''} found ` +
-          `(${shortfalls.join('; ')}). The API has a limited pool — try selecting fewer questions or different topics.`
+          `This chapter has a limited MCQ pool. Starting test with ${allQuestions.length} unique question${allQuestions.length !== 1 ? 's' : ''} ` +
+          `(${shortfalls.join('; ')}). To get more questions, select additional chapters or topics.`
         );
       }
 
