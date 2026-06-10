@@ -129,6 +129,7 @@ export default function TestConfigScreen() {
   const [loading, setLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState('');
   const [error, setError] = useState('');
+  const [warning, setWarning] = useState('');
 
   const topicQueries = useQueries({
     queries: chapterIds.map(cid => {
@@ -219,81 +220,109 @@ export default function TestConfigScreen() {
     setLoading(true);
     setLoadingMsg('Preparing questions…');
     setError('');
+    setWarning('');
 
     try {
-      // API caps ~10 questions per call. To get more, we make multiple
-      // parallel calls with different seeds, then filter + deduplicate.
+      // API caps ~10 questions per call. Run batches sequentially (not in
+      // parallel) so the server treats each as a fresh request and doesn't
+      // return the same cached set every time.
       const API_BATCH = 10;
+      const BATCH_DELAY_MS = 600;
 
-      const chapterResults: any[][] = await Promise.all(
-        configList.map(async (cfg, chapterIdx) => {
-          const needed = cfg.count;
-          // How many batches we need (cap at 10 to support up to 100 questions)
-          const numBatches = Math.min(Math.ceil(needed / API_BATCH), 10);
+      const sleep = (ms: number) =>
+        new Promise<void>(resolve => setTimeout(resolve, ms));
 
-          // Resolve which topics to focus on for this chapter:
-          // 1. If the topic filter UI was expanded and has explicit toggles → use those
-          // 2. Else fall back to preset topic names passed in via params (from topics screen)
-          // 3. If none → generate from the whole chapter (no topic filter)
-          let resolvedTopicName: string | undefined;
+      const chapterResults: any[][] = [];
+      const shortfalls: string[] = [];
 
-          if (cfg.expanded) {
-            // User interacted with the topics UI — use checked topics
-            const topicQuery = topicQueries[chapterIdx];
-            const loadedTopics: Topic[] = topicQuery?.data ?? [];
-            const activeTopicNames = loadedTopics
-              .filter(t => topicStates[getId(t)]?.selected !== false)
-              .map(t => t.name);
-            if (activeTopicNames.length > 0 && activeTopicNames.length < loadedTopics.length) {
-              resolvedTopicName = activeTopicNames.join(', ');
-            }
-          } else {
-            // Use preset topics from topics screen or topic-dashboard
-            const presetForChapter = presetTopicNamesByChapterIndex[chapterIdx] ?? [];
-            if (presetForChapter.length > 0) {
-              resolvedTopicName = presetForChapter.join(', ');
-            }
+      for (let chapterIdx = 0; chapterIdx < configList.length; chapterIdx++) {
+        const cfg = configList[chapterIdx]!;
+        const needed = cfg.count;
+        const numBatches = Math.min(Math.ceil(needed / API_BATCH), 10);
+
+        let resolvedTopicName: string | undefined;
+        if (cfg.expanded) {
+          const topicQuery = topicQueries[chapterIdx];
+          const loadedTopics: Topic[] = topicQuery?.data ?? [];
+          const activeTopicNames = loadedTopics
+            .filter(t => topicStates[getId(t)]?.selected !== false)
+            .map(t => t.name);
+          if (activeTopicNames.length > 0 && activeTopicNames.length < loadedTopics.length) {
+            resolvedTopicName = activeTopicNames.join(', ');
           }
+        } else {
+          const presetForChapter = presetTopicNamesByChapterIndex[chapterIdx] ?? [];
+          if (presetForChapter.length > 0) {
+            resolvedTopicName = presetForChapter.join(', ');
+          }
+        }
 
-          const label = resolvedTopicName
-            ? `"${resolvedTopicName.slice(0, 40)}…"`
-            : `"${cfg.chapterName}"`;
-          setLoadingMsg(`Fetching ${needed} questions for ${label}…`);
+        const label = resolvedTopicName
+          ? `"${resolvedTopicName.slice(0, 40)}…"`
+          : `"${cfg.chapterName}"`;
 
-          const batchCalls = Array.from({ length: numBatches }, (_, i) =>
-            eduApi
-              .generateQuestions({
-                board: boardId ?? boardName ?? '',
-                standard: standardId ?? standardName ?? '',
-                subject: cfg.subjectName,
-                chapter: cfg.chapterName,
-                ...(resolvedTopicName ? { topic: resolvedTopicName } : {}),
-                options: {
-                  mode: 'mcq',
-                  count: API_BATCH,
-                  seed: Math.floor(Math.random() * 1_000_000) + i * 100_003,
-                  difficulty: cfg.difficulty,
-                },
-                freshQuestions: true,
-              })
-              .then(res => filterMcq(parseQuestionsFromResponse(res)))
-              .catch(() => [] as any[]),
+        const pool: any[] = [];
+
+        for (let i = 0; i < numBatches; i++) {
+          setLoadingMsg(
+            `Fetching questions for ${label}… (batch ${i + 1}/${numBatches})`
           );
 
-          const batches = await Promise.all(batchCalls);
-          const poolRaw = batches.flat();
+          // Unique seed per batch: time-based + batch index so the API
+          // cannot serve a cached result across calls.
+          const seed = Date.now() + i * 100_003 + Math.floor(Math.random() * 9_999);
 
-          // Remove duplicates, then take exactly what was requested
-          const pool = deduplicate(poolRaw);
-          return pool.slice(0, needed);
-        }),
-      );
+          const batch = await eduApi
+            .generateQuestions({
+              board: boardId ?? boardName ?? '',
+              standard: standardId ?? standardName ?? '',
+              subject: cfg.subjectName,
+              chapter: cfg.chapterName,
+              ...(resolvedTopicName ? { topic: resolvedTopicName } : {}),
+              options: {
+                mode: 'mcq',
+                count: API_BATCH,
+                seed,
+                difficulty: cfg.difficulty,
+              },
+              freshQuestions: true,
+            })
+            .then(res => filterMcq(parseQuestionsFromResponse(res)))
+            .catch(() => [] as any[]);
+
+          pool.push(...batch);
+
+          // Stop early if we already have enough unique questions
+          const unique = deduplicate(pool);
+          if (unique.length >= needed) break;
+
+          // Wait before the next batch so the server generates fresh content
+          if (i < numBatches - 1) await sleep(BATCH_DELAY_MS);
+        }
+
+        const unique = deduplicate(pool);
+        const result = unique.slice(0, needed);
+        chapterResults.push(result);
+
+        if (result.length < needed) {
+          shortfalls.push(
+            `"${cfg.chapterName}": ${result.length} of ${needed} unique questions available`
+          );
+        }
+      }
 
       const allQuestions = chapterResults.flat();
 
       if (allQuestions.length === 0) {
         setError('No MCQ questions could be generated. Try different chapters or a smaller count.');
         return;
+      }
+
+      if (shortfalls.length > 0) {
+        setWarning(
+          `Only ${allQuestions.length} unique question${allQuestions.length !== 1 ? 's' : ''} found ` +
+          `(${shortfalls.join('; ')}). The API has a limited pool — try selecting fewer questions or different topics.`
+        );
       }
 
       const first = configList[0]!;
@@ -631,6 +660,13 @@ export default function TestConfigScreen() {
           <View style={[styles.errorBanner, { backgroundColor: colors.destructive + '18' }]}>
             <Ionicons name="alert-circle-outline" size={16} color={colors.destructive} />
             <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
+          </View>
+        )}
+
+        {!!warning && (
+          <View style={[styles.errorBanner, { backgroundColor: '#F59E0B18' }]}>
+            <Ionicons name="information-circle-outline" size={16} color="#F59E0B" />
+            <Text style={[styles.errorText, { color: '#92400E' }]}>{warning}</Text>
           </View>
         )}
       </ScrollView>
