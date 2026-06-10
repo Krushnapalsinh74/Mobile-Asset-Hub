@@ -688,7 +688,7 @@ export default function SubjectsScreen() {
                         )}
                       </View>
                       <Text style={[styles.testCardMeta, { color: colors.mutedForeground }]}>
-                        {t.chapterName ? `${t.chapterName} · ` : ''}{t.mode.toUpperCase()} · {timeAgo(t.timestamp)}
+                        {t.chapterName ? `${t.chapterName.split('|||')[0]} · ` : ''}{t.mode.toUpperCase()} · {timeAgo(t.timestamp)}
                       </Text>
                       {pct !== null && (
                         <View style={[styles.testCardBar, { backgroundColor: barColor + '20' }]}>

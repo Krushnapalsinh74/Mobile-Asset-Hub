@@ -510,40 +510,44 @@ export default function TestQuizScreen() {
               const statusIcon = status === 'correct' ? 'checkmark-circle' : status === 'wrong' ? 'close-circle' : 'remove-circle-outline';
 
               return (
-                <Pressable
+                <View
                   key={index}
                   style={[styles.reviewCard, { borderLeftColor: statusColor, borderColor: '#F3F4F6' }]}
-                  onPress={() => {
-                    Haptics.selectionAsync();
-                    setExpandedReview(prev => {
-                      const next = new Set(prev);
-                      if (next.has(index)) next.delete(index); else next.add(index);
-                      return next;
-                    });
-                  }}
                 >
                   <View style={styles.reviewCardHeader}>
-                    <View style={[styles.reviewQNum, { backgroundColor: statusBg }]}>
-                      <Text style={[styles.reviewQNumText, { color: statusColor }]}>{index + 1}</Text>
-                    </View>
-                    <Text style={styles.reviewQuestion} numberOfLines={isExpanded ? undefined : 2}>
-                      {q.question}
-                    </Text>
-                    <View style={styles.reviewCardRight}>
-                      <Pressable
-                        onPress={() => handleSaveQ(q)}
-                        hitSlop={10}
-                        style={styles.saveQBtn}
-                      >
-                        <Ionicons
-                          name={savedIds.has(makeQId(q.question)) ? 'bookmark' : 'bookmark-outline'}
-                          size={18}
-                          color={savedIds.has(makeQId(q.question)) ? '#4F46E5' : '#9CA3AF'}
-                        />
-                      </Pressable>
-                      <Ionicons name={statusIcon as any} size={20} color={statusColor} />
-                      <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={12} color="#9CA3AF" />
-                    </View>
+                    <Pressable
+                      style={styles.reviewCardExpandZone}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setExpandedReview(prev => {
+                          const next = new Set(prev);
+                          if (next.has(index)) next.delete(index); else next.add(index);
+                          return next;
+                        });
+                      }}
+                    >
+                      <View style={[styles.reviewQNum, { backgroundColor: statusBg }]}>
+                        <Text style={[styles.reviewQNumText, { color: statusColor }]}>{index + 1}</Text>
+                      </View>
+                      <Text style={styles.reviewQuestion} numberOfLines={isExpanded ? undefined : 2}>
+                        {q.question}
+                      </Text>
+                      <View style={styles.reviewCardIcons}>
+                        <Ionicons name={statusIcon as any} size={20} color={statusColor} />
+                        <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={12} color="#9CA3AF" />
+                      </View>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => handleSaveQ(q)}
+                      hitSlop={10}
+                      style={styles.saveQBtn}
+                    >
+                      <Ionicons
+                        name={savedIds.has(makeQId(q.question)) ? 'bookmark' : 'bookmark-outline'}
+                        size={18}
+                        color={savedIds.has(makeQId(q.question)) ? '#4F46E5' : '#9CA3AF'}
+                      />
+                    </Pressable>
                   </View>
 
                   {isExpanded && (
@@ -584,7 +588,7 @@ export default function TestQuizScreen() {
                       )}
                     </View>
                   )}
-                </Pressable>
+                </View>
               );
             })}
           </View>
@@ -1190,15 +1194,16 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03, shadowRadius: 4, elevation: 1,
   },
-  reviewCardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  reviewCardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  reviewCardExpandZone: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   reviewQNum: {
     width: 26, height: 26, borderRadius: 8,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   reviewQNumText: { fontSize: 12, fontWeight: '800' },
   reviewQuestion: { fontSize: 13, lineHeight: 19, flex: 1, color: '#111827' },
-  reviewCardRight: { alignItems: 'center', gap: 4 },
-  saveQBtn: { padding: 3 },
+  reviewCardIcons: { alignItems: 'center', gap: 4 },
+  saveQBtn: { padding: 4, marginTop: 2 },
   reviewExpanded: { marginTop: 12, gap: 7 },
   reviewOption: {
     flexDirection: 'row', alignItems: 'center', gap: 10,

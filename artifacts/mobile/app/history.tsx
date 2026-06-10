@@ -138,23 +138,23 @@ export default function HistoryScreen() {
             </Pressable>
           </View>
         ) : (
-          testHistory.map((t, i) => {
+          testHistory.map((t) => {
             const pct       = t.percentage ?? null;
             const grade     = pct !== null ? getGrade(pct) : null;
             const modeMeta  = MODE_META[t.mode] ?? MODE_META.mcq;
             const isPassing = pct !== null && pct >= 40;
-            const isOpen    = expanded.has(i);
+            const isOpen    = expanded.has(t.timestamp);
             const barColor  = pct !== null ? (pct >= 70 ? '#10B981' : pct >= 40 ? '#F59E0B' : '#EF4444') : '#9CA3AF';
 
             return (
               <Pressable
-                key={i}
+                key={t.timestamp}
                 style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
                 onPress={() => {
                   Haptics.selectionAsync();
                   setExpanded(prev => {
                     const next = new Set(prev);
-                    if (next.has(i)) next.delete(i); else next.add(i);
+                    if (next.has(t.timestamp)) next.delete(t.timestamp); else next.add(t.timestamp);
                     return next;
                   });
                 }}
@@ -191,14 +191,16 @@ export default function HistoryScreen() {
 
                   {/* chips row */}
                   <View style={styles.chipsRow}>
-                    <View style={[styles.modePill, { backgroundColor: modeMeta.colors[0] + '18' }]}>
-                      <Ionicons name={modeMeta.icon as any} size={10} color={modeMeta.colors[0]} />
-                      <Text style={[styles.modePillText, { color: modeMeta.colors[0] }]}>{modeMeta.label}</Text>
-                    </View>
-                    <View style={[styles.scorePill, { backgroundColor: barColor + '18' }]}>
-                      <Text style={[styles.scorePillText, { color: barColor }]}>
-                        {t.score}/{t.total}{pct !== null ? `  ·  ${pct}%` : ''}
-                      </Text>
+                    <View style={styles.chipsLeft}>
+                      <View style={[styles.modePill, { backgroundColor: modeMeta.colors[0] + '18' }]}>
+                        <Ionicons name={modeMeta.icon as any} size={10} color={modeMeta.colors[0]} />
+                        <Text style={[styles.modePillText, { color: modeMeta.colors[0] }]}>{modeMeta.label}</Text>
+                      </View>
+                      <View style={[styles.scorePill, { backgroundColor: barColor + '18' }]}>
+                        <Text style={[styles.scorePillText, { color: barColor }]}>
+                          {t.score}/{t.total}{pct !== null ? `  ·  ${pct}%` : ''}
+                        </Text>
+                      </View>
                     </View>
                     <Text style={[styles.timeText, { color: colors.mutedForeground }]}>
                       {timeAgo(t.timestamp)}
@@ -345,7 +347,8 @@ const styles = StyleSheet.create({
   },
   gradeText: { fontSize: 12, fontWeight: '800' },
 
-  chipsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  chipsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  chipsLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', flex: 1 },
   modePill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20,
@@ -353,7 +356,7 @@ const styles = StyleSheet.create({
   modePillText: { fontSize: 11, fontWeight: '700' },
   scorePill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20 },
   scorePillText: { fontSize: 11, fontWeight: '700' },
-  timeText: { fontSize: 11, marginLeft: 'auto' as any },
+  timeText: { fontSize: 11, marginLeft: 8 },
 
   progressTrack: {
     height: 5, borderRadius: 3, overflow: 'hidden',
