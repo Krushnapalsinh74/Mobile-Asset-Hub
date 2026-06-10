@@ -3,7 +3,6 @@ import { useColors } from '@/hooks/useColors';
 import { eduApi, getId } from '@/services/api';
 import type { Topic } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueries } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -130,7 +129,6 @@ export default function TestConfigScreen() {
   const [loading, setLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState('');
   const [error, setError] = useState('');
-  const [warning, setWarning] = useState('');
 
   const topicQueries = useQueries({
     queries: chapterIds.map(cid => {
@@ -192,60 +190,20 @@ export default function TestConfigScreen() {
     );
   }
 
-  // Strip leading numbered prefixes like "Q1:", "Q2:", "1.", "1)" from question text
-  function stripQPrefix(text: string): string {
-    return text
-      .replace(/^Q\d+[:.)\s]+/i, '')   // Q1: Q2. Q3)
-      .replace(/^\d+[:.)\s]+/, '')      // 1: 1. 1)
-      .trim();
-  }
-
-  // Detect generic placeholder questions the API generates when it has no real content
-  // e.g. "Which of the following best describes a concept from 'Vectors' in Physics?"
-  const PLACEHOLDER_PATTERNS = [
-    /which of the following best describes a concept from/i,
-    /which of the following is (?:an example|a type|related to|associated with) .{0,30} in \w+\??$/i,
-    /^statement related to core principle$/i,
-    /^incorrect application of formula$/i,
-    /^definition with wrong units$/i,
-    /^unrelated concept$/i,
-  ];
-  function isPlaceholder(q: any): boolean {
-    const text = stripQPrefix(String(q?.question ?? '')).toLowerCase();
-    // Also check if options are themselves generic placeholders
-    const opts: string[] = Array.isArray(q?.options) ? q.options : [];
-    const genericOptCount = opts.filter(o =>
-      PLACEHOLDER_PATTERNS.some(p => p.test(o))
-    ).length;
-    return PLACEHOLDER_PATTERNS.some(p => p.test(text)) || genericOptCount >= 2;
-  }
-
   // Keep only real MCQ questions (must have options array with ≥2 items)
-  // Also normalise question text in-place (remove Q1/Q2 prefixes, strip option letter prefixes)
   function filterMcq(qs: any[]): any[] {
-    return qs
-      .filter(q => Array.isArray(q?.options) && q.options.length >= 2)
-      .filter(q => !isPlaceholder(q))
-      .map(q => ({
-        ...q,
-        question: stripQPrefix(String(q.question ?? '')),
-        // Also strip "A)" / "A." / "A) " prefixes from options so they display cleanly
-        options: (q.options as string[]).map((opt: string) =>
-          opt.replace(/^[A-Da-d][).:\s]+/, '').trim()
-        ),
-      }));
+    return qs.filter(q => Array.isArray(q?.options) && q.options.length >= 2);
   }
 
-  // Remove duplicate questions by normalised question text (ignores Q-number prefix)
+  // Remove duplicate questions by normalised question text
   function deduplicate(qs: any[]): any[] {
     const seen = new Set<string>();
     return qs.filter(q => {
-      const key = stripQPrefix(String(q?.question ?? ''))
+      const key = String(q?.question ?? '')
         .toLowerCase()
-        .replace(/[''""]/g, '"')   // normalise smart quotes
         .replace(/\s+/g, ' ')
         .trim()
-        .slice(0, 120);
+        .slice(0, 100);
       if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -261,96 +219,75 @@ export default function TestConfigScreen() {
     setLoading(true);
     setLoadingMsg('Preparing questions…');
     setError('');
-    setWarning('');
 
     try {
-      // The API has a fixed MCQ pool per chapter (~10 unique MCQs).
-      // It ignores the seed parameter and always returns the same set.
-      // Strategy: make ONE large request (count:50) to drain the pool,
-      // then try ONE more call after a delay only if we still need more.
-      // Stop immediately if the second call adds zero new unique questions.
-      const MAX_PER_CALL = 50;
-      const RETRY_DELAY_MS = 800;
+      // API caps ~10 questions per call. To get more, we make multiple
+      // parallel calls with different seeds, then filter + deduplicate.
+      const API_BATCH = 10;
 
-      const sleep = (ms: number) =>
-        new Promise<void>(resolve => setTimeout(resolve, ms));
+      const chapterResults: any[][] = await Promise.all(
+        configList.map(async (cfg, chapterIdx) => {
+          const needed = cfg.count;
+          // How many batches we need (cap at 10 to support up to 100 questions)
+          const numBatches = Math.min(Math.ceil(needed / API_BATCH), 10);
 
-      const chapterResults: any[][] = [];
-      const shortfalls: string[] = [];
+          // Resolve which topics to focus on for this chapter:
+          // 1. If the topic filter UI was expanded and has explicit toggles → use those
+          // 2. Else fall back to preset topic names passed in via params (from topics screen)
+          // 3. If none → generate from the whole chapter (no topic filter)
+          let resolvedTopicName: string | undefined;
 
-      for (let chapterIdx = 0; chapterIdx < configList.length; chapterIdx++) {
-        const cfg = configList[chapterIdx]!;
-        const needed = cfg.count;
-
-        let resolvedTopicName: string | undefined;
-        if (cfg.expanded) {
-          const topicQuery = topicQueries[chapterIdx];
-          const loadedTopics: Topic[] = topicQuery?.data ?? [];
-          const activeTopicNames = loadedTopics
-            .filter(t => topicStates[getId(t)]?.selected !== false)
-            .map(t => t.name);
-          if (activeTopicNames.length > 0 && activeTopicNames.length < loadedTopics.length) {
-            resolvedTopicName = activeTopicNames.join(', ');
+          if (cfg.expanded) {
+            // User interacted with the topics UI — use checked topics
+            const topicQuery = topicQueries[chapterIdx];
+            const loadedTopics: Topic[] = topicQuery?.data ?? [];
+            const activeTopicNames = loadedTopics
+              .filter(t => topicStates[getId(t)]?.selected !== false)
+              .map(t => t.name);
+            if (activeTopicNames.length > 0 && activeTopicNames.length < loadedTopics.length) {
+              resolvedTopicName = activeTopicNames.join(', ');
+            }
+          } else {
+            // Use preset topics from topics screen or topic-dashboard
+            const presetForChapter = presetTopicNamesByChapterIndex[chapterIdx] ?? [];
+            if (presetForChapter.length > 0) {
+              resolvedTopicName = presetForChapter.join(', ');
+            }
           }
-        } else {
-          const presetForChapter = presetTopicNamesByChapterIndex[chapterIdx] ?? [];
-          if (presetForChapter.length > 0) {
-            resolvedTopicName = presetForChapter.join(', ');
-          }
-        }
 
-        const label = resolvedTopicName
-          ? `"${resolvedTopicName.slice(0, 40)}…"`
-          : `"${cfg.chapterName}"`;
+          const label = resolvedTopicName
+            ? `"${resolvedTopicName.slice(0, 40)}…"`
+            : `"${cfg.chapterName}"`;
+          setLoadingMsg(`Fetching ${needed} questions for ${label}…`);
 
-        setLoadingMsg(`Fetching questions for ${label}…`);
-
-        const fetchBatch = () =>
-          eduApi
-            .generateQuestions({
-              board: boardId ?? boardName ?? '',
-              standard: standardId ?? standardName ?? '',
-              subject: cfg.subjectName,
-              chapter: cfg.chapterName,
-              ...(resolvedTopicName ? { topic: resolvedTopicName } : {}),
-              options: {
-                mode: 'mcq',
-                count: MAX_PER_CALL,
-                seed: Date.now() + Math.floor(Math.random() * 9_999),
-                difficulty: cfg.difficulty,
-              },
-              freshQuestions: true,
-            })
-            .then(res => filterMcq(parseQuestionsFromResponse(res)))
-            .catch(() => [] as any[]);
-
-        // First call — gets the full pool the API has for this chapter
-        const firstBatch = await fetchBatch();
-        const pool = [...firstBatch];
-        let unique = deduplicate(pool);
-
-        // Only retry if we still need more AND the first call returned something
-        if (unique.length < needed && firstBatch.length > 0) {
-          setLoadingMsg(`Looking for more questions for ${label}…`);
-          await sleep(RETRY_DELAY_MS);
-          const secondBatch = await fetchBatch();
-          pool.push(...secondBatch);
-          const uniqueAfter = deduplicate(pool);
-          // If the retry added NO new questions, the API pool is exhausted — stop
-          if (uniqueAfter.length > unique.length) {
-            unique = uniqueAfter;
-          }
-        }
-
-        const result = unique.slice(0, needed);
-        chapterResults.push(result);
-
-        if (result.length < needed) {
-          shortfalls.push(
-            `"${cfg.chapterName}": ${result.length}/${needed} unique MCQs available`
+          const batchCalls = Array.from({ length: numBatches }, (_, i) =>
+            eduApi
+              .generateQuestions({
+                board: boardId ?? boardName ?? '',
+                standard: standardId ?? standardName ?? '',
+                subject: cfg.subjectName,
+                chapter: cfg.chapterName,
+                ...(resolvedTopicName ? { topic: resolvedTopicName } : {}),
+                options: {
+                  mode: 'mcq',
+                  count: API_BATCH,
+                  seed: Math.floor(Math.random() * 1_000_000) + i * 100_003,
+                  difficulty: cfg.difficulty,
+                },
+                freshQuestions: true,
+              })
+              .then(res => filterMcq(parseQuestionsFromResponse(res)))
+              .catch(() => [] as any[]),
           );
-        }
-      }
+
+          const batches = await Promise.all(batchCalls);
+          const poolRaw = batches.flat();
+
+          // Remove duplicates, then take exactly what was requested
+          const pool = deduplicate(poolRaw);
+          return pool.slice(0, needed);
+        }),
+      );
 
       const allQuestions = chapterResults.flat();
 
@@ -359,25 +296,11 @@ export default function TestConfigScreen() {
         return;
       }
 
-      // Block quiz if too few unique questions (not enough for a meaningful test)
-      if (allQuestions.length < 3) {
-        setError(
-          `Only ${allQuestions.length} unique question${allQuestions.length === 1 ? '' : 's'} found for this chapter — the API doesn't have enough content here yet. Please pick a different chapter.`
-        );
-        return;
-      }
-
-
-      // Store questions in AsyncStorage to avoid URL param length limits
-      // (large JSON passed via URL gets truncated, causing duplicate/missing questions)
-      const questionsKey = `quiz_questions_${Date.now()}`;
-      await AsyncStorage.setItem(questionsKey, JSON.stringify(allQuestions));
-
       const first = configList[0]!;
       router.push({
         pathname: '/test-quiz' as any,
         params: {
-          questionsKey,
+          questionsJson: JSON.stringify(allQuestions),
           subjectId: first.subjectId,
           subjectName: first.subjectName,
           chapterId: chapterIds.join(','),
@@ -708,13 +631,6 @@ export default function TestConfigScreen() {
           <View style={[styles.errorBanner, { backgroundColor: colors.destructive + '18' }]}>
             <Ionicons name="alert-circle-outline" size={16} color={colors.destructive} />
             <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
-          </View>
-        )}
-
-        {!!warning && (
-          <View style={[styles.errorBanner, { backgroundColor: '#F59E0B18' }]}>
-            <Ionicons name="information-circle-outline" size={16} color="#F59E0B" />
-            <Text style={[styles.errorText, { color: '#92400E' }]}>{warning}</Text>
           </View>
         )}
       </ScrollView>
