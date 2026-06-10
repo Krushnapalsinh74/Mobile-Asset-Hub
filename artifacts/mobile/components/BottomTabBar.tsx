@@ -14,12 +14,16 @@ type TabDef = {
 };
 
 const TABS: TabDef[] = [
-  { key: 'home',     label: 'Home',     icon: 'home-outline',     activeIcon: 'home' },
-  { key: 'settings', label: 'Settings', icon: 'settings-outline', activeIcon: 'settings' },
+  { key: 'home',    label: 'Home',    icon: 'home-outline',     activeIcon: 'home'     },
+  { key: 'history', label: 'History', icon: 'time-outline',     activeIcon: 'time'     },
+  { key: 'saved',   label: 'Saved',   icon: 'bookmark-outline', activeIcon: 'bookmark' },
+  { key: 'settings',label: 'Settings',icon: 'settings-outline', activeIcon: 'settings' },
 ];
 
 function handleTabPress(key: string) {
-  if (key === 'home') router.replace('/subjects' as any);
+  if (key === 'home')     router.replace('/subjects' as any);
+  else if (key === 'history') router.replace('/history' as any);
+  else if (key === 'saved')   router.replace('/saved' as any);
   else if (key === 'settings') router.push('/settings' as any);
 }
 
@@ -86,9 +90,9 @@ const styles = StyleSheet.create({
     paddingBottom: 2,
   },
   iconWrap: {
-    width: 48,
-    height: 32,
-    borderRadius: 16,
+    width: 46,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
   },

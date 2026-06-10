@@ -33,6 +33,19 @@ export interface ChatSession {
   timestamp: number;
 }
 
+export interface SavedQuestion {
+  id: string;
+  question: string;
+  options?: string[];
+  answer?: string;
+  solution?: string;
+  tip?: string;
+  subjectName: string;
+  chapterName?: string;
+  correctOptionIndex: number;
+  savedAt: number;
+}
+
 interface AppState {
   studentName: string | null;
   studentEmail: string | null;
@@ -44,6 +57,7 @@ interface AppState {
   subjectProgress: Record<string, SubjectProgress>;
   testHistory: TestResult[];
   chatHistory: ChatSession[];
+  savedQuestions: SavedQuestion[];
   isLoaded: boolean;
 }
 
@@ -56,6 +70,8 @@ interface AppContextValue extends AppState {
   incrementExplored: (subjectId: string) => Promise<void>;
   addTestResult: (result: TestResult) => Promise<void>;
   addChatSession: (session: ChatSession) => Promise<void>;
+  saveQuestion: (q: SavedQuestion) => Promise<void>;
+  unsaveQuestion: (id: string) => Promise<void>;
   clearAll: () => Promise<void>;
 }
 
@@ -72,6 +88,7 @@ const KEYS = {
   subjectProgress: '@edu:subjectProgress',
   testHistory: '@edu:testHistory',
   chatHistory: '@edu:chatHistory',
+  savedQuestions: '@edu:savedQuestions',
 };
 
 function parse<T>(s: string | null, fallback: T): T {
@@ -90,6 +107,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     subjectProgress: {},
     testHistory: [],
     chatHistory: [],
+    savedQuestions: [],
     isLoaded: false,
   });
 
@@ -108,6 +126,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         subjectProgress: parse(map[KEYS.subjectProgress], {}),
         testHistory: parse(map[KEYS.testHistory], []),
         chatHistory: parse(map[KEYS.chatHistory], []),
+        savedQuestions: parse(map[KEYS.savedQuestions], []),
         isLoaded: true,
       });
     });
@@ -172,19 +191,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const saveQuestion = async (q: SavedQuestion) => {
+    setState(s => {
+      if (s.savedQuestions.find(sq => sq.id === q.id)) return s;
+      const next = [q, ...s.savedQuestions].slice(0, 300);
+      AsyncStorage.setItem(KEYS.savedQuestions, JSON.stringify(next));
+      return { ...s, savedQuestions: next };
+    });
+  };
+
+  const unsaveQuestion = async (id: string) => {
+    setState(s => {
+      const next = s.savedQuestions.filter(q => q.id !== id);
+      AsyncStorage.setItem(KEYS.savedQuestions, JSON.stringify(next));
+      return { ...s, savedQuestions: next };
+    });
+  };
+
   const clearAll = async () => {
     await AsyncStorage.multiRemove(Object.values(KEYS));
     setState({
       studentName: null, studentEmail: null, boardId: null, boardName: null,
       standardId: null, standardName: null, lastStudied: null, subjectProgress: {},
-      testHistory: [], chatHistory: [], isLoaded: true,
+      testHistory: [], chatHistory: [], savedQuestions: [], isLoaded: true,
     });
   };
 
   return (
     <AppContext.Provider value={{
       ...state, setStudent, setBoard, setStandard, setLastStudied,
-      setSubjectTotal, incrementExplored, addTestResult, addChatSession, clearAll,
+      setSubjectTotal, incrementExplored, addTestResult, addChatSession,
+      saveQuestion, unsaveQuestion, clearAll,
     }}>
       {children}
     </AppContext.Provider>

@@ -1,4 +1,5 @@
 import { useApp } from '@/context/AppContext';
+import type { SavedQuestion } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { eduApi } from '@/services/api';
 import type { Question } from '@/services/api';
@@ -20,6 +21,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D', 'E'];
 const APP_NAME = 'Knowledge Park';
+
+function makeQId(question: string): string {
+  let h = 0;
+  for (let i = 0; i < question.length; i++) {
+    h = (Math.imul(31, h) + question.charCodeAt(i)) | 0;
+  }
+  return `q${Math.abs(h)}`;
+}
 
 function extractCorrectLetter(q: Question): string | null {
   if (q.answer) {
@@ -82,7 +91,10 @@ export default function TestQuizScreen() {
     chapterId: string;
     chapterName: string;
   }>();
-  const { studentName, boardId, boardName, standardId, standardName, addTestResult } = useApp();
+  const {
+    studentName, boardId, boardName, standardId, standardName,
+    addTestResult, saveQuestion, unsaveQuestion, savedQuestions,
+  } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
@@ -103,6 +115,34 @@ export default function TestQuizScreen() {
   const [elapsed, setElapsed] = useState(0);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [expandedReview, setExpandedReview] = useState<Set<number>>(new Set());
+
+  const savedIds = useMemo(
+    () => new Set(savedQuestions.map(q => q.id)),
+    [savedQuestions],
+  );
+
+  const handleSaveQ = useCallback((q: Question) => {
+    const id = makeQId(q.question);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (savedIds.has(id)) {
+      unsaveQuestion(id);
+    } else {
+      const correctIdx = getCorrectOptionIndex(q);
+      const sq: SavedQuestion = {
+        id,
+        question: q.question,
+        options: q.options,
+        answer: q.answer,
+        solution: q.solution,
+        tip: q.tip,
+        subjectName: subjectName ?? '',
+        chapterName: chapterName,
+        correctOptionIndex: correctIdx,
+        savedAt: Date.now(),
+      };
+      saveQuestion(sq);
+    }
+  }, [savedIds, saveQuestion, unsaveQuestion, subjectName, chapterName]);
 
   // Store answers in a ref so doSubmit doesn't need it as a dep
   // (prevents timer from restarting on every answer selection)
@@ -490,6 +530,17 @@ export default function TestQuizScreen() {
                       {q.question}
                     </Text>
                     <View style={styles.reviewCardRight}>
+                      <Pressable
+                        onPress={() => handleSaveQ(q)}
+                        hitSlop={10}
+                        style={styles.saveQBtn}
+                      >
+                        <Ionicons
+                          name={savedIds.has(makeQId(q.question)) ? 'bookmark' : 'bookmark-outline'}
+                          size={18}
+                          color={savedIds.has(makeQId(q.question)) ? '#4F46E5' : '#9CA3AF'}
+                        />
+                      </Pressable>
                       <Ionicons name={statusIcon as any} size={20} color={statusColor} />
                       <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={12} color="#9CA3AF" />
                     </View>
@@ -1147,6 +1198,7 @@ const styles = StyleSheet.create({
   reviewQNumText: { fontSize: 12, fontWeight: '800' },
   reviewQuestion: { fontSize: 13, lineHeight: 19, flex: 1, color: '#111827' },
   reviewCardRight: { alignItems: 'center', gap: 4 },
+  saveQBtn: { padding: 3 },
   reviewExpanded: { marginTop: 12, gap: 7 },
   reviewOption: {
     flexDirection: 'row', alignItems: 'center', gap: 10,

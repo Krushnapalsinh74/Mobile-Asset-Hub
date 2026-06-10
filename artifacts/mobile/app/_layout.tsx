@@ -51,6 +51,8 @@ function RootLayoutNav() {
       <Stack.Screen name="test-quiz" options={{ headerShown: false }} />
       <Stack.Screen name="explanation" options={{ headerShown: false }} />
       <Stack.Screen name="settings" options={{ headerShown: false }} />
+      <Stack.Screen name="history" options={{ headerShown: false }} />
+      <Stack.Screen name="saved" options={{ headerShown: false }} />
     </Stack>
   );
 }
