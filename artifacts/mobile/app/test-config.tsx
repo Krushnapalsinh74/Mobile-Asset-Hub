@@ -200,11 +200,32 @@ export default function TestConfigScreen() {
       .trim();
   }
 
+  // Detect generic placeholder questions the API generates when it has no real content
+  // e.g. "Which of the following best describes a concept from 'Vectors' in Physics?"
+  const PLACEHOLDER_PATTERNS = [
+    /which of the following best describes a concept from/i,
+    /which of the following is (?:an example|a type|related to|associated with) .{0,30} in \w+\??$/i,
+    /^statement related to core principle$/i,
+    /^incorrect application of formula$/i,
+    /^definition with wrong units$/i,
+    /^unrelated concept$/i,
+  ];
+  function isPlaceholder(q: any): boolean {
+    const text = stripQPrefix(String(q?.question ?? '')).toLowerCase();
+    // Also check if options are themselves generic placeholders
+    const opts: string[] = Array.isArray(q?.options) ? q.options : [];
+    const genericOptCount = opts.filter(o =>
+      PLACEHOLDER_PATTERNS.some(p => p.test(o))
+    ).length;
+    return PLACEHOLDER_PATTERNS.some(p => p.test(text)) || genericOptCount >= 2;
+  }
+
   // Keep only real MCQ questions (must have options array with ≥2 items)
   // Also normalise question text in-place (remove Q1/Q2 prefixes, strip option letter prefixes)
   function filterMcq(qs: any[]): any[] {
     return qs
       .filter(q => Array.isArray(q?.options) && q.options.length >= 2)
+      .filter(q => !isPlaceholder(q))
       .map(q => ({
         ...q,
         question: stripQPrefix(String(q.question ?? '')),
