@@ -283,8 +283,11 @@ export default function TestConfigScreen() {
           const batches = await Promise.all(batchCalls);
           const poolRaw = batches.flat();
 
-          // Remove duplicates, then take exactly what was requested
-          const pool = deduplicate(poolRaw);
+          // Remove duplicates where possible; if dedup shrinks below
+          // what was requested (backend returned identical batches),
+          // fall back to the raw pool so the user always gets the count they asked for.
+          const deduped = deduplicate(poolRaw);
+          const pool = deduped.length >= needed ? deduped : poolRaw;
           return pool.slice(0, needed);
         }),
       );
