@@ -1,0 +1,39 @@
+I am building a Flutter app that communicates with a Node.js/Express backend, which then communicates with the Google Gemini AI API to generate dynamic, unique educational questions for students. 
+
+I need you to understand the exact data flow, the API endpoint, the JSON payload being sent, and the internal prompt used.
+
+### 1. The API Endpoint & JSON Payload (Frontend to Backend)
+The Flutter app makes a POST request to my backend.
+**Endpoint:** `POST https://kparkit.com/edu/api/chat`
+
+The JSON body being sent from Flutter looks like this:
+{
+  "message": "Generate 20 hard mcq questions",
+  "history": [],
+  "board": "GSEB",
+  "standard": "Class 11",
+  "filters": {
+    "subject": "Physics",
+    "chapter": "Vectors"
+  }
+}
+
+*Note: It is crucial that the frontend maps the `subject` inside a `filters` object and sends the prompt in the `message` string, rather than sending a `messages` array. If this mapping fails, the backend receives `undefined`.*
+
+### 2. The Internal AI Prompt (Backend to Gemini API)
+Once the Node.js backend receives the JSON above, it constructs the following strict text prompt and sends it to the `gemini-1.5-pro` / `gemini-2.5-flash` model via the `@google/generative-ai` SDK:
+
+"""
+You are an expert Indian educational AI tutor for GSEB board, Class 11 students. Always respond in English. ONLY answer about subject: "Physics". ONLY discuss chapter: "Vectors".
+
+Be clear, encouraging, and use examples. Format answers with key points. If asked for multiple questions, ensure EVERY question is COMPLETELY UNIQUE, covering different sub-topics and never repeating. If generating questions, return ONLY the numbered list of questions without any introductory or concluding conversational text. Pay very close attention to the requested format and difficulty: if the user asks for MCQs, generate exactly that many Multiple Choice Questions with 4 options each; if they ask for hard questions, make them highly advanced.
+
+Student: Generate 20 hard mcq questions
+
+Tutor:
+"""
+
+### 3. The Objective
+My goal is to ensure the AI always returns exactly the requested number of questions (e.g., 20), correctly formats them as multiple-choice if asked, never repeats the same question, and omits any conversational filler (like "Here are your questions").
+
+Please keep this architecture and prompt logic in mind for any future code changes or debugging we do on `server.js` or `api_service.dart`.

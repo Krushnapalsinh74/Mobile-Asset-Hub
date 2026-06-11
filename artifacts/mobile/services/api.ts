@@ -190,7 +190,9 @@ export const eduApi = {
   chat: (params: {
     message: string;
     history: ChatMessage[];
-    context: { board: string; standard: string; subject: string; chapter?: string };
+    board: string;
+    standard: string;
+    filters: { subject: string; chapter?: string };
   }) => req<Record<string, unknown>>('/chat', {
     method: 'POST',
     body: JSON.stringify(params),

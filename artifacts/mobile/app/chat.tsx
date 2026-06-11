@@ -81,9 +81,9 @@ export default function ChatScreen() {
       const res = await eduApi.chat({
         message: text,
         history,
-        context: {
-          board: boardId ?? boardName ?? '',
-          standard: standardId ?? standardName ?? '',
+        board: boardName ?? boardId ?? '',
+        standard: standardName ?? standardId ?? '',
+        filters: {
           subject: subjectName,
           chapter: chapterName,
         },
