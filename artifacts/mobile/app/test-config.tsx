@@ -308,14 +308,7 @@ export default function TestConfigScreen() {
             if (batch.length > 0 && newInBatch === 0 && pool.length > 0) break;
           }
 
-          const result: any[] = pool.slice(0, needed);
-          let fillIdx = 0;
-          while (result.length < needed && pool.length > 0) {
-            result.push(pool[fillIdx % pool.length]);
-            fillIdx++;
-          }
-
-          allForChapter.push(...result);
+          allForChapter.push(...pool.slice(0, needed));
         }
 
         chapterResults.push(allForChapter);
