@@ -224,7 +224,7 @@ export default function SavedScreen() {
                       )}
 
                       {/* solution / explanation */}
-                      {(q.solution || q.tip) && (
+                      {(q.solution || q.explanation || q.tip || q.answer) && (
                         <View style={[styles.solutionBox, { backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' }]}>
                           <View style={styles.solutionHeader}>
                             <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.solutionIcon}>
@@ -232,8 +232,14 @@ export default function SavedScreen() {
                             </LinearGradient>
                             <Text style={styles.solutionTitle}>Explanation</Text>
                           </View>
-                          {q.solution && (
+                          {q.explanation && (
+                            <Text style={styles.solutionText}>{q.explanation}</Text>
+                          )}
+                          {q.solution && !q.explanation && (
                             <Text style={styles.solutionText}>{q.solution}</Text>
+                          )}
+                          {!q.explanation && !q.solution && q.answer && (
+                            <Text style={styles.solutionText}>{q.answer}</Text>
                           )}
                           {q.tip && (
                             <View style={[styles.tipBox, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>

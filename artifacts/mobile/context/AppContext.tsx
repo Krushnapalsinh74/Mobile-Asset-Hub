@@ -39,6 +39,7 @@ export interface SavedQuestion {
   options?: string[];
   answer?: string;
   solution?: string;
+  explanation?: string;
   tip?: string;
   subjectName: string;
   chapterName?: string;

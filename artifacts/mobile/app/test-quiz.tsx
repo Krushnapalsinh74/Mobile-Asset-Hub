@@ -145,6 +145,7 @@ export default function TestQuizScreen() {
         options: q.options,
         answer: q.answer,
         solution: q.solution,
+        explanation: q.explanation,
         tip: q.tip,
         subjectName: subjectName ?? '',
         chapterName: chapterName,
