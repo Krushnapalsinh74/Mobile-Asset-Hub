@@ -9,6 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Modal,
   Platform,
   Pressable,
@@ -84,7 +85,7 @@ function getDateString() {
 }
 
 export default function TestQuizScreen() {
-  const { questionsJson, subjectName, chapterName } = useLocalSearchParams<{
+  const { questionsJson, subjectId, subjectName, chapterId, chapterName } = useLocalSearchParams<{
     questionsJson: string;
     subjectId: string;
     subjectName: string;
@@ -115,11 +116,60 @@ export default function TestQuizScreen() {
   const [elapsed, setElapsed] = useState(0);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [expandedReview, setExpandedReview] = useState<Set<number>>(new Set());
+  const [fetchingNew, setFetchingNew] = useState(false);
 
   const savedIds = useMemo(
     () => new Set(savedQuestions.map(q => q.id)),
     [savedQuestions],
   );
+
+  const handleFetchAgain = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setFetchingNew(true);
+    try {
+      const needed = questions.length;
+      const API_BATCH = 10;
+      const numBatches = Math.min(Math.ceil(needed / API_BATCH), 10);
+      const batchCalls = Array.from({ length: numBatches }, (_, i) =>
+        eduApi.generateQuestions({
+          board: boardId ?? boardName ?? '',
+          standard: standardId ?? standardName ?? '',
+          subject: subjectName ?? '',
+          chapter: (chapterName ?? '').split('|||')[0] ?? '',
+          options: {
+            mode: 'mcq',
+            count: API_BATCH,
+            seed: Math.floor(Math.random() * 1_000_000) + i * 100_003,
+            difficulty: 'medium',
+          },
+          freshQuestions: true,
+        })
+          .then((res: unknown) => {
+            const r = res as any;
+            const qs: any[] =
+              r?.questions ?? r?.data?.questions ?? r?.result?.questions ?? (Array.isArray(r) ? r : []);
+            return qs.filter((q: any) => Array.isArray(q?.options) && q.options.length >= 2);
+          })
+          .catch(() => [] as any[]),
+      );
+      const batches = await Promise.all(batchCalls);
+      const pool = batches.flat().slice(0, needed);
+      if (pool.length === 0) throw new Error('No questions returned');
+      router.replace({
+        pathname: '/test-quiz' as any,
+        params: {
+          questionsJson: JSON.stringify(pool),
+          subjectId: subjectId ?? '',
+          subjectName: subjectName ?? '',
+          chapterId: chapterId ?? '',
+          chapterName: chapterName ?? '',
+          mode: 'mcq',
+        },
+      });
+    } catch {
+      setFetchingNew(false);
+    }
+  }, [questions.length, boardId, boardName, standardId, standardName, subjectName, chapterName, subjectId, chapterId]);
 
   const handleSaveQ = useCallback((q: Question) => {
     const id = makeQId(q.question);
@@ -459,10 +509,20 @@ export default function TestQuizScreen() {
                 <Ionicons name="home-outline" size={15} color="#4F46E5" />
                 <Text style={[styles.resultBtnOutlineText, { color: '#4F46E5' }]}>Home</Text>
               </Pressable>
-              <Pressable style={styles.resultBtnFill} onPress={() => router.back()}>
+              <Pressable
+                style={[styles.resultBtnFill, { opacity: fetchingNew ? 0.7 : 1 }]}
+                onPress={handleFetchAgain}
+                disabled={fetchingNew}
+              >
                 <LinearGradient colors={['#4F46E5', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.resultBtnGrad}>
-                  <Ionicons name="refresh" size={15} color="#FFF" />
-                  <Text style={styles.resultBtnFillText}>Try Again</Text>
+                  {fetchingNew ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Ionicons name="shuffle" size={15} color="#FFF" />
+                  )}
+                  <Text style={styles.resultBtnFillText}>
+                    {fetchingNew ? 'Fetching…' : 'New Questions'}
+                  </Text>
                 </LinearGradient>
               </Pressable>
             </View>
