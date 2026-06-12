@@ -1,3 +1,4 @@
+import { MessageContent } from '@/components/MessageContent';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { eduApi, getId } from '@/services/api';
@@ -434,9 +435,15 @@ export default function ChatScreen() {
                     : [styles.msgBubbleAI, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }],
                 ]}
               >
-                <Text style={[styles.msgText, { color: item.role === 'user' ? '#FFFFFF' : colors.text }]}>
-                  {item.content}
-                </Text>
+                <MessageContent
+                  content={item.content}
+                  isUser={item.role === 'user'}
+                  primaryColor={colors.primary}
+                  textColor={colors.text}
+                  cardColor={colors.card}
+                  borderColor={colors.border}
+                  mutedColor={colors.mutedForeground}
+                />
               </View>
             </View>
           )}
