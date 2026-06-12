@@ -224,22 +224,18 @@ export default function SavedScreen() {
                       )}
 
                       {/* solution / explanation */}
-                      {(q.solution || q.explanation || q.tip || q.answer) && (
+                      {(q.explanation || q.solution || q.tip) && (
                         <View style={[styles.solutionBox, { backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' }]}>
                           <View style={styles.solutionHeader}>
                             <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.solutionIcon}>
                               <Ionicons name="bulb" size={12} color="#FFF" />
                             </LinearGradient>
-                            <Text style={styles.solutionTitle}>Explanation</Text>
+                            <Text style={styles.solutionTitle}>Why this answer is correct</Text>
                           </View>
-                          {q.explanation && (
-                            <Text style={styles.solutionText}>{q.explanation}</Text>
-                          )}
-                          {q.solution && !q.explanation && (
-                            <Text style={styles.solutionText}>{q.solution}</Text>
-                          )}
-                          {!q.explanation && !q.solution && q.answer && (
-                            <Text style={styles.solutionText}>{q.answer}</Text>
+                          {(q.explanation || q.solution) && (
+                            <Text style={styles.solutionText}>
+                              {q.explanation || q.solution}
+                            </Text>
                           )}
                           {q.tip && (
                             <View style={[styles.tipBox, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
