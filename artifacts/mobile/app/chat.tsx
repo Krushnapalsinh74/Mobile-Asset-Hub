@@ -1,20 +1,23 @@
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-import { eduApi } from '@/services/api';
-import type { ChatMessage } from '@/services/api';
+import { eduApi, getId } from '@/services/api';
+import type { ChatMessage, Chapter, Subject, Topic } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -26,40 +29,126 @@ interface Message {
   content: string;
 }
 
+type PickerType = 'subject' | 'chapter' | 'topic' | null;
+
 export default function ChatScreen() {
-  const {
-    subjectId,
-    subjectName,
-    chapterId,
-    chapterName,
-    topicId,
-    topicName,
-  } = useLocalSearchParams<{
-    subjectId: string;
-    subjectName: string;
+  const params = useLocalSearchParams<{
+    subjectId?: string;
+    subjectName?: string;
     chapterId?: string;
     chapterName?: string;
     topicId?: string;
     topicName?: string;
   }>();
+
   const { boardId, boardName, standardId, standardName, addChatSession } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const flatListRef = useRef<FlatList>(null);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const contextTitle = topicName || chapterName || subjectName;
-  const contextSub = topicName
-    ? `${subjectName} • ${chapterName}`
-    : chapterName
-    ? `${subjectName} • ${chapterName}`
-    : subjectName;
+  const [selSubjectId, setSelSubjectId] = useState(params.subjectId ?? '');
+  const [selSubjectName, setSelSubjectName] = useState(params.subjectName ?? '');
+  const [selChapterId, setSelChapterId] = useState(params.chapterId ?? '');
+  const [selChapterName, setSelChapterName] = useState(params.chapterName ?? '');
+  const [selTopicId, setSelTopicId] = useState(params.topicId ?? '');
+  const [selTopicName, setSelTopicName] = useState(params.topicName ?? '');
+
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
+
+  const [subjectsLoading, setSubjectsLoading] = useState(false);
+  const [chaptersLoading, setChaptersLoading] = useState(false);
+  const [topicsLoading, setTopicsLoading] = useState(false);
+
+  const [openPicker, setOpenPicker] = useState<PickerType>(null);
+
+  useEffect(() => {
+    if (!boardId || !standardId) return;
+    setSubjectsLoading(true);
+    eduApi
+      .getSubjects(boardId, standardId)
+      .then(setSubjects)
+      .catch(() => {})
+      .finally(() => setSubjectsLoading(false));
+  }, [boardId, standardId]);
+
+  useEffect(() => {
+    if (!boardId || !standardId || !selSubjectId) {
+      setChapters([]);
+      return;
+    }
+    setChaptersLoading(true);
+    eduApi
+      .getChapters(boardId, standardId, selSubjectId)
+      .then(setChapters)
+      .catch(() => {})
+      .finally(() => setChaptersLoading(false));
+  }, [boardId, standardId, selSubjectId]);
+
+  useEffect(() => {
+    if (!boardId || !standardId || !selSubjectId || !selChapterId) {
+      setTopics([]);
+      return;
+    }
+    setTopicsLoading(true);
+    eduApi
+      .getTopics(boardId, standardId, selSubjectId, selChapterId)
+      .then(setTopics)
+      .catch(() => {})
+      .finally(() => setTopicsLoading(false));
+  }, [boardId, standardId, selSubjectId, selChapterId]);
+
+  const pickSubject = (item: Subject) => {
+    const id = getId(item);
+    if (id !== selSubjectId) {
+      setSelSubjectId(id);
+      setSelSubjectName(item.name);
+      setSelChapterId('');
+      setSelChapterName('');
+      setSelTopicId('');
+      setSelTopicName('');
+    }
+    setOpenPicker(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const pickChapter = (item: Chapter) => {
+    const id = getId(item);
+    if (id !== selChapterId) {
+      setSelChapterId(id);
+      setSelChapterName(item.name);
+      setSelTopicId('');
+      setSelTopicName('');
+    }
+    setOpenPicker(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const pickTopic = (item: Topic) => {
+    const id = getId(item);
+    setSelTopicId(id);
+    setSelTopicName(item.name);
+    setOpenPicker(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const contextTitle = selTopicName || selChapterName || selSubjectName || 'AI Tutor';
+  const contextSub = selTopicName
+    ? `${selSubjectName} • ${selChapterName}`
+    : selChapterName
+    ? `${selSubjectName} • ${selChapterName}`
+    : selSubjectName || 'Select a subject to start';
+
+  const canSend = !!selSubjectId && !!input.trim() && !isLoading;
 
   const sendMessage = async () => {
+    if (!canSend) return;
     const text = input.trim();
-    if (!text || isLoading) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setInput('');
 
@@ -84,8 +173,8 @@ export default function ChatScreen() {
         board: boardName ?? boardId ?? '',
         standard: standardName ?? standardId ?? '',
         filters: {
-          subject: subjectName,
-          chapter: chapterName,
+          subject: selSubjectName,
+          chapter: selChapterName || undefined,
         },
       });
 
@@ -104,9 +193,9 @@ export default function ChatScreen() {
       setMessages((prev) => {
         if (prev.length === 0) {
           addChatSession({
-            subjectName,
-            chapterName,
-            topicName,
+            subjectName: selSubjectName,
+            chapterName: selChapterName || undefined,
+            topicName: selTopicName || undefined,
             timestamp: Date.now(),
           }).catch(() => {});
         }
@@ -125,6 +214,42 @@ export default function ChatScreen() {
   };
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
+
+  const pickerData =
+    openPicker === 'subject'
+      ? subjects
+      : openPicker === 'chapter'
+      ? chapters
+      : openPicker === 'topic'
+      ? topics
+      : [];
+
+  const pickerLoading =
+    openPicker === 'subject'
+      ? subjectsLoading
+      : openPicker === 'chapter'
+      ? chaptersLoading
+      : topicsLoading;
+
+  const pickerTitle =
+    openPicker === 'subject'
+      ? 'Select Subject'
+      : openPicker === 'chapter'
+      ? 'Select Chapter'
+      : 'Select Topic';
+
+  const pickerSelected =
+    openPicker === 'subject'
+      ? selSubjectId
+      : openPicker === 'chapter'
+      ? selChapterId
+      : selTopicId;
+
+  const onPickerSelect = (item: any) => {
+    if (openPicker === 'subject') pickSubject(item as Subject);
+    else if (openPicker === 'chapter') pickChapter(item as Chapter);
+    else pickTopic(item as Topic);
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -156,12 +281,104 @@ export default function ChatScreen() {
         </View>
       </LinearGradient>
 
-      <KeyboardAvoidingView
-        style={styles.kav}
-        behavior="padding"
-        keyboardVerticalOffset={0}
-      >
+      <View style={[styles.selectorBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectorScroll}>
+          <Pressable
+            style={[
+              styles.selectorPill,
+              {
+                backgroundColor: selSubjectId ? colors.primaryLight : colors.background,
+                borderColor: selSubjectId ? colors.primary : colors.border,
+              },
+            ]}
+            onPress={() => setOpenPicker('subject')}
+          >
+            {subjectsLoading && !selSubjectId ? (
+              <ActivityIndicator size={12} color={colors.primary} />
+            ) : (
+              <Ionicons name="book-outline" size={13} color={selSubjectId ? colors.primary : colors.mutedForeground} />
+            )}
+            <Text
+              style={[
+                styles.selectorText,
+                { color: selSubjectId ? colors.primary : colors.mutedForeground },
+              ]}
+              numberOfLines={1}
+            >
+              {selSubjectName || 'Subject'}
+            </Text>
+            <Ionicons name="chevron-down" size={12} color={selSubjectId ? colors.primary : colors.mutedForeground} />
+          </Pressable>
+
+          <View style={[styles.selectorArrow, { opacity: selSubjectId ? 1 : 0.3 }]}>
+            <Ionicons name="chevron-forward" size={13} color={colors.mutedForeground} />
+          </View>
+
+          <Pressable
+            style={[
+              styles.selectorPill,
+              {
+                backgroundColor: selChapterId ? colors.primaryLight : colors.background,
+                borderColor: selChapterId ? colors.primary : colors.border,
+                opacity: selSubjectId ? 1 : 0.45,
+              },
+            ]}
+            onPress={() => selSubjectId && setOpenPicker('chapter')}
+          >
+            {chaptersLoading ? (
+              <ActivityIndicator size={12} color={colors.primary} />
+            ) : (
+              <Ionicons name="layers-outline" size={13} color={selChapterId ? colors.primary : colors.mutedForeground} />
+            )}
+            <Text
+              style={[
+                styles.selectorText,
+                { color: selChapterId ? colors.primary : colors.mutedForeground },
+              ]}
+              numberOfLines={1}
+            >
+              {selChapterName || 'Chapter'}
+            </Text>
+            <Ionicons name="chevron-down" size={12} color={selChapterId ? colors.primary : colors.mutedForeground} />
+          </Pressable>
+
+          <View style={[styles.selectorArrow, { opacity: selChapterId ? 1 : 0.3 }]}>
+            <Ionicons name="chevron-forward" size={13} color={colors.mutedForeground} />
+          </View>
+
+          <Pressable
+            style={[
+              styles.selectorPill,
+              {
+                backgroundColor: selTopicId ? colors.primaryLight : colors.background,
+                borderColor: selTopicId ? colors.primary : colors.border,
+                opacity: selChapterId ? 1 : 0.45,
+              },
+            ]}
+            onPress={() => selChapterId && setOpenPicker('topic')}
+          >
+            {topicsLoading ? (
+              <ActivityIndicator size={12} color={colors.primary} />
+            ) : (
+              <Ionicons name="list-outline" size={13} color={selTopicId ? colors.primary : colors.mutedForeground} />
+            )}
+            <Text
+              style={[
+                styles.selectorText,
+                { color: selTopicId ? colors.primary : colors.mutedForeground },
+              ]}
+              numberOfLines={1}
+            >
+              {selTopicName || 'Topic'}
+            </Text>
+            <Ionicons name="chevron-down" size={12} color={selTopicId ? colors.primary : colors.mutedForeground} />
+          </Pressable>
+        </ScrollView>
+      </View>
+
+      <KeyboardAvoidingView style={styles.kav} behavior="padding" keyboardVerticalOffset={0}>
         <FlatList
+          ref={flatListRef}
           inverted
           data={messages}
           keyExtractor={(item) => item.id}
@@ -169,14 +386,11 @@ export default function ChatScreen() {
           showsVerticalScrollIndicator={false}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
-          scrollEnabled={true}
           ListHeaderComponent={
             isLoading ? (
               <View style={[styles.typingBubble, { backgroundColor: colors.card }]}>
                 <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={[styles.typingText, { color: colors.mutedForeground }]}>
-                  Thinking...
-                </Text>
+                <Text style={[styles.typingText, { color: colors.mutedForeground }]}>Thinking...</Text>
               </View>
             ) : null
           }
@@ -186,25 +400,27 @@ export default function ChatScreen() {
                 <View style={[styles.emptyIcon, { backgroundColor: colors.primaryLight }]}>
                   <Ionicons name="chatbubble-ellipses-outline" size={40} color={colors.primary} />
                 </View>
-                <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                  Ask me anything about
-                </Text>
-                <Text style={[styles.emptyTopic, { color: colors.primary }]}>
-                  {contextTitle}
-                </Text>
-                <Text style={[styles.emptyHint, { color: colors.mutedForeground }]}>
-                  I can explain concepts, solve problems, and answer all your questions.
-                </Text>
+                {selSubjectId ? (
+                  <>
+                    <Text style={[styles.emptyTitle, { color: colors.text }]}>Ask me anything about</Text>
+                    <Text style={[styles.emptyTopic, { color: colors.primary }]}>{contextTitle}</Text>
+                    <Text style={[styles.emptyHint, { color: colors.mutedForeground }]}>
+                      I can explain concepts, solve problems, and answer all your questions.
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={[styles.emptyTitle, { color: colors.text }]}>Select a subject above</Text>
+                    <Text style={[styles.emptyHint, { color: colors.mutedForeground }]}>
+                      Choose a subject (and optionally a chapter or topic) to focus your AI chat session.
+                    </Text>
+                  </>
+                )}
               </View>
             ) : null
           }
           renderItem={({ item }) => (
-            <View
-              style={[
-                styles.msgRow,
-                item.role === 'user' ? styles.msgRowUser : styles.msgRowAI,
-              ]}
-            >
+            <View style={[styles.msgRow, item.role === 'user' ? styles.msgRowUser : styles.msgRowAI]}>
               {item.role === 'assistant' && (
                 <View style={[styles.msgAvatar, { backgroundColor: colors.primary }]}>
                   <Ionicons name="sparkles" size={11} color="#FFFFFF" />
@@ -215,22 +431,10 @@ export default function ChatScreen() {
                   styles.msgBubble,
                   item.role === 'user'
                     ? [styles.msgBubbleUser, { backgroundColor: colors.primary }]
-                    : [
-                        styles.msgBubbleAI,
-                        {
-                          backgroundColor: colors.card,
-                          borderColor: colors.border,
-                          borderWidth: 1,
-                        },
-                      ],
+                    : [styles.msgBubbleAI, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }],
                 ]}
               >
-                <Text
-                  style={[
-                    styles.msgText,
-                    { color: item.role === 'user' ? '#FFFFFF' : colors.text },
-                  ]}
-                >
+                <Text style={[styles.msgText, { color: item.role === 'user' ? '#FFFFFF' : colors.text }]}>
                   {item.content}
                 </Text>
               </View>
@@ -257,32 +461,83 @@ export default function ChatScreen() {
                 borderColor: colors.border,
               },
             ]}
-            placeholder={`Ask about ${contextTitle}...`}
+            placeholder={selSubjectId ? `Ask about ${contextTitle}...` : 'Select a subject first...'}
             placeholderTextColor={colors.mutedForeground}
             value={input}
             onChangeText={setInput}
             multiline
             returnKeyType="default"
             maxLength={1000}
+            editable={!!selSubjectId}
           />
           <Pressable
-            style={[
-              styles.sendBtn,
-              {
-                backgroundColor: input.trim() && !isLoading ? colors.primary : colors.secondary,
-              },
-            ]}
+            style={[styles.sendBtn, { backgroundColor: canSend ? colors.primary : colors.secondary }]}
             onPress={sendMessage}
-            disabled={!input.trim() || isLoading}
+            disabled={!canSend}
           >
-            <Ionicons
-              name="send"
-              size={17}
-              color={input.trim() && !isLoading ? '#FFFFFF' : colors.mutedForeground}
-            />
+            <Ionicons name="send" size={17} color={canSend ? '#FFFFFF' : colors.mutedForeground} />
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+
+      <Modal visible={openPicker !== null} transparent animationType="slide" onRequestClose={() => setOpenPicker(null)}>
+        <TouchableWithoutFeedback onPress={() => setOpenPicker(null)}>
+          <View style={styles.modalOverlay} />
+        </TouchableWithoutFeedback>
+
+        <View style={[styles.sheet, { backgroundColor: colors.card, paddingBottom: insets.bottom + 16 }]}>
+          <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+
+          <View style={styles.sheetHeader}>
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>{pickerTitle}</Text>
+            <Pressable onPress={() => setOpenPicker(null)} style={[styles.sheetClose, { backgroundColor: colors.background }]}>
+              <Ionicons name="close" size={18} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+
+          {pickerLoading ? (
+            <View style={styles.sheetLoading}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={[styles.sheetLoadingText, { color: colors.mutedForeground }]}>Loading...</Text>
+            </View>
+          ) : pickerData.length === 0 ? (
+            <View style={styles.sheetLoading}>
+              <Ionicons name="alert-circle-outline" size={36} color={colors.mutedForeground} />
+              <Text style={[styles.sheetLoadingText, { color: colors.mutedForeground }]}>No options found</Text>
+            </View>
+          ) : (
+            <ScrollView style={styles.sheetList} showsVerticalScrollIndicator={false}>
+              {pickerData.map((item: any) => {
+                const id = getId(item);
+                const isSelected = id === pickerSelected;
+                return (
+                  <Pressable
+                    key={id}
+                    style={[
+                      styles.sheetItem,
+                      {
+                        backgroundColor: isSelected ? colors.primaryLight : 'transparent',
+                        borderBottomColor: colors.border,
+                      },
+                    ]}
+                    onPress={() => onPickerSelect(item)}
+                  >
+                    <Text
+                      style={[
+                        styles.sheetItemText,
+                        { color: isSelected ? colors.primary : colors.text, fontWeight: isSelected ? '700' : '400' },
+                      ]}
+                    >
+                      {item.name}
+                    </Text>
+                    {isSelected && <Ionicons name="checkmark-circle" size={20} color={colors.primary} />}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -325,88 +580,124 @@ const styles = StyleSheet.create({
   },
   aiLiveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' },
   aiLiveText: { fontSize: 11, color: '#FFFFFF', fontWeight: '700' },
+
+  selectorBar: {
+    borderBottomWidth: 1,
+    paddingVertical: 10,
+  },
+  selectorScroll: {
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    gap: 6,
+  },
+  selectorPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    maxWidth: 160,
+  },
+  selectorText: {
+    fontSize: 13,
+    fontWeight: '600',
+    maxWidth: 100,
+  },
+  selectorArrow: {
+    paddingHorizontal: 2,
+  },
+
   kav: { flex: 1 },
   messageList: { padding: 16, gap: 6, flexGrow: 1 },
   emptyWrap: {
     alignItems: 'center',
-    paddingTop: 60,
+    paddingTop: 50,
     paddingHorizontal: 32,
     gap: 8,
   },
   emptyIcon: {
-    width: 78,
-    height: 78,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 78, height: 78, borderRadius: 24,
+    alignItems: 'center', justifyContent: 'center',
     marginBottom: 10,
   },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    fontFamily: 'Inter_600SemiBold',
-    textAlign: 'center',
-  },
-  emptyTopic: {
-    fontSize: 17,
-    fontWeight: '700',
-    fontFamily: 'Inter_700Bold',
-    textAlign: 'center',
-  },
-  emptyHint: {
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginTop: 4,
-  },
+  emptyTitle: { fontSize: 16, fontWeight: '600', textAlign: 'center' },
+  emptyTopic: { fontSize: 17, fontWeight: '700', textAlign: 'center' },
+  emptyHint: { fontSize: 13, textAlign: 'center', lineHeight: 20, marginTop: 4 },
   typingBubble: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: 12,
-    borderRadius: 16,
-    alignSelf: 'flex-start',
-    marginBottom: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    padding: 12, borderRadius: 16, alignSelf: 'flex-start', marginBottom: 6,
   },
-  typingText: { fontSize: 13, fontFamily: 'Inter_400Regular' },
+  typingText: { fontSize: 13 },
   msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 2 },
   msgRowUser: { justifyContent: 'flex-end' },
   msgRowAI: { justifyContent: 'flex-start' },
   msgAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 28, height: 28, borderRadius: 9,
+    alignItems: 'center', justifyContent: 'center',
   },
   msgBubble: { maxWidth: '78%', borderRadius: 18, padding: 13 },
   msgBubbleUser: { borderBottomRightRadius: 4 },
   msgBubbleAI: { borderBottomLeftRadius: 4 },
-  msgText: { fontSize: 15, fontFamily: 'Inter_400Regular', lineHeight: 22 },
+  msgText: { fontSize: 15, lineHeight: 22 },
   inputRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    gap: 10,
+    flexDirection: 'row', alignItems: 'flex-end',
+    paddingHorizontal: 12, paddingTop: 10, borderTopWidth: 1, gap: 10,
   },
   textInput: {
-    flex: 1,
-    borderRadius: 22,
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 15,
-    maxHeight: 120,
-    fontFamily: 'Inter_400Regular',
+    flex: 1, borderRadius: 22, borderWidth: 1,
+    paddingHorizontal: 16, paddingVertical: 10,
+    fontSize: 15, maxHeight: 120,
   },
   sendBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 42, height: 42, borderRadius: 21,
+    alignItems: 'center', justifyContent: 'center',
   },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  sheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '72%',
+    paddingTop: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+  sheetHandle: {
+    width: 40, height: 4, borderRadius: 2,
+    alignSelf: 'center', marginBottom: 16,
+  },
+  sheetHeader: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 20, paddingBottom: 12,
+    justifyContent: 'space-between',
+  },
+  sheetTitle: { fontSize: 17, fontWeight: '700' },
+  sheetClose: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  sheetLoading: {
+    alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 48, gap: 12,
+  },
+  sheetLoadingText: { fontSize: 14 },
+  sheetList: { paddingHorizontal: 8 },
+  sheetItem: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    marginHorizontal: 4,
+    marginBottom: 2,
+  },
+  sheetItemText: { fontSize: 15, flex: 1, marginRight: 8 },
 });
