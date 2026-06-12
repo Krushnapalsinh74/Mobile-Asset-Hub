@@ -138,8 +138,8 @@ export interface AppSettings {
 // ── Local Express backend (port 8080) ────────────────────────────────────
 function getLocalBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  if (domain) return `https://${domain.replace(/^https?:\/\//, '')}:8080`;
-  return 'http://localhost:8080';
+  if (domain) return `https://${domain.replace(/^https?:\/\//, '')}:3001`;
+  return 'http://localhost:3001';
 }
 
 async function localReq<T>(path: string, init?: RequestInit): Promise<T> {

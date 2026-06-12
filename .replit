@@ -47,8 +47,8 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "fuser -k 8080/tcp 2>/dev/null || true; sleep 2; PORT=8080 pnpm --filter @workspace/api-server run dev"
-waitForPort = 8080
+args = "fuser -k 3001/tcp 2>/dev/null || true; sleep 2; PORT=3001 pnpm --filter @workspace/api-server run dev"
+waitForPort = 3001
 
 [agent]
 stack = "BEST_EFFORT_FALLBACK"
@@ -57,6 +57,10 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[[ports]]
+localPort = 3001
+externalPort = 3001
 
 [[ports]]
 localPort = 5000
