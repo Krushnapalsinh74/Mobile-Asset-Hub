@@ -1209,10 +1209,11 @@ const styles = StyleSheet.create({
   reviewCardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
   reviewCardExpandZone: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   reviewQNum: {
-    width: 26, height: 26, borderRadius: 8,
+    minWidth: 26, height: 26, borderRadius: 8,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    paddingHorizontal: 5,
   },
-  reviewQNumText: { fontSize: 12, fontWeight: '800' },
+  reviewQNumText: { fontSize: 11, fontWeight: '800' },
   reviewQuestion: { fontSize: 13, lineHeight: 19, flex: 1, color: '#111827' },
   reviewCardIcons: { alignItems: 'center', gap: 4 },
   saveQBtn: { padding: 4, marginTop: 2 },
