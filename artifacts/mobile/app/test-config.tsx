@@ -23,12 +23,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const MARKS_OPTIONS = [1, 2, 3, 4];
 
-type Difficulty = 'easy' | 'medium' | 'hard';
+type Difficulty = 'easy' | 'medium' | 'hard' | 'advanced';
 
 const DIFFICULTY_OPTIONS: { value: Difficulty; label: string; icon: string; color: string }[] = [
-  { value: 'easy',   label: 'Easy',   icon: '😊', color: '#10B981' },
-  { value: 'medium', label: 'Medium', icon: '🔥', color: '#F59E0B' },
-  { value: 'hard',   label: 'Hard',   icon: '💀', color: '#EF4444' },
+  { value: 'easy',     label: 'Easy',     icon: '😊', color: '#10B981' },
+  { value: 'medium',  label: 'Medium',   icon: '🔥', color: '#F59E0B' },
+  { value: 'hard',    label: 'Hard',     icon: '💀', color: '#EF4444' },
+  { value: 'advanced',label: 'Advanced', icon: '🚀', color: '#7C3AED' },
 ];
 
 type ChapterConfig = {
@@ -36,13 +37,17 @@ type ChapterConfig = {
   chapterName: string;
   subjectId: string;
   subjectName: string;
-  count: number;
   marksPerQ: number;
-  difficulty: Difficulty;
+  difficulties: Difficulty[];
+  difficultyBreakdown: Record<Difficulty, number>;
   expanded: boolean;
 };
 
 type TopicState = { selected: boolean };
+
+function getChapterCount(cfg: ChapterConfig): number {
+  return cfg.difficulties.reduce((s, d) => s + (cfg.difficultyBreakdown[d] ?? 0), 0);
+}
 
 export default function TestConfigScreen() {
   const {
@@ -50,10 +55,8 @@ export default function TestConfigScreen() {
     subjectName: paramSubjectName,
     chapterId: paramChapterId,
     chapterName: paramChapterName,
-    // From topics.tsx (multi-topic selection grouped by chapter)
     topicNamesByChapter: paramTopicNamesByChapter,
     wholeChapter: paramWholeChapter,
-    // From topic-dashboard (single topic)
     topicId: paramTopicId,
     topicName: paramTopicName,
   } = useLocalSearchParams<{
@@ -88,11 +91,9 @@ export default function TestConfigScreen() {
     [paramSubjectName],
   );
 
-  // Preset topic names per chapter index (from topics.tsx selection)
-  // Format: "Topic A|||Topic B::Topic C|||Topic D" (chapters separated by ::, topics by |||)
   const presetTopicNamesByChapterIndex: string[][] = useMemo(() => {
     if (paramWholeChapter === '1') return chapterIds.map(() => []);
-    if (paramTopicName) return [[paramTopicName]]; // single topic from topic-dashboard
+    if (paramTopicName) return [[paramTopicName]];
     if (paramTopicNamesByChapter) {
       return paramTopicNamesByChapter.split('::').map(chunk =>
         chunk.split('|||').filter(Boolean)
@@ -117,9 +118,9 @@ export default function TestConfigScreen() {
         chapterName: chapterNames[i] ?? cid,
         subjectId: sid,
         subjectName: sname,
-        count: 5,
         marksPerQ: 1,
-        difficulty: 'medium',
+        difficulties: ['medium'],
+        difficultyBreakdown: { easy: 3, medium: 5, hard: 3, advanced: 3 },
         expanded: false,
       };
     });
@@ -143,28 +144,46 @@ export default function TestConfigScreen() {
   });
 
   const configList = chapterIds.map(cid => configs[cid]!);
-  const totalQuestions = configList.reduce((s, c) => s + c.count, 0);
-  const totalMarks = configList.reduce((s, c) => s + c.count * c.marksPerQ, 0);
+  const totalQuestions = configList.reduce((s, c) => s + getChapterCount(c), 0);
+  const totalMarks = configList.reduce((s, c) => s + getChapterCount(c) * c.marksPerQ, 0);
 
   function updateConfig(cid: string, patch: Partial<ChapterConfig>) {
     setConfigs(prev => ({ ...prev, [cid]: { ...prev[cid]!, ...patch } }));
   }
 
-  function adjustCount(cid: string, delta: number) {
+  function toggleDifficulty(cid: string, d: Difficulty) {
     Haptics.selectionAsync();
-    const current = configs[cid]?.count ?? 5;
-    const next = Math.max(1, Math.min(100, current + delta));
-    updateConfig(cid, { count: next });
+    const cfg = configs[cid]!;
+    const already = cfg.difficulties.includes(d);
+    if (already) {
+      if (cfg.difficulties.length === 1) return; // keep at least one
+      updateConfig(cid, { difficulties: cfg.difficulties.filter(x => x !== d) });
+    } else {
+      updateConfig(cid, { difficulties: [...cfg.difficulties, d] });
+    }
+  }
+
+  function adjustDifficultyCount(cid: string, d: Difficulty, delta: number) {
+    Haptics.selectionAsync();
+    const cfg = configs[cid]!;
+    const current = cfg.difficultyBreakdown[d] ?? 3;
+    const next = Math.max(1, Math.min(50, current + delta));
+    updateConfig(cid, {
+      difficultyBreakdown: { ...cfg.difficultyBreakdown, [d]: next },
+    });
+  }
+
+  function setSingleCount(cid: string, val: number) {
+    const cfg = configs[cid]!;
+    const d = cfg.difficulties[0]!;
+    updateConfig(cid, {
+      difficultyBreakdown: { ...cfg.difficultyBreakdown, [d]: val },
+    });
   }
 
   function setMarksPerQ(cid: string, m: number) {
     Haptics.selectionAsync();
     updateConfig(cid, { marksPerQ: m });
-  }
-
-  function setDifficulty(cid: string, d: Difficulty) {
-    Haptics.selectionAsync();
-    updateConfig(cid, { difficulty: d });
   }
 
   function toggleExpand(cid: string) {
@@ -180,7 +199,6 @@ export default function TestConfigScreen() {
     }));
   }
 
-  // Parse questions from raw API response
   function parseQuestionsFromResponse(res: unknown): any[] {
     const r = res as any;
     return (
@@ -191,24 +209,8 @@ export default function TestConfigScreen() {
     );
   }
 
-  // Keep only real MCQ questions (must have options array with ≥2 items)
   function filterMcq(qs: any[]): any[] {
     return qs.filter(q => Array.isArray(q?.options) && q.options.length >= 2);
-  }
-
-  // Remove duplicate questions by normalised question text
-  function deduplicate(qs: any[]): any[] {
-    const seen = new Set<string>();
-    return qs.filter(q => {
-      const key = String(q?.question ?? '')
-        .toLowerCase()
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 100);
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
   }
 
   const handleGenerate = async () => {
@@ -222,17 +224,12 @@ export default function TestConfigScreen() {
     setError('');
 
     try {
-      // API returns ~10 MCQ per call regardless of the count param.
-      // We call sequentially with different seeds until we have enough
-      // unique questions or hit the retry cap (20 attempts).
       const API_BATCH = 10;
       const MAX_ATTEMPTS = 20;
-
       const chapterResults: any[][] = [];
 
       for (let chapterIdx = 0; chapterIdx < configList.length; chapterIdx++) {
         const cfg = configList[chapterIdx]!;
-        const needed = cfg.count;
 
         let resolvedTopicName: string | undefined;
         if (cfg.expanded) {
@@ -255,66 +252,73 @@ export default function TestConfigScreen() {
           ? `"${resolvedTopicName.slice(0, 30)}"`
           : `"${cfg.chapterName}"`;
 
-        // Sequential batches — one at a time to avoid rate-limiting
-        const pool: any[] = [];
-        const seen = new Set<string>();
-        let attempts = 0;
+        const allForChapter: any[] = [];
+        const globalSeen = new Set<string>();
 
-        while (pool.length < needed && attempts < MAX_ATTEMPTS) {
-          attempts++;
-          setLoadingMsg(
-            `Fetching questions for ${chapterLabel}… (${pool.length}/${needed})`,
-          );
+        // Fetch per difficulty level
+        for (const diff of cfg.difficulties) {
+          const needed = cfg.difficultyBreakdown[diff] ?? 0;
+          if (needed === 0) continue;
 
-          const batch = await eduApi
-            .generateQuestions({
-              board: boardId ?? boardName ?? '',
-              standard: standardId ?? standardName ?? '',
-              subject: cfg.subjectName,
-              chapter: cfg.chapterName,
-              ...(resolvedTopicName ? { topic: resolvedTopicName } : {}),
-              options: {
-                mode: 'mcq',
-                count: API_BATCH,
-                seed: Math.floor(Math.random() * 9_000_000) + attempts * 137_003,
-                difficulty: cfg.difficulty,
-              },
-              freshQuestions: true,
-            })
-            .then(res => filterMcq(parseQuestionsFromResponse(res)))
-            .catch(() => [] as any[]);
+          const diffOpt = DIFFICULTY_OPTIONS.find(o => o.value === diff)!;
+          const pool: any[] = [];
+          const seen = new Set<string>();
+          let attempts = 0;
 
-          let newInThisBatch = 0;
-          for (const q of batch) {
-            const key = String(q?.question ?? '')
-              .toLowerCase()
-              .replace(/\s+/g, ' ')
-              .trim()
-              .slice(0, 120);
-            if (!key) continue;
-            if (!seen.has(key)) {
-              seen.add(key);
-              pool.push(q);
-              newInThisBatch++;
+          while (pool.length < needed && attempts < MAX_ATTEMPTS) {
+            attempts++;
+            setLoadingMsg(
+              `${diffOpt.icon} ${diffOpt.label} questions for ${chapterLabel}… (${pool.length}/${needed})`,
+            );
+
+            const batch = await eduApi
+              .generateQuestions({
+                board: boardId ?? boardName ?? '',
+                standard: standardId ?? standardName ?? '',
+                subject: cfg.subjectName,
+                chapter: cfg.chapterName,
+                ...(resolvedTopicName ? { topic: resolvedTopicName } : {}),
+                options: {
+                  mode: 'mcq',
+                  count: API_BATCH,
+                  seed: Math.floor(Math.random() * 9_000_000) + attempts * 137_003,
+                  difficulty: diff,
+                },
+                freshQuestions: true,
+              })
+              .then(res => filterMcq(parseQuestionsFromResponse(res)))
+              .catch(() => [] as any[]);
+
+            let newInBatch = 0;
+            for (const q of batch) {
+              const key = String(q?.question ?? '')
+                .toLowerCase()
+                .replace(/\s+/g, ' ')
+                .trim()
+                .slice(0, 120);
+              if (!key) continue;
+              if (!seen.has(key) && !globalSeen.has(key)) {
+                seen.add(key);
+                globalSeen.add(key);
+                pool.push(q);
+                newInBatch++;
+              }
             }
+
+            if (batch.length > 0 && newInBatch === 0 && pool.length > 0) break;
           }
 
-          // If the whole batch was all duplicates, the server question bank is
-          // exhausted — stop early and fill remaining slots by cycling the pool.
-          if (batch.length > 0 && newInThisBatch === 0 && pool.length > 0) {
-            break;
+          const result: any[] = pool.slice(0, needed);
+          let fillIdx = 0;
+          while (result.length < needed && pool.length > 0) {
+            result.push(pool[fillIdx % pool.length]);
+            fillIdx++;
           }
+
+          allForChapter.push(...result);
         }
 
-        // If we still don't have enough, cycle through pool to reach needed count
-        const result: any[] = pool.slice(0, needed);
-        let fillIdx = 0;
-        while (result.length < needed && pool.length > 0) {
-          result.push(pool[fillIdx % pool.length]);
-          fillIdx++;
-        }
-
-        chapterResults.push(result);
+        chapterResults.push(allForChapter);
       }
 
       const allQuestions = chapterResults.flat();
@@ -324,7 +328,6 @@ export default function TestConfigScreen() {
         return;
       }
 
-      // Store questions in memory (avoids URL length limits for large sets)
       const sessionId = saveQuestions(allQuestions);
 
       const first = configList[0]!;
@@ -340,7 +343,6 @@ export default function TestConfigScreen() {
         },
       });
 
-      // Save in background (fire-and-forget)
       chapterResults.forEach((qs, i) => {
         const cfg = configList[i];
         if (!cfg || qs.length === 0) return;
@@ -413,7 +415,6 @@ export default function TestConfigScreen() {
           </View>
         </View>
 
-        {/* Quick stat chips */}
         <View style={styles.statChips}>
           <View style={styles.statChip}>
             <Ionicons name="help-circle-outline" size={13} color="rgba(255,255,255,0.85)" />
@@ -431,7 +432,6 @@ export default function TestConfigScreen() {
           </View>
         </View>
 
-        {/* Topic scope badge — show if topics were pre-selected */}
         {presetTopicNamesByChapterIndex.some(arr => arr.length > 0) && paramWholeChapter !== '1' && (
           <View style={styles.topicScopePill}>
             <Ionicons name="bookmark-outline" size={12} color="rgba(255,255,255,0.9)" />
@@ -463,6 +463,8 @@ export default function TestConfigScreen() {
           const topicQuery = topicQueries[idx];
           const topics: Topic[] = topicQuery?.data ?? [];
           const topicsLoading = topicQuery?.isLoading ?? false;
+          const isMultiDiff = cfg.difficulties.length > 1;
+          const chapterTotal = getChapterCount(cfg);
 
           return (
             <View
@@ -484,38 +486,40 @@ export default function TestConfigScreen() {
                 </View>
               </View>
 
-              {/* Questions stepper */}
-              <View style={[styles.controlRow, { borderTopColor: colors.border }]}>
-                <Text style={[styles.controlLabel, { color: colors.text }]}>Questions</Text>
-                <View style={styles.stepperWrap}>
-                  <Pressable
-                    style={[styles.stepBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
-                    onPress={() => adjustCount(cid, -5)}
-                    onLongPress={() => adjustCount(cid, -1)}
-                  >
-                    <Ionicons name="remove" size={16} color={colors.text} />
-                  </Pressable>
-                  <TextInput
-                    style={[styles.stepInput, { color: colors.text, borderColor: colors.primary + '60', backgroundColor: colors.primaryLight }]}
-                    keyboardType="number-pad"
-                    value={String(cfg.count)}
-                    onChangeText={t => {
-                      const n = parseInt(t.replace(/[^0-9]/g, ''), 10);
-                      if (!isNaN(n) && n >= 1 && n <= 100) updateConfig(cid, { count: n });
-                    }}
-                    maxLength={3}
-                    returnKeyType="done"
-                    selectTextOnFocus
-                  />
-                  <Pressable
-                    style={[styles.stepBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
-                    onPress={() => adjustCount(cid, 5)}
-                    onLongPress={() => adjustCount(cid, 1)}
-                  >
-                    <Ionicons name="add" size={16} color={colors.text} />
-                  </Pressable>
+              {/* Questions stepper — only when single difficulty */}
+              {!isMultiDiff && (
+                <View style={[styles.controlRow, { borderTopColor: colors.border }]}>
+                  <Text style={[styles.controlLabel, { color: colors.text }]}>Questions</Text>
+                  <View style={styles.stepperWrap}>
+                    <Pressable
+                      style={[styles.stepBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+                      onPress={() => adjustDifficultyCount(cid, cfg.difficulties[0]!, -5)}
+                      onLongPress={() => adjustDifficultyCount(cid, cfg.difficulties[0]!, -1)}
+                    >
+                      <Ionicons name="remove" size={16} color={colors.text} />
+                    </Pressable>
+                    <TextInput
+                      style={[styles.stepInput, { color: colors.text, borderColor: colors.primary + '60', backgroundColor: colors.primaryLight }]}
+                      keyboardType="number-pad"
+                      value={String(cfg.difficultyBreakdown[cfg.difficulties[0]!] ?? 5)}
+                      onChangeText={t => {
+                        const n = parseInt(t.replace(/[^0-9]/g, ''), 10);
+                        if (!isNaN(n) && n >= 1 && n <= 100) setSingleCount(cid, n);
+                      }}
+                      maxLength={3}
+                      returnKeyType="done"
+                      selectTextOnFocus
+                    />
+                    <Pressable
+                      style={[styles.stepBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+                      onPress={() => adjustDifficultyCount(cid, cfg.difficulties[0]!, 5)}
+                      onLongPress={() => adjustDifficultyCount(cid, cfg.difficulties[0]!, 1)}
+                    >
+                      <Ionicons name="add" size={16} color={colors.text} />
+                    </Pressable>
+                  </View>
                 </View>
-              </View>
+              )}
 
               {/* Marks per question */}
               <View style={[styles.controlRow, { borderTopColor: colors.border }]}>
@@ -541,42 +545,88 @@ export default function TestConfigScreen() {
                 </View>
               </View>
 
-              {/* Difficulty level */}
-              <View style={[styles.controlRow, { borderTopColor: colors.border }]}>
+              {/* Difficulty level — multi-select */}
+              <View style={[styles.controlRow, { borderTopColor: colors.border, flexWrap: 'wrap', gap: 8 }]}>
                 <Text style={[styles.controlLabel, { color: colors.text }]}>Difficulty</Text>
-                <View style={styles.marksRow}>
+                <View style={styles.diffRow}>
                   {DIFFICULTY_OPTIONS.map(d => {
-                    const active = cfg.difficulty === d.value;
+                    const active = cfg.difficulties.includes(d.value);
                     return (
                       <Pressable
                         key={d.value}
                         style={[
                           styles.diffChip,
                           {
-                            backgroundColor: active ? d.color + '20' : colors.secondary,
+                            backgroundColor: active ? d.color + '22' : colors.secondary,
                             borderColor: active ? d.color : colors.border,
                             borderWidth: active ? 1.5 : 1,
                           },
                         ]}
-                        onPress={() => setDifficulty(cid, d.value)}
+                        onPress={() => toggleDifficulty(cid, d.value)}
                       >
                         <Text style={styles.diffChipIcon}>{d.icon}</Text>
                         <Text style={[styles.diffChipText, { color: active ? d.color : colors.mutedForeground, fontWeight: active ? '700' : '400' }]}>
                           {d.label}
                         </Text>
+                        {active && isMultiDiff && (
+                          <View style={[styles.diffActiveDot, { backgroundColor: d.color }]} />
+                        )}
                       </Pressable>
                     );
                   })}
                 </View>
               </View>
 
+              {/* Per-level question count — only when multiple difficulties selected */}
+              {isMultiDiff && (
+                <View style={[styles.breakdownSection, { borderTopColor: colors.border, backgroundColor: colors.primaryLight }]}>
+                  <View style={styles.breakdownHeader}>
+                    <Ionicons name="options-outline" size={13} color={colors.primary} />
+                    <Text style={[styles.breakdownTitle, { color: colors.primary }]}>
+                      Questions per difficulty level
+                    </Text>
+                  </View>
+                  {DIFFICULTY_OPTIONS.filter(d => cfg.difficulties.includes(d.value)).map(d => (
+                    <View key={d.value} style={[styles.breakdownRow, { borderTopColor: colors.border + '80' }]}>
+                      <View style={styles.breakdownLabelWrap}>
+                        <Text style={styles.breakdownIcon}>{d.icon}</Text>
+                        <Text style={[styles.breakdownLabel, { color: d.color }]}>{d.label}</Text>
+                      </View>
+                      <View style={styles.breakdownStepper}>
+                        <Pressable
+                          style={[styles.miniStepBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+                          onPress={() => adjustDifficultyCount(cid, d.value, -1)}
+                        >
+                          <Ionicons name="remove" size={14} color={colors.text} />
+                        </Pressable>
+                        <View style={[styles.miniStepVal, { backgroundColor: d.color + '18', borderColor: d.color + '40' }]}>
+                          <Text style={[styles.miniStepText, { color: d.color }]}>
+                            {cfg.difficultyBreakdown[d.value] ?? 3}
+                          </Text>
+                        </View>
+                        <Pressable
+                          style={[styles.miniStepBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+                          onPress={() => adjustDifficultyCount(cid, d.value, 1)}
+                        >
+                          <Ionicons name="add" size={14} color={colors.text} />
+                        </Pressable>
+                      </View>
+                    </View>
+                  ))}
+                  <View style={[styles.breakdownTotal, { borderTopColor: colors.border }]}>
+                    <Text style={[styles.breakdownTotalLabel, { color: colors.mutedForeground }]}>Total questions</Text>
+                    <Text style={[styles.breakdownTotalVal, { color: colors.primary }]}>{chapterTotal}</Text>
+                  </View>
+                </View>
+              )}
+
               {/* Subtotal */}
-              <View style={[styles.subtotalRow, { borderTopColor: colors.border, backgroundColor: colors.primaryLight }]}>
+              <View style={[styles.subtotalRow, { borderTopColor: colors.border, backgroundColor: isMultiDiff ? colors.card : colors.primaryLight }]}>
                 <Text style={[styles.subtotalLabel, { color: colors.mutedForeground }]}>
-                  {cfg.count} q × {cfg.marksPerQ} mark{cfg.marksPerQ > 1 ? 's' : ''}
+                  {chapterTotal} q × {cfg.marksPerQ} mark{cfg.marksPerQ > 1 ? 's' : ''}
                 </Text>
                 <Text style={[styles.subtotalValue, { color: colors.primary }]}>
-                  = {cfg.count * cfg.marksPerQ} marks
+                  = {chapterTotal * cfg.marksPerQ} marks
                 </Text>
               </View>
 
@@ -793,12 +843,50 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   markChipText: { fontSize: 13, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  diffRow: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
   diffChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, borderWidth: 1,
+    paddingHorizontal: 9, paddingVertical: 7, borderRadius: 10, borderWidth: 1,
   },
   diffChipIcon: { fontSize: 13 },
   diffChipText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  diffActiveDot: {
+    width: 5, height: 5, borderRadius: 3, marginLeft: 1,
+  },
+
+  breakdownSection: {
+    borderTopWidth: 1, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 4,
+  },
+  breakdownHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8,
+  },
+  breakdownTitle: {
+    fontSize: 11, fontWeight: '700', fontFamily: 'Inter_600SemiBold', letterSpacing: 0.3,
+  },
+  breakdownRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 7, borderTopWidth: 1,
+  },
+  breakdownLabelWrap: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  breakdownIcon: { fontSize: 15 },
+  breakdownLabel: { fontSize: 13, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  breakdownStepper: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  miniStepBtn: {
+    width: 28, height: 28, borderRadius: 8, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  miniStepVal: {
+    minWidth: 36, height: 28, borderRadius: 8, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6,
+  },
+  miniStepText: { fontSize: 14, fontWeight: '800', fontFamily: 'Inter_700Bold' },
+  breakdownTotal: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingTop: 8, paddingBottom: 4, marginTop: 4, borderTopWidth: 1,
+  },
+  breakdownTotalLabel: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  breakdownTotalVal: { fontSize: 15, fontWeight: '800', fontFamily: 'Inter_700Bold' },
+
   subtotalRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 14, paddingVertical: 7, borderTopWidth: 1,
