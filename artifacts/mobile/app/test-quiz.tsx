@@ -3,6 +3,7 @@ import type { SavedQuestion } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { eduApi } from '@/services/api';
 import type { Question } from '@/services/api';
+import { clearQuestions, loadQuestions } from '@/store/questionStore';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -84,8 +85,9 @@ function getDateString() {
 }
 
 export default function TestQuizScreen() {
-  const { questionsJson, subjectName, chapterName } = useLocalSearchParams<{
-    questionsJson: string;
+  const { sessionId, questionsJson, subjectName, chapterName } = useLocalSearchParams<{
+    sessionId?: string;
+    questionsJson?: string;
     subjectId: string;
     subjectName: string;
     chapterId: string;
@@ -99,11 +101,20 @@ export default function TestQuizScreen() {
   const insets = useSafeAreaInsets();
 
   const questions: Question[] = useMemo(() => {
+    // Primary: load from in-memory store via sessionId (avoids URL length limits)
+    if (sessionId) {
+      const stored = loadQuestions(sessionId);
+      if (stored && stored.length > 0) {
+        clearQuestions(sessionId);
+        return stored;
+      }
+    }
+    // Fallback: legacy questionsJson URL param
     try {
       const parsed = JSON.parse(questionsJson ?? '[]');
       return Array.isArray(parsed) ? parsed : [];
     } catch { return []; }
-  }, [questionsJson]);
+  }, [sessionId, questionsJson]);
 
   const totalTime = questions.length * 90;
   const [currentIndex, setCurrentIndex] = useState(0);

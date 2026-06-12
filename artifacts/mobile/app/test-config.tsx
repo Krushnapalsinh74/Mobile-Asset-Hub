@@ -2,6 +2,7 @@ import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { eduApi, getId } from '@/services/api';
 import type { Topic } from '@/services/api';
+import { saveQuestions } from '@/store/questionStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueries } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
@@ -221,76 +222,106 @@ export default function TestConfigScreen() {
     setError('');
 
     try {
-      // API caps ~10 questions per call. To get more, we make multiple
-      // parallel calls with different seeds, then filter + deduplicate.
+      // API returns ~10 MCQ per call regardless of the count param.
+      // We call sequentially with different seeds until we have enough
+      // unique questions or hit the retry cap (20 attempts).
       const API_BATCH = 10;
+      const MAX_ATTEMPTS = 20;
 
-      const chapterResults: any[][] = await Promise.all(
-        configList.map(async (cfg, chapterIdx) => {
-          const needed = cfg.count;
-          // How many batches we need (cap at 10 to support up to 100 questions)
-          const numBatches = Math.min(Math.ceil(needed / API_BATCH), 10);
+      const chapterResults: any[][] = [];
 
-          // Resolve which topics to focus on for this chapter:
-          // 1. If the topic filter UI was expanded and has explicit toggles → use those
-          // 2. Else fall back to preset topic names passed in via params (from topics screen)
-          // 3. If none → generate from the whole chapter (no topic filter)
-          let resolvedTopicName: string | undefined;
+      for (let chapterIdx = 0; chapterIdx < configList.length; chapterIdx++) {
+        const cfg = configList[chapterIdx]!;
+        const needed = cfg.count;
 
-          if (cfg.expanded) {
-            // User interacted with the topics UI — use checked topics
-            const topicQuery = topicQueries[chapterIdx];
-            const loadedTopics: Topic[] = topicQuery?.data ?? [];
-            const activeTopicNames = loadedTopics
-              .filter(t => topicStates[getId(t)]?.selected !== false)
-              .map(t => t.name);
-            if (activeTopicNames.length > 0 && activeTopicNames.length < loadedTopics.length) {
-              resolvedTopicName = activeTopicNames.join(', ');
-            }
-          } else {
-            // Use preset topics from topics screen or topic-dashboard
-            const presetForChapter = presetTopicNamesByChapterIndex[chapterIdx] ?? [];
-            if (presetForChapter.length > 0) {
-              resolvedTopicName = presetForChapter.join(', ');
+        let resolvedTopicName: string | undefined;
+        if (cfg.expanded) {
+          const topicQuery = topicQueries[chapterIdx];
+          const loadedTopics: Topic[] = topicQuery?.data ?? [];
+          const activeTopicNames = loadedTopics
+            .filter(t => topicStates[getId(t)]?.selected !== false)
+            .map(t => t.name);
+          if (activeTopicNames.length > 0 && activeTopicNames.length < loadedTopics.length) {
+            resolvedTopicName = activeTopicNames.join(', ');
+          }
+        } else {
+          const presetForChapter = presetTopicNamesByChapterIndex[chapterIdx] ?? [];
+          if (presetForChapter.length > 0) {
+            resolvedTopicName = presetForChapter.join(', ');
+          }
+        }
+
+        const chapterLabel = resolvedTopicName
+          ? `"${resolvedTopicName.slice(0, 30)}"`
+          : `"${cfg.chapterName}"`;
+
+        // Sequential batches — one at a time to avoid rate-limiting
+        const pool: any[] = [];
+        const seen = new Set<string>();
+        let attempts = 0;
+
+        while (pool.length < needed && attempts < MAX_ATTEMPTS) {
+          attempts++;
+          setLoadingMsg(
+            `Fetching questions for ${chapterLabel}… (${pool.length}/${needed})`,
+          );
+
+          const batch = await eduApi
+            .generateQuestions({
+              board: boardId ?? boardName ?? '',
+              standard: standardId ?? standardName ?? '',
+              subject: cfg.subjectName,
+              chapter: cfg.chapterName,
+              ...(resolvedTopicName ? { topic: resolvedTopicName } : {}),
+              options: {
+                mode: 'mcq',
+                count: API_BATCH,
+                seed: Math.floor(Math.random() * 9_000_000) + attempts * 137_003,
+                difficulty: cfg.difficulty,
+              },
+              freshQuestions: true,
+            })
+            .then(res => filterMcq(parseQuestionsFromResponse(res)))
+            .catch(() => [] as any[]);
+
+          for (const q of batch) {
+            const key = String(q?.question ?? '')
+              .toLowerCase()
+              .replace(/\s+/g, ' ')
+              .trim()
+              .slice(0, 120);
+            if (!key) continue;
+            // Add unique questions; if we've already seen this exact question
+            // but still need more, add it anyway to meet the count
+            if (!seen.has(key)) {
+              seen.add(key);
+              pool.push(q);
             }
           }
 
-          const label = resolvedTopicName
-            ? `"${resolvedTopicName.slice(0, 40)}…"`
-            : `"${cfg.chapterName}"`;
-          setLoadingMsg(`Fetching ${needed} questions for ${label}…`);
+          // If the whole batch was duplicate, no point retrying more — the
+          // server question bank is exhausted for this scope. Fill remaining
+          // slots by cycling through what we have.
+          const newUnique = batch.filter(q => {
+            const k = String(q?.question ?? '').toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 120);
+            return seen.has(k);
+          });
+          if (batch.length > 0 && newUnique.length === batch.length && pool.length > 0) {
+            // All duplicates — bank is exhausted, stop early
+            break;
+          }
+        }
 
-          const batchCalls = Array.from({ length: numBatches }, (_, i) =>
-            eduApi
-              .generateQuestions({
-                board: boardId ?? boardName ?? '',
-                standard: standardId ?? standardName ?? '',
-                subject: cfg.subjectName,
-                chapter: cfg.chapterName,
-                ...(resolvedTopicName ? { topic: resolvedTopicName } : {}),
-                options: {
-                  mode: 'mcq',
-                  count: API_BATCH,
-                  seed: Math.floor(Math.random() * 1_000_000) + i * 100_003,
-                  difficulty: cfg.difficulty,
-                },
-                freshQuestions: true,
-              })
-              .then(res => filterMcq(parseQuestionsFromResponse(res)))
-              .catch(() => [] as any[]),
-          );
+        // If we still don't have enough, cycle through pool to reach needed count
+        const result: any[] = pool.slice(0, needed);
+        let fillIdx = 0;
+        while (result.length < needed && pool.length > 0) {
+          result.push(pool[fillIdx % pool.length]);
+          fillIdx++;
+        }
 
-          const batches = await Promise.all(batchCalls);
-          const poolRaw = batches.flat();
-
-          // Remove duplicates where possible; if dedup shrinks below
-          // what was requested (backend returned identical batches),
-          // fall back to the raw pool so the user always gets the count they asked for.
-          const deduped = deduplicate(poolRaw);
-          const pool = deduped.length >= needed ? deduped : poolRaw;
-          return pool.slice(0, needed);
-        }),
-      );
+        chapterResults.push(result);
+      }
 
       const allQuestions = chapterResults.flat();
 
@@ -299,11 +330,14 @@ export default function TestConfigScreen() {
         return;
       }
 
+      // Store questions in memory (avoids URL length limits for large sets)
+      const sessionId = saveQuestions(allQuestions);
+
       const first = configList[0]!;
       router.push({
         pathname: '/test-quiz' as any,
         params: {
-          questionsJson: JSON.stringify(allQuestions),
+          sessionId,
           subjectId: first.subjectId,
           subjectName: first.subjectName,
           chapterId: chapterIds.join(','),
