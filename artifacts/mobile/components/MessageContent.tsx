@@ -116,7 +116,7 @@ function parseInline(raw: string): Segment[] {
         const candidates = [
           rest.search(/\*\*\*/),
           rest.search(/\*\*/),
-          rest.search(/(?<!\*)\*(?!\*)/),
+          rest.search(/\*/),
           rest.search(/`/),
           urlStart >= 0 ? urlStart : Infinity,
         ].filter(n => n > 0);

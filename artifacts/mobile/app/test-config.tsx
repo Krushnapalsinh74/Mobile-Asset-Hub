@@ -284,6 +284,7 @@ export default function TestConfigScreen() {
             .then(res => filterMcq(parseQuestionsFromResponse(res)))
             .catch(() => [] as any[]);
 
+          let newInThisBatch = 0;
           for (const q of batch) {
             const key = String(q?.question ?? '')
               .toLowerCase()
@@ -291,23 +292,16 @@ export default function TestConfigScreen() {
               .trim()
               .slice(0, 120);
             if (!key) continue;
-            // Add unique questions; if we've already seen this exact question
-            // but still need more, add it anyway to meet the count
             if (!seen.has(key)) {
               seen.add(key);
               pool.push(q);
+              newInThisBatch++;
             }
           }
 
-          // If the whole batch was duplicate, no point retrying more — the
-          // server question bank is exhausted for this scope. Fill remaining
-          // slots by cycling through what we have.
-          const newUnique = batch.filter(q => {
-            const k = String(q?.question ?? '').toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 120);
-            return seen.has(k);
-          });
-          if (batch.length > 0 && newUnique.length === batch.length && pool.length > 0) {
-            // All duplicates — bank is exhausted, stop early
+          // If the whole batch was all duplicates, the server question bank is
+          // exhausted — stop early and fill remaining slots by cycling the pool.
+          if (batch.length > 0 && newInThisBatch === 0 && pool.length > 0) {
             break;
           }
         }
