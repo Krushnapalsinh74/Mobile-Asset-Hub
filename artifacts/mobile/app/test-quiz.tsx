@@ -1,5 +1,6 @@
 import { useApp } from '@/context/AppContext';
 import type { SavedQuestion } from '@/context/AppContext';
+import { MessageContent } from '@/components/MessageContent';
 import { useColors } from '@/hooks/useColors';
 import { eduApi } from '@/services/api';
 import type { Question } from '@/services/api';
@@ -10,6 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Modal,
   Platform,
   Pressable,
@@ -126,6 +128,10 @@ export default function TestQuizScreen() {
   const [elapsed, setElapsed] = useState(0);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [expandedReview, setExpandedReview] = useState<Set<number>>(new Set());
+  const [diagramVisible, setDiagramVisible] = useState(false);
+  const [diagramContent, setDiagramContent] = useState('');
+  const [diagramLoading, setDiagramLoading] = useState(false);
+  const [diagramError, setDiagramError] = useState(false);
 
   const savedIds = useMemo(
     () => new Set(savedQuestions.map(q => q.id)),
@@ -155,6 +161,39 @@ export default function TestQuizScreen() {
       saveQuestion(sq);
     }
   }, [savedIds, saveQuestion, unsaveQuestion, subjectName, chapterName]);
+
+  const handleGenerateDiagram = useCallback(async (question: Question) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setDiagramVisible(true);
+    setDiagramContent('');
+    setDiagramError(false);
+    setDiagramLoading(true);
+    try {
+      const prompt =
+        `For the following exam question, create a clear text diagram or visual representation ` +
+        `that helps a student understand the concept. Use ASCII art, tables, flow steps, ` +
+        `structured lists, or labelled diagrams — whichever best fits the topic. ` +
+        `Keep it concise and exam-focused.\n\nQuestion: ${question.question}`;
+      const res = await eduApi.chat({
+        message: prompt,
+        history: [],
+        board: boardId ?? boardName ?? '',
+        standard: standardId ?? standardName ?? '',
+        filters: { subject: subjectName ?? '', chapter: chapterName ?? '' },
+      });
+      const text: string =
+        (res as any)?.reply ??
+        (res as any)?.message ??
+        (res as any)?.content ??
+        (res as any)?.text ??
+        (typeof res === 'string' ? res : JSON.stringify(res));
+      setDiagramContent(text || 'No diagram could be generated for this question.');
+    } catch {
+      setDiagramError(true);
+    } finally {
+      setDiagramLoading(false);
+    }
+  }, [boardId, boardName, standardId, standardName, subjectName, chapterName]);
 
   // Store answers in a ref so doSubmit doesn't need it as a dep
   // (prevents timer from restarting on every answer selection)
@@ -692,6 +731,13 @@ export default function TestQuizScreen() {
             <View style={[styles.mcqPill, { backgroundColor: colors.muted }]}>
               <Text style={[styles.mcqPillText, { color: colors.mutedForeground }]}>MCQ</Text>
             </View>
+            <Pressable
+              style={[styles.diagramBtn, { backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' }]}
+              onPress={() => handleGenerateDiagram(q)}
+            >
+              <Text style={styles.diagramBtnIcon}>🧠</Text>
+              <Text style={[styles.diagramBtnText, { color: '#4F46E5' }]}>AI Diagram</Text>
+            </Pressable>
           </View>
           <Text style={[styles.questionText, { color: colors.text }]}>{q.question}</Text>
           {chapterName && (
@@ -868,6 +914,91 @@ export default function TestQuizScreen() {
             >
               <Text style={[styles.modalCancelBtnText, { color: colors.text }]}>Continue Answering</Text>
             </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ── AI DIAGRAM MODAL ── */}
+      <Modal
+        visible={diagramVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDiagramVisible(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setDiagramVisible(false)}>
+          <Pressable
+            style={[styles.diagramSheet, { backgroundColor: colors.card }]}
+            onPress={e => e.stopPropagation()}
+          >
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+
+            {/* Header */}
+            <View style={styles.diagramSheetHeader}>
+              <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.diagramSheetIcon}>
+                <Text style={{ fontSize: 16 }}>🧠</Text>
+              </LinearGradient>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.diagramSheetTitle, { color: colors.text }]}>AI Diagram</Text>
+                <Text style={[styles.diagramSheetSub, { color: colors.mutedForeground }]}>
+                  Visual explanation for this question
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setDiagramVisible(false)}
+                style={[styles.diagramCloseBtn, { backgroundColor: colors.secondary }]}
+              >
+                <Ionicons name="close" size={16} color={colors.mutedForeground} />
+              </Pressable>
+            </View>
+
+            {/* Content */}
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={styles.diagramScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {diagramLoading && (
+                <View style={styles.diagramCenter}>
+                  <ActivityIndicator size="large" color="#4F46E5" />
+                  <Text style={[styles.diagramLoadText, { color: colors.mutedForeground }]}>
+                    Generating diagram…
+                  </Text>
+                  <Text style={[styles.diagramLoadHint, { color: colors.mutedForeground }]}>
+                    AI is creating a visual explanation
+                  </Text>
+                </View>
+              )}
+              {diagramError && !diagramLoading && (
+                <View style={styles.diagramCenter}>
+                  <Text style={{ fontSize: 40 }}>⚠️</Text>
+                  <Text style={[styles.diagramLoadText, { color: colors.text }]}>
+                    Failed to generate diagram
+                  </Text>
+                  <Pressable
+                    style={[styles.diagramRetryBtn, { backgroundColor: '#4F46E5' }]}
+                    onPress={() => {
+                      const idx = currentIndex;
+                      if (questions[idx]) handleGenerateDiagram(questions[idx]!);
+                    }}
+                  >
+                    <Text style={styles.diagramRetryText}>Try Again</Text>
+                  </Pressable>
+                </View>
+              )}
+              {!diagramLoading && !diagramError && !!diagramContent && (
+                <View style={[styles.diagramContentCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <MessageContent
+                    content={diagramContent}
+                    isUser={false}
+                    primaryColor="#4F46E5"
+                    textColor={colors.text}
+                    cardColor={colors.card}
+                    borderColor={colors.border}
+                    mutedColor={colors.mutedForeground}
+                  />
+                </View>
+              )}
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -1230,4 +1361,43 @@ const styles = StyleSheet.create({
   solutionLabel: { fontSize: 12, fontWeight: '700', color: '#4F46E5' },
   solutionText: { fontSize: 13, lineHeight: 20, color: '#374151' },
   tipText: { fontSize: 12, lineHeight: 18, color: '#6B7280' },
+
+  /* ── AI Diagram button ── */
+  diagramBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 9, paddingVertical: 5, borderRadius: 10, borderWidth: 1,
+  },
+  diagramBtnIcon: { fontSize: 13 },
+  diagramBtnText: { fontSize: 11, fontWeight: '700' },
+
+  /* ── AI Diagram modal sheet ── */
+  diagramSheet: {
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    paddingTop: 10, maxHeight: '82%', flex: 0,
+  },
+  diagramSheetHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 18, paddingTop: 8, paddingBottom: 14,
+  },
+  diagramSheetIcon: {
+    width: 42, height: 42, borderRadius: 13,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  diagramSheetTitle: { fontSize: 16, fontWeight: '800' },
+  diagramSheetSub: { fontSize: 12, marginTop: 1 },
+  diagramCloseBtn: {
+    width: 32, height: 32, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  diagramScrollContent: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 4 },
+  diagramCenter: { alignItems: 'center', gap: 12, paddingVertical: 40 },
+  diagramLoadText: { fontSize: 15, fontWeight: '600', textAlign: 'center' },
+  diagramLoadHint: { fontSize: 12, textAlign: 'center' },
+  diagramRetryBtn: {
+    marginTop: 8, paddingHorizontal: 24, paddingVertical: 11, borderRadius: 12,
+  },
+  diagramRetryText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
+  diagramContentCard: {
+    borderRadius: 16, borderWidth: 1, padding: 16,
+  },
 });
