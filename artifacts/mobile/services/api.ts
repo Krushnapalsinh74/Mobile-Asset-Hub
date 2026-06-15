@@ -110,12 +110,23 @@ export interface OtpSendResult {
   message?: string;
 }
 
+export interface OtpUserProfile {
+  name?: string;
+  boardId?: string;
+  boardName?: string;
+  standardId?: string;
+  standardName?: string;
+}
+
 export interface OtpVerifyResult {
   success: boolean;
   name?: string;
   email?: string;
   token?: string;
   message?: string;
+  // Returned by otp.kparkit.com once they add profile storage
+  profile?: OtpUserProfile;
+  user?: OtpUserProfile;
 }
 
 export const otpApi = {
@@ -123,6 +134,10 @@ export const otpApi = {
     otpReq<OtpSendResult>('/send-otp', { email }),
   verifyOtp: (email: string, otp: string) =>
     otpReq<OtpVerifyResult>('/verify-otp', { email, otp }),
+  saveProfile: (email: string, profile: OtpUserProfile) =>
+    otpReq<{ success: boolean }>('/save-profile', { email, ...profile }),
+  getProfile: (email: string) =>
+    otpReq<OtpUserProfile & { success?: boolean }>('/get-profile', { email }),
 };
 
 export interface AppSettings {

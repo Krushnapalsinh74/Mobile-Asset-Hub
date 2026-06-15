@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { localApi } from '@/services/api';
+import { localApi, otpApi } from '@/services/api';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 export interface LastStudied {
@@ -137,13 +137,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setStudent = async (name: string, email: string) => {
     await AsyncStorage.multiSet([[KEYS.studentName, name], [KEYS.studentEmail, email]]);
     setState(s => ({ ...s, studentName: name, studentEmail: email }));
+    // Sync to both backends (fire-and-forget — never block the UI)
     localApi.saveProfile({ email, name }).catch(() => {});
+    otpApi.saveProfile(email, { name }).catch(() => {});
   };
 
   const setBoard = async (id: string, name: string) => {
     await AsyncStorage.multiSet([[KEYS.boardId, id], [KEYS.boardName, name]]);
     setState(s => {
-      localApi.saveProfile({ email: s.studentEmail ?? '', boardId: id, boardName: name }).catch(() => {});
+      const email = s.studentEmail ?? '';
+      localApi.saveProfile({ email, boardId: id, boardName: name }).catch(() => {});
+      otpApi.saveProfile(email, { boardId: id, boardName: name }).catch(() => {});
       return { ...s, boardId: id, boardName: name };
     });
   };
@@ -151,7 +155,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setStandard = async (id: string, name: string) => {
     await AsyncStorage.multiSet([[KEYS.standardId, id], [KEYS.standardName, name]]);
     setState(s => {
-      localApi.saveProfile({ email: s.studentEmail ?? '', standardId: id, standardName: name }).catch(() => {});
+      const email = s.studentEmail ?? '';
+      localApi.saveProfile({ email, standardId: id, standardName: name }).catch(() => {});
+      otpApi.saveProfile(email, { standardId: id, standardName: name }).catch(() => {});
       return { ...s, standardId: id, standardName: name };
     });
   };

@@ -1,6 +1,6 @@
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-import { localApi, otpApi } from '@/services/api';
+import { localApi, otpApi, type OtpUserProfile } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -82,21 +82,33 @@ export default function LoginScreen() {
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      // Try to restore full profile from our backend (works across devices)
-      const profile = await localApi.getProfile(email).catch(() => null);
-      const resolvedName = profile?.name || res.name || null;
+      // Fetch profile from BOTH sources in parallel — our DB + kparkit.com OTP server
+      const [ourProfile, otpProfile] = await Promise.all([
+        localApi.getProfile(email).catch(() => null),
+        otpApi.getProfile(email).catch(() => null),
+      ]);
+
+      // Merge: our DB wins if both have data (we are the source of truth)
+      const merged: OtpUserProfile & { name?: string } = {
+        name:         ourProfile?.name         ?? otpProfile?.name,
+        boardId:      ourProfile?.boardId      ?? otpProfile?.boardId,
+        boardName:    ourProfile?.boardName    ?? otpProfile?.boardName,
+        standardId:   ourProfile?.standardId   ?? otpProfile?.standardId,
+        standardName: ourProfile?.standardName ?? otpProfile?.standardName,
+      };
+
+      const resolvedName = merged.name || res.name || null;
 
       if (resolvedName) {
         await setStudent(resolvedName, email);
-        // Restore board + standard from backend if not already on this device
-        if (profile?.boardId && profile?.boardName && !boardId) {
-          await setBoard(profile.boardId, profile.boardName);
+        if (merged.boardId && merged.boardName && !boardId) {
+          await setBoard(merged.boardId, merged.boardName);
         }
-        if (profile?.standardId && profile?.standardName && !standardId) {
-          await setStandard(profile.standardId, profile.standardName);
+        if (merged.standardId && merged.standardName && !standardId) {
+          await setStandard(merged.standardId, merged.standardName);
         }
         const hasBoardStd =
-          (profile?.boardId && profile?.standardId) || (boardId && standardId);
+          (merged.boardId && merged.standardId) || (boardId && standardId);
         router.replace(hasBoardStd ? '/subjects' : '/onboarding');
       } else {
         setStep('name');
