@@ -1,0 +1,91 @@
+Let me explore your app's codebase to understand how the MCQ question system is built.
+
+Listed directory edu
+Searched for "unique MCQ questions"
+Searched for "Start Anyway"
+Searched for "Start Anyway"
+Searched for "MCQ"
+Searched for "unique.*questions.*selection\|asked for\|available questions\|cancel.*start"
+Viewed curriculum.html:1-800
+
+Now let me search in `students.html` and `server.js` for the specific message about question limits:
+
+Searched for "asked for|available.*question|question.*available|unique.*MCQ|only has"
+Searched for "asked for|available.*question|question.*available|unique.*MCQ|only has|start anyway|cancel"
+Viewed students.html:1-383
+
+That message isn't in students.html. Let me look at the server.js more closely for the test/exam generation logic, and also check if there's a student-facing app elsewhere:
+
+Searched for "unique|available|questions.*for.*selection|you asked for|test will start"
+Listed directory public_html
+Listed directory public
+Searched for "asked for|start anyway|cancel|available.*question|test will start|unique.*MCQ"
+Searched for "asked for|start anyway|cancel|available.*question|test will start|unique.*MCQ"
+
+The message isn't in these files. It's likely in the **student-facing app** (not the admin portal). Let me check if there's another app or look at `student-dashboard.html`:
+
+Searched for "unique MCQ|only has.*question|start anyway|you asked for|test will start"
+Viewed server.js:1780-1935
+
+Now I have a full picture of the codebase. The message "The API only has 40 unique MCQ questions for this selection (you asked for 100)..." is **not currently in your code** — this means it's something you want to **build** into your app. Let me look at how the test/question generation works to understand the full flow:
+
+Searched for "generate-questions\|test.*start\|startTest\|numQuestions\|question.*count"
+Searched for "generate-questions|startTest|numQuestions|question.*count|mcqCount"
+Viewed student-dashboard.html:1-145
+
+Now I have a clear picture. Let me check the `/api/generate-questions` endpoint limits and the index.html (chat interface):
+
+Viewed server.js:490-530
+
+Now I have a thorough understanding of your app. Here's a complete breakdown:
+
+---
+
+## 📊 How Your App Is Built
+
+### Architecture Overview
+
+Your app is a **Node.js/Express backend** (`server.js`) with **vanilla HTML/JS frontend** pages — an admin portal for Indian education curriculum management with AI question generation.
+
+### The Message You're Seeing
+
+**"The API only has 40 unique MCQ questions for this selection (you asked for 100). The test will start with all 40 available questions. — Cancel or Start Anyway"**
+
+This message **does NOT currently exist** in your codebase. It's a feature you need to **build**. Here's why you need it and how the existing system works:
+
+---
+
+### How Question Generation Currently Works
+
+| Component | File | What It Does |
+|---|---|---|
+| Question generation endpoint | [`server.js:1786`](file:///home/u241368025/domains/kparkit.com/public_html/edu/server.js#L1786-L1840) | `POST /api/generate-questions` — accepts `mcqCount`, `shortCount`, `longCount` |
+| AI prompt | [`server.js:1821`](file:///home/u241368025/domains/kparkit.com/public_html/edu/server.js#L1821) | Asks AI for `${mcqCount} MCQs` exactly |
+| Fallback | [`server.js:1794`](file:///home/u241368025/domains/kparkit.com/public_html/edu/server.js#L1794-L1806) | If AI fails, returns placeholder questions |
+| Quiz panel | [`curriculum.html:705`](file:///home/u241368025/domains/kparkit.com/public_html/edu/curriculum.html#L705-L753) | Renders questions from AI |
+
+### The Problem
+
+When a user asks for **100 MCQs**, the AI (Gemini) may only return **40 unique ones** because:
+1. A chapter may not have 100 distinct concepts
+2. The AI token/response limit may cap the output
+3. The API response is parsed and de-duped
+
+### What You Need to Build
+
+You need a **pre-check + confirmation dialog** before starting a test, in your test-generation frontend flow:
+
+```
+1. User selects "100 MCQ test"
+   ↓
+2. Frontend queries API for available unique questions
+   ↓
+3. If API returns fewer than requested (e.g. 40 < 100):
+   → Show dialog: "Only 40 available. Cancel or Start Anyway?"
+   ↓
+4. User clicks "Start Anyway" → test starts with 40 questions
+```
+
+---
+
+Would you like me to **implement this feature** — the pre-check logic in the server and the confirmation dialog in the frontend? If so, which page/feature triggers the test (is it the Practice Quiz tab in `curriculum.html`, or a separate test page you're building)?
