@@ -1,6 +1,6 @@
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-import { otpApi } from '@/services/api';
+import { localApi, otpApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -36,7 +36,7 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  const { setStudent, boardId, standardId } = useApp();
+  const { setStudent, setBoard, setStandard, boardId, standardId } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const otpInputRef = useRef<TextInput>(null);
@@ -81,9 +81,23 @@ export default function LoginScreen() {
         return;
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      if (res.name) {
-        await setStudent(res.name, email);
-        router.replace(boardId && standardId ? '/subjects' : '/onboarding');
+
+      // Try to restore full profile from our backend (works across devices)
+      const profile = await localApi.getProfile(email).catch(() => null);
+      const resolvedName = profile?.name || res.name || null;
+
+      if (resolvedName) {
+        await setStudent(resolvedName, email);
+        // Restore board + standard from backend if not already on this device
+        if (profile?.boardId && profile?.boardName && !boardId) {
+          await setBoard(profile.boardId, profile.boardName);
+        }
+        if (profile?.standardId && profile?.standardName && !standardId) {
+          await setStandard(profile.standardId, profile.standardName);
+        }
+        const hasBoardStd =
+          (profile?.boardId && profile?.standardId) || (boardId && standardId);
+        router.replace(hasBoardStd ? '/subjects' : '/onboarding');
       } else {
         setStep('name');
       }
@@ -98,6 +112,7 @@ export default function LoginScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await setStudent(trimmed, email);
+      localApi.saveProfile({ email, name: trimmed }).catch(() => {});
       router.replace(boardId && standardId ? '/subjects' : '/onboarding');
     } catch (e: any) { setError(e?.message ?? 'Something went wrong. Please try again.'); }
     finally { setLoading(false); }

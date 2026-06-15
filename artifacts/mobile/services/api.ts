@@ -157,14 +157,21 @@ async function localReq<T>(path: string, init?: RequestInit): Promise<T> {
 
 export interface UserProfile {
   email: string;
-  name: string;
-  selectedBoards: string[];
-  standard: string;
-  isPremium: boolean;
+  name?: string | null;
+  boardId?: string | null;
+  boardName?: string | null;
+  standardId?: string | null;
+  standardName?: string | null;
 }
 
 export const localApi = {
-  getProfile: () => localReq<UserProfile>('/api/user/profile'),
+  getProfile: (email: string) =>
+    localReq<UserProfile>(`/api/user/profile?email=${encodeURIComponent(email)}`),
+  saveProfile: (profile: UserProfile) =>
+    localReq<{ success: boolean }>('/api/user/profile', {
+      method: 'POST',
+      body: JSON.stringify(profile),
+    }),
 };
 
 export const eduApi = {

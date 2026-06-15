@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { localApi } from '@/services/api';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 export interface LastStudied {
@@ -136,16 +137,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setStudent = async (name: string, email: string) => {
     await AsyncStorage.multiSet([[KEYS.studentName, name], [KEYS.studentEmail, email]]);
     setState(s => ({ ...s, studentName: name, studentEmail: email }));
+    localApi.saveProfile({ email, name }).catch(() => {});
   };
 
   const setBoard = async (id: string, name: string) => {
     await AsyncStorage.multiSet([[KEYS.boardId, id], [KEYS.boardName, name]]);
-    setState(s => ({ ...s, boardId: id, boardName: name }));
+    setState(s => {
+      localApi.saveProfile({ email: s.studentEmail ?? '', boardId: id, boardName: name }).catch(() => {});
+      return { ...s, boardId: id, boardName: name };
+    });
   };
 
   const setStandard = async (id: string, name: string) => {
     await AsyncStorage.multiSet([[KEYS.standardId, id], [KEYS.standardName, name]]);
-    setState(s => ({ ...s, standardId: id, standardName: name }));
+    setState(s => {
+      localApi.saveProfile({ email: s.studentEmail ?? '', standardId: id, standardName: name }).catch(() => {});
+      return { ...s, standardId: id, standardName: name };
+    });
   };
 
   const setLastStudied = async (data: LastStudied) => {
