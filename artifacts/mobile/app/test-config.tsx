@@ -167,7 +167,7 @@ export default function TestConfigScreen() {
     Haptics.selectionAsync();
     const cfg = configs[cid]!;
     const current = cfg.difficultyBreakdown[d] ?? 3;
-    const next = Math.max(1, Math.min(50, current + delta));
+    const next = Math.max(1, Math.min(100, current + delta));
     updateConfig(cid, {
       difficultyBreakdown: { ...cfg.difficultyBreakdown, [d]: next },
     });
