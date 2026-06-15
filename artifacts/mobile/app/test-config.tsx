@@ -200,14 +200,16 @@ export default function TestConfigScreen() {
     }));
   }
 
-  function parseQuestionsFromResponse(res: unknown): any[] {
+  function parseQuestionsFromResponse(res: unknown): { questions: any[]; serverActual?: number } {
     const r = res as any;
-    return (
+    const questions =
       r?.questions ??
       r?.data?.questions ??
       r?.result?.questions ??
-      (Array.isArray(r) ? r : [])
-    );
+      (Array.isArray(r) ? r : []);
+    const serverActual: number | undefined =
+      r?.actualMcqCount ?? r?.data?.actualMcqCount ?? undefined;
+    return { questions, serverActual };
   }
 
   function filterMcq(qs: any[]): any[] {
@@ -225,8 +227,10 @@ export default function TestConfigScreen() {
     setError('');
 
     try {
-      const API_BATCH = 10;
-      const MAX_ATTEMPTS = 20;
+      // Server now batches internally (up to 3×20 parallel AI calls + dedup),
+      // so request the full needed count in one shot. Only retry if we're still
+      // short AND the server didn't signal it hit its own limit (actualMcqCount).
+      const MAX_ATTEMPTS = 3;
       const chapterResults: any[][] = [];
 
       for (let chapterIdx = 0; chapterIdx < configList.length; chapterIdx++) {
@@ -256,7 +260,6 @@ export default function TestConfigScreen() {
         const allForChapter: any[] = [];
         const globalSeen = new Set<string>();
 
-        // Fetch per difficulty level
         for (const diff of cfg.difficulties) {
           const needed = cfg.difficultyBreakdown[diff] ?? 0;
           if (needed === 0) continue;
@@ -265,14 +268,16 @@ export default function TestConfigScreen() {
           const pool: any[] = [];
           const seen = new Set<string>();
           let attempts = 0;
+          let serverHitLimit = false;
 
-          while (pool.length < needed && attempts < MAX_ATTEMPTS) {
+          while (pool.length < needed && attempts < MAX_ATTEMPTS && !serverHitLimit) {
             attempts++;
             setLoadingMsg(
               `${diffOpt.icon} ${diffOpt.label} questions for ${chapterLabel}… (${pool.length}/${needed})`,
             );
 
-            const batch = await eduApi
+            const remaining = needed - pool.length;
+            const raw = await eduApi
               .generateQuestions({
                 board: boardId ?? boardName ?? '',
                 standard: standardId ?? standardName ?? '',
@@ -281,14 +286,21 @@ export default function TestConfigScreen() {
                 ...(resolvedTopicName ? { topic: resolvedTopicName } : {}),
                 options: {
                   mode: 'mcq',
-                  count: API_BATCH,
+                  count: remaining,
                   seed: Math.floor(Math.random() * 9_000_000) + attempts * 137_003,
                   difficulty: diff,
                 },
                 freshQuestions: true,
               })
-              .then(res => filterMcq(parseQuestionsFromResponse(res)))
-              .catch(() => [] as any[]);
+              .catch(() => ({} as Record<string, unknown>));
+
+            const { questions: rawBatch, serverActual } = parseQuestionsFromResponse(raw);
+            const batch = filterMcq(rawBatch);
+
+            // If server tells us it hit its generation limit, no point retrying
+            if (serverActual !== undefined && serverActual < remaining) {
+              serverHitLimit = true;
+            }
 
             let newInBatch = 0;
             for (const q of batch) {
@@ -306,6 +318,7 @@ export default function TestConfigScreen() {
               }
             }
 
+            // Also stop early if we got nothing new from a non-empty batch
             if (batch.length > 0 && newInBatch === 0 && pool.length > 0) break;
           }
 

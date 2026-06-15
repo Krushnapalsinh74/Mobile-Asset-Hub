@@ -1,0 +1,56 @@
+Understood! So the dialog message comes from your **separate mobile/frontend app**, and this kparkit.com server is the backend it calls. My server.js change already helps (returning `actualMcqCount`). 
+
+Now let me do the most impactful server-side improvement — **batch question generation** so the API can actually return 100 unique MCQs by making multiple smaller AI calls and deduplicating:
+
+Viewed server.js:1785-1845
+
+Now I'll replace the entire `generate-questions` endpoint with a **batched generation** strategy that:
+- Splits large requests into batches of 20 MCQs each
+- Makes parallel AI calls per batch
+- Deduplicates by question text similarity
+- Returns `actualMcqCount` vs `requestedMcqCount`
+
+Edited server.js
+
+Now let me also add the **confirmation dialog** to `curriculum.html`'s Practice Quiz tab, so when it detects fewer MCQs than requested, it shows the exact message you described:
+
+Edited curriculum.html
+
+Both files updated. Now let's restart the server to apply the changes:
+
+Ran command: `pm2 restart all 2>/dev/null || node -e "require('./server.js')" --check 2>&1 | head -20 || echo "Check syntax only — use your deployment method to restart"`
+Ran command: `node --check server.js && echo "✅ Syntax OK" || echo "❌ Syntax error"`
+Ran command: `pm2 restart edu-server 2>/dev/null || pm2 restart all 2>/dev/null || echo "PM2 not found — please restart manually"`
+Ran command: `cat test_node.php | grep -i 'node\|port\|pid\|restart' | head -10`
+
+✅ Syntax is good. Here's a summary of everything that was done:
+
+---
+
+## ✅ What Was Implemented
+
+### 1. [`server.js`](file:///home/u241368025/domains/kparkit.com/public_html/edu/server.js) — Batched Question Generation
+
+| What changed | Why |
+|---|---|
+| **Batched MCQ calls** (20 per batch, up to 3 parallel) | AI can't reliably return 100 MCQs in one call — batching gets you much closer to the target |
+| **`normQ()` deduplication** | Strips punctuation, lowercases, compares first 80 chars to filter repeated questions across batches |
+| **"Already generated" hint** | Each new batch gets told the last 10 questions to avoid, so Gemini generates truly different ones |
+| **`requestedMcqCount` + `actualMcqCount`** in response | Your mobile app / frontend can detect a shortfall and show the dialog |
+| **Separate Short+Long call** | Non-MCQ questions generated independently so they don't compete for tokens |
+| **Cache key includes `mcqCount`** | Different count requests don't share the same cached result |
+
+### 2. [`curriculum.html`](file:///home/u241368025/domains/kparkit.com/public_html/edu/curriculum.html) — Quiz Configurator + Confirmation Dialog
+
+- **"Configure Your Practice Test"** panel in the Quiz tab with MCQ count (1–200) + difficulty selector
+- **`generateQuiz()`** calls `/api/generate-questions` directly (no pre-fetch needed)
+- **Confirmation dialog** appears when `actualMcqCount < requestedMcqCount` with the exact message:
+  > *"The API only has 40 unique MCQ questions for this selection (you asked for 100). The test will start with all 40 available questions."* — **Cancel** | **Start Anyway**
+- **Clickable MCQ options** with highlight on selection
+- **Show Answer** toggle per question
+
+### 🔄 To Restart the Server
+Since PM2 wasn't found, use your hosting's **Node.js App Manager** (cPanel) or:
+```bash
+kill $(lsof -t -i:3000) && node server.js &
+```
