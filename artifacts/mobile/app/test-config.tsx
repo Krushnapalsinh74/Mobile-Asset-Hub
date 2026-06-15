@@ -226,7 +226,7 @@ export default function TestConfigScreen() {
     Haptics.selectionAsync();
     const cfg = configs[cid]!;
     const current = cfg.difficultyBreakdown[d] ?? 3;
-    const next = Math.max(1, Math.min(100, current + delta));
+    const next = Math.max(1, Math.min(25, current + delta));
     updateConfig(cid, {
       difficultyBreakdown: { ...cfg.difficultyBreakdown, [d]: next },
     });
@@ -315,72 +315,92 @@ export default function TestConfigScreen() {
           ? `"${resolvedTopicName.slice(0, 30)}"`
           : `"${cfg.chapterName}"`;
 
-        const allForChapter: any[] = [];
         const globalSeen = new Set<string>();
 
-        for (const diff of cfg.difficulties) {
-          const needed = cfg.difficultyBreakdown[diff] ?? 0;
-          if (needed === 0) continue;
+        // Fire all selected difficulty levels in parallel
+        const activeDiffs = cfg.difficulties.filter(
+          d => (cfg.difficultyBreakdown[d] ?? 0) > 0,
+        );
 
-          const diffOpt = DIFFICULTY_OPTIONS.find(o => o.value === diff)!;
-          const pool: any[] = [];
-          const seen = new Set<string>();
-          let attempts = 0;
-          let serverHitLimit = false;
+        setLoadingMsg(
+          `⚡ Generating ${activeDiffs.map(d => DIFFICULTY_OPTIONS.find(o => o.value === d)?.label).join(' + ')} for "${cfg.chapterName}"…`,
+        );
 
-          while (pool.length < needed && attempts < MAX_ATTEMPTS && !serverHitLimit) {
-            attempts++;
-            setLoadingMsg(
-              `${diffOpt.icon} ${diffOpt.label} questions for ${chapterLabel}… (${pool.length}/${needed})`,
-            );
+        const diffResults = await Promise.all(
+          activeDiffs.map(async diff => {
+            const needed = Math.min(cfg.difficultyBreakdown[diff] ?? 0, 25);
+            if (needed === 0) return [];
 
-            const remaining = needed - pool.length;
-            const raw = await eduApi
-              .generateQuestions({
-                board: boardId ?? boardName ?? '',
-                standard: standardId ?? standardName ?? '',
-                subject: cfg.subjectName,
-                chapter: cfg.chapterName,
-                ...(resolvedTopicName ? { topic: resolvedTopicName } : {}),
-                options: {
-                  mode: 'mcq',
-                  count: remaining,
-                  seed: Math.floor(Math.random() * 9_000_000) + attempts * 137_003,
-                  difficulty: diff,
-                },
-                freshQuestions: true,
-              })
-              .catch(() => ({} as Record<string, unknown>));
+            const diffOpt = DIFFICULTY_OPTIONS.find(o => o.value === diff)!;
+            const pool: any[] = [];
+            const seen = new Set<string>();
+            let attempts = 0;
+            let serverHitLimit = false;
 
-            const { questions: rawBatch, serverActual } = parseQuestionsFromResponse(raw);
-            const batch = filterMcq(rawBatch);
+            while (pool.length < needed && attempts < MAX_ATTEMPTS && !serverHitLimit) {
+              attempts++;
 
-            // If server tells us it hit its generation limit, no point retrying
-            if (serverActual !== undefined && serverActual < remaining) {
-              serverHitLimit = true;
-            }
+              const remaining = needed - pool.length;
+              const raw = await eduApi
+                .generateQuestions({
+                  board: boardId ?? boardName ?? '',
+                  standard: standardId ?? standardName ?? '',
+                  subject: cfg.subjectName,
+                  chapter: cfg.chapterName,
+                  ...(resolvedTopicName ? { topic: resolvedTopicName } : {}),
+                  options: {
+                    mode: 'mcq',
+                    count: remaining,
+                    seed: Math.floor(Math.random() * 9_000_000) + attempts * 137_003,
+                    difficulty: diff,
+                  },
+                  freshQuestions: true,
+                })
+                .catch(() => ({} as Record<string, unknown>));
 
-            let newInBatch = 0;
-            for (const q of batch) {
-              const key = String(q?.question ?? '')
-                .toLowerCase()
-                .replace(/\s+/g, ' ')
-                .trim()
-                .slice(0, 120);
-              if (!key) continue;
-              if (!seen.has(key) && !globalSeen.has(key)) {
-                seen.add(key);
-                globalSeen.add(key);
-                pool.push(q);
-                newInBatch++;
+              const { questions: rawBatch, serverActual } = parseQuestionsFromResponse(raw);
+              const batch = filterMcq(rawBatch);
+
+              if (serverActual !== undefined && serverActual < remaining) {
+                serverHitLimit = true;
               }
+
+              let newInBatch = 0;
+              for (const q of batch) {
+                const key = String(q?.question ?? '')
+                  .toLowerCase()
+                  .replace(/\s+/g, ' ')
+                  .trim()
+                  .slice(0, 120);
+                if (!key) continue;
+                if (!seen.has(key)) {
+                  seen.add(key);
+                  pool.push({ ...q, _difficulty: diffOpt.label });
+                  newInBatch++;
+                }
+              }
+
+              if (batch.length > 0 && newInBatch === 0 && pool.length > 0) break;
             }
 
-            // Also stop early if we got nothing new from a non-empty batch
-            if (batch.length > 0 && newInBatch === 0 && pool.length > 0) break;
-          }
+            return pool.slice(0, needed);
+          }),
+        );
 
-          allForChapter.push(...pool.slice(0, needed));
+        // Merge results — deduplicate across difficulty pools
+        const allForChapter: any[] = [];
+        for (const pool of diffResults) {
+          for (const q of pool) {
+            const key = String(q?.question ?? '')
+              .toLowerCase()
+              .replace(/\s+/g, ' ')
+              .trim()
+              .slice(0, 120);
+            if (key && !globalSeen.has(key)) {
+              globalSeen.add(key);
+              allForChapter.push(q);
+            }
+          }
         }
 
         chapterResults.push(allForChapter);
