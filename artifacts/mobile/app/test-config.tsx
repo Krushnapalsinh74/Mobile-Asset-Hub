@@ -11,6 +11,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -323,32 +324,49 @@ export default function TestConfigScreen() {
 
       const sessionId = saveQuestions(allQuestions);
 
-      const first = configList[0]!;
-      router.push({
-        pathname: '/test-quiz' as any,
-        params: {
-          sessionId,
-          subjectId: first.subjectId,
-          subjectName: first.subjectName,
-          chapterId: chapterIds.join(','),
-          chapterName: chapterNames.join('|||'),
-          mode: 'mcq',
-        },
-      });
+      const doLaunch = () => {
+        const first = configList[0]!;
+        router.push({
+          pathname: '/test-quiz' as any,
+          params: {
+            sessionId,
+            subjectId: first.subjectId,
+            subjectName: first.subjectName,
+            chapterId: chapterIds.join(','),
+            chapterName: chapterNames.join('|||'),
+            mode: 'mcq',
+          },
+        });
+        chapterResults.forEach((qs, i) => {
+          const cfg = configList[i];
+          if (!cfg || qs.length === 0) return;
+          eduApi
+            .saveQuestions({
+              boardId: boardId ?? '',
+              standardId: standardId ?? '',
+              subjectId: cfg.subjectId,
+              chapterId: cfg.chapterId,
+              questions: qs as any[],
+            })
+            .catch(() => {});
+        });
+      };
 
-      chapterResults.forEach((qs, i) => {
-        const cfg = configList[i];
-        if (!cfg || qs.length === 0) return;
-        eduApi
-          .saveQuestions({
-            boardId: boardId ?? '',
-            standardId: standardId ?? '',
-            subjectId: cfg.subjectId,
-            chapterId: cfg.chapterId,
-            questions: qs as any[],
-          })
-          .catch(() => {});
-      });
+      if (allQuestions.length < totalQuestions) {
+        setLoading(false);
+        setLoadingMsg('');
+        Alert.alert(
+          'Fewer Questions Available',
+          `The API only has ${allQuestions.length} unique MCQ questions for this selection (you asked for ${totalQuestions}).\n\nThe test will start with all ${allQuestions.length} available questions.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Start Anyway', style: 'default', onPress: doLaunch },
+          ],
+        );
+        return;
+      }
+
+      doLaunch();
     } catch {
       setError('Failed to generate questions. Check your connection and try again.');
     } finally {
