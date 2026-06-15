@@ -22,6 +22,64 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+const DIAGRAM_KEYWORDS =
+  /\b(diagram|circuit|triangle|rectangle|square|circle|angle|parallel|perpendicular|polygon|geometry|coordinate|graph|ray|lens|mirror|prism|force|vector|velocity|wave|cell|membrane|chromosome|dna|bond|molecule|structure|figure|orbital|refract|reflect|bisect|congruent|similar|hypotenuse|altitude|median|electric|magnetic|field|flux)\b/i;
+
+async function generateDiagramsForQuestions(
+  questions: any[],
+  board: string,
+  standard: string,
+  subject: string,
+  chapter: string,
+): Promise<any[]> {
+  const candidates = questions
+    .map((q, i) => ({ q, i }))
+    .filter(({ q }) => DIAGRAM_KEYWORDS.test(String(q?.question ?? '')));
+
+  if (candidates.length === 0) return questions;
+
+  const prompt = [
+    'Generate ASCII text diagrams for quiz questions where a diagram genuinely helps understanding.',
+    'Rules: use only plain ASCII chars (-, |, /, \\, +, *, =, >, <, ^, arrows like --> or <--). Max 8 lines per diagram. No markdown code fences.',
+    'Return ONLY valid JSON (no extra text): an array where each entry is {"index":<number>,"diagram":"<ascii text>"}.',
+    'Only include entries where a visual genuinely aids the question. Skip purely text-based questions.',
+    '',
+    'Questions:',
+    ...candidates.map(({ q, i }) => `${i}. ${String(q.question).slice(0, 200)}`),
+  ].join('\n');
+
+  try {
+    const res = await eduApi.chat({
+      message: prompt,
+      history: [],
+      board,
+      standard,
+      filters: { subject, chapter },
+    });
+
+    const text = String(
+      (res as any)?.response ??
+      (res as any)?.message ??
+      (res as any)?.content ??
+      '',
+    ).trim();
+
+    const match = text.match(/\[[\s\S]*\]/);
+    if (!match) return questions;
+
+    const entries: { index: number; diagram: string }[] = JSON.parse(match[0]);
+    const result = questions.map(q => ({ ...q }));
+    for (const { index, diagram } of entries) {
+      if (result[index] && typeof diagram === 'string' && diagram.trim()) {
+        result[index] = { ...result[index], textDiagram: diagram.trim() };
+      }
+    }
+    return result;
+  } catch {
+    return questions;
+  }
+}
+
 const MARKS_OPTIONS = [1, 2, 3, 4];
 
 type Difficulty = 'easy' | 'medium' | 'hard' | 'advanced';
@@ -328,12 +386,23 @@ export default function TestConfigScreen() {
         chapterResults.push(allForChapter);
       }
 
-      const allQuestions = chapterResults.flat();
+      let allQuestions = chapterResults.flat();
 
       if (allQuestions.length === 0) {
         setError('No MCQ questions could be generated. Try different chapters or a smaller count.');
         return;
       }
+
+      // Generate AI text diagrams for visual questions (one batch call)
+      setLoadingMsg('🎨 Generating diagrams for visual questions…');
+      const firstCfg = configList[0]!;
+      allQuestions = await generateDiagramsForQuestions(
+        allQuestions,
+        boardId ?? boardName ?? '',
+        standardId ?? standardName ?? '',
+        firstCfg.subjectName,
+        firstCfg.chapterName,
+      );
 
       const sessionId = saveQuestions(allQuestions);
 

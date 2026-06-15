@@ -564,6 +564,15 @@ export default function TestQuizScreen() {
 
                   {isExpanded && (
                     <View style={styles.reviewExpanded}>
+                      {(q as any).textDiagram ? (
+                        <View style={styles.diagramBox}>
+                          <View style={styles.diagramHeader}>
+                            <View style={styles.diagramDot} />
+                            <Text style={styles.diagramLabel}>Diagram</Text>
+                          </View>
+                          <Text style={styles.diagramText}>{(q as any).textDiagram}</Text>
+                        </View>
+                      ) : null}
                       {q.options?.map((opt, oi) => {
                         const isCorrectOpt = oi === correctIdx;
                         const isUserChoice = userAns === opt;
@@ -700,6 +709,17 @@ export default function TestQuizScreen() {
             </Text>
           )}
         </View>
+
+        {/* Text Diagram */}
+        {(q as any).textDiagram ? (
+          <View style={styles.diagramBox}>
+            <View style={styles.diagramHeader}>
+              <View style={styles.diagramDot} />
+              <Text style={styles.diagramLabel}>Diagram</Text>
+            </View>
+            <Text style={styles.diagramText}>{(q as any).textDiagram}</Text>
+          </View>
+        ) : null}
 
         {/* Options */}
         <View style={styles.optionsWrap}>
@@ -1231,5 +1251,39 @@ const styles = StyleSheet.create({
   solutionLabel: { fontSize: 12, fontWeight: '700', color: '#4F46E5' },
   solutionText: { fontSize: 13, lineHeight: 20, color: '#374151' },
   tipText: { fontSize: 12, lineHeight: 18, color: '#6B7280' },
+
+  /* text diagram block */
+  diagramBox: {
+    backgroundColor: '#1E1B4B',
+    borderRadius: 12,
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 10,
+  },
+  diagramHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  diagramDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#818CF8',
+  },
+  diagramLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#818CF8',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  diagramText: {
+    fontFamily: 'monospace',
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#E0E7FF',
+  },
 
 });

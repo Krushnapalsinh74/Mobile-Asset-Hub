@@ -35,7 +35,7 @@ export default function SettingsScreen() {
     appName,
     refetch: refetchSettings,
   } = useAppSettings();
-  const { profile, isLoading: profileLoading, isError: profileError } = useUserProfile();
+  const { profile, isLoading: profileLoading, isError: profileError } = useUserProfile(studentEmail);
 
   const displayName = profile?.name ?? studentName ?? 'Student';
   const displayEmail = profile?.email ?? studentEmail ?? '';
@@ -195,12 +195,6 @@ export default function SettingsScreen() {
                 <View style={styles.profileInfo}>
                   <View style={styles.profileNameRow}>
                     <Text style={styles.profileName} numberOfLines={1}>{displayName}</Text>
-                    {profile?.isPremium ? (
-                      <View style={styles.premiumBadge}>
-                        <Text style={styles.premiumBadgeIcon}>👑</Text>
-                        <Text style={styles.premiumBadgeText}>Premium</Text>
-                      </View>
-                    ) : null}
                   </View>
                   {displayEmail ? (
                     <Text style={styles.profileEmail} numberOfLines={1}>{displayEmail}</Text>
@@ -209,18 +203,20 @@ export default function SettingsScreen() {
               </View>
 
               {/* Details row — standard + boards */}
-              {profile && (
+              {(profile?.standardName || profile?.boardName || standardName || boardName) && (
                 <View style={styles.profileDetails}>
-                  <View style={styles.profileDetailChip}>
-                    <Ionicons name="layers-outline" size={12} color="rgba(255,255,255,0.9)" />
-                    <Text style={styles.profileDetailText}>{profile.standard}</Text>
-                  </View>
-                  {profile.selectedBoards.map((b) => (
-                    <View key={b} style={styles.profileDetailChip}>
-                      <Ionicons name="school-outline" size={12} color="rgba(255,255,255,0.9)" />
-                      <Text style={styles.profileDetailText}>{b}</Text>
+                  {(profile?.standardName || standardName) ? (
+                    <View style={styles.profileDetailChip}>
+                      <Ionicons name="layers-outline" size={12} color="rgba(255,255,255,0.9)" />
+                      <Text style={styles.profileDetailText}>{profile?.standardName ?? standardName}</Text>
                     </View>
-                  ))}
+                  ) : null}
+                  {(profile?.boardName || boardName) ? (
+                    <View style={styles.profileDetailChip}>
+                      <Ionicons name="school-outline" size={12} color="rgba(255,255,255,0.9)" />
+                      <Text style={styles.profileDetailText}>{profile?.boardName ?? boardName}</Text>
+                    </View>
+                  ) : null}
                 </View>
               )}
 
@@ -230,7 +226,7 @@ export default function SettingsScreen() {
             </LinearGradient>
 
             {/* Upgrade button for free users — rendered below the card */}
-            {profile && !profile.isPremium && razorpayKey ? (
+            {razorpayKey ? (
               <Pressable
                 style={styles.upgradeBtn}
                 onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handlePayment(); }}

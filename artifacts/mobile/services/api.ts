@@ -89,6 +89,7 @@ export interface Question {
   explanation?: string;
   tip?: string;
   type?: string;
+  textDiagram?: string;
 }
 
 async function otpReq<T>(path: string, body: unknown): Promise<T> {
