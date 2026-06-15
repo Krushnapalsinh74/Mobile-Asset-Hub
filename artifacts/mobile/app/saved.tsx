@@ -1,6 +1,9 @@
 import { BottomTabBar, BOTTOM_TAB_INNER_HEIGHT } from '@/components/BottomTabBar';
 import { useApp } from '@/context/AppContext';
+import type { SavedQuestion } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import type { Question } from '@/services/api';
+import { saveQuestions } from '@/store/questionStore';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -32,22 +35,102 @@ function timeAgo(ts: number) {
   return new Date(ts).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+function savedToQuestion(sq: SavedQuestion): Question {
+  return {
+    question:    sq.question,
+    options:     sq.options,
+    answer:      sq.answer,
+    solution:    sq.solution,
+    explanation: sq.explanation,
+    tip:         sq.tip,
+  };
+}
+
 export default function SavedScreen() {
   const { savedQuestions, unsaveQuestion } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded]       = useState<Set<string>>(new Set());
+  const [selectionMode, setSelection] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
+  const topPad      = insets.top + (Platform.OS === 'web' ? 67 : 0);
   const tabBarHeight = BOTTOM_TAB_INNER_HEIGHT + insets.bottom + (Platform.OS === 'web' ? 8 : 0);
 
   function toggleExpand(id: string) {
+    if (selectionMode) { toggleSelect(id); return; }
     Haptics.selectionAsync();
     setExpanded(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+  }
+
+  function toggleSelect(id: string) {
+    Haptics.selectionAsync();
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (selectedIds.size === savedQuestions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(savedQuestions.map(q => q.id)));
+    }
+  }
+
+  function enterSelectionMode() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelection(true);
+    setSelectedIds(new Set(savedQuestions.map(q => q.id)));
+  }
+
+  function exitSelectionMode() {
+    setSelection(false);
+    setSelectedIds(new Set());
+  }
+
+  function launchQuiz(questions: SavedQuestion[]) {
+    if (questions.length === 0) {
+      Alert.alert('No questions selected', 'Select at least one question to start.');
+      return;
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    const converted: Question[] = questions.map(savedToQuestion);
+    const sessionId = saveQuestions(converted);
+
+    // Determine subject / chapter labels
+    const subjects  = [...new Set(questions.map(q => q.subjectName))];
+    const chapters  = [...new Set(questions.map(q => q.chapterName).filter(Boolean))];
+    const subjectName = subjects.length === 1 ? subjects[0]! : 'Mixed';
+    const chapterName = chapters.length > 0 ? chapters.join('|||') : 'Saved Questions';
+
+    router.push({
+      pathname: '/test-quiz' as any,
+      params: {
+        sessionId,
+        subjectName,
+        chapterName,
+        mode: 'mcq',
+        fromSaved: '1',
+      },
+    });
+  }
+
+  function handleStartAll() {
+    launchQuiz(savedQuestions);
+  }
+
+  function handleStartSelected() {
+    const picked = savedQuestions.filter(q => selectedIds.has(q.id));
+    launchQuiz(picked);
   }
 
   function handleUnsave(id: string) {
@@ -57,14 +140,12 @@ export default function SavedScreen() {
       'This question will be removed from your saved list.',
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => unsaveQuestion(id),
-        },
+        { text: 'Remove', style: 'destructive', onPress: () => unsaveQuestion(id) },
       ],
     );
   }
+
+  const allSelected = selectedIds.size === savedQuestions.length && savedQuestions.length > 0;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -81,19 +162,57 @@ export default function SavedScreen() {
 
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Saved Questions</Text>
+            <Text style={styles.headerTitle}>
+              {selectionMode ? `${selectedIds.size} selected` : 'Saved Questions'}
+            </Text>
             <Text style={styles.headerSub}>
               {savedQuestions.length === 0
                 ? 'Nothing saved yet'
                 : `${savedQuestions.length} question${savedQuestions.length !== 1 ? 's' : ''} bookmarked`}
             </Text>
           </View>
-          <View style={styles.headerIcon}>
-            <Ionicons name="bookmark" size={22} color="#FFF" />
-          </View>
+
+          {/* right-side action */}
+          {savedQuestions.length > 0 && (
+            selectionMode ? (
+              <Pressable onPress={exitSelectionMode} style={styles.headerActionBtn}>
+                <Ionicons name="close" size={18} color="#FFF" />
+                <Text style={styles.headerActionText}>Cancel</Text>
+              </Pressable>
+            ) : (
+              <View style={styles.headerActions}>
+                {/* Practice All */}
+                <Pressable onPress={handleStartAll} style={styles.practiceAllBtn}>
+                  <LinearGradient
+                    colors={['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.12)']}
+                    style={styles.practiceAllGrad}
+                  >
+                    <Ionicons name="play-circle" size={16} color="#FFF" />
+                    <Text style={styles.practiceAllText}>Practice All</Text>
+                  </LinearGradient>
+                </Pressable>
+                {/* Select some */}
+                <Pressable onPress={enterSelectionMode} style={styles.headerIconBtn}>
+                  <Ionicons name="checkmark-done-circle-outline" size={22} color="rgba(255,255,255,0.85)" />
+                </Pressable>
+              </View>
+            )
+          )}
         </View>
 
-        {savedQuestions.length > 0 && (
+        {/* Select-all bar (selection mode) */}
+        {selectionMode && savedQuestions.length > 0 && (
+          <Pressable onPress={toggleAll} style={styles.selectAllBar}>
+            <View style={[styles.selectAllCheck, allSelected && styles.selectAllCheckActive]}>
+              {allSelected && <Ionicons name="checkmark" size={12} color="#FFF" />}
+            </View>
+            <Text style={styles.selectAllText}>
+              {allSelected ? 'Deselect all' : 'Select all'}
+            </Text>
+          </Pressable>
+        )}
+
+        {!selectionMode && savedQuestions.length > 0 && (
           <View style={styles.statsStrip}>
             {[
               { label: 'Saved',    val: String(savedQuestions.length),         icon: 'bookmark-outline'  as const },
@@ -116,7 +235,9 @@ export default function SavedScreen() {
         contentContainerStyle={{
           paddingHorizontal: 16,
           paddingTop: 20,
-          paddingBottom: tabBarHeight + 24,
+          paddingBottom: selectionMode
+            ? tabBarHeight + 100
+            : tabBarHeight + 24,
           gap: 12,
         }}
       >
@@ -138,14 +259,27 @@ export default function SavedScreen() {
           </View>
         ) : (
           savedQuestions.map((q) => {
-            const isOpen = expanded.has(q.id);
+            const isOpen   = expanded.has(q.id);
+            const isSelected = selectedIds.has(q.id);
+
             return (
-              <View
+              <Pressable
                 key={q.id}
-                style={[styles.qCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                onPress={() => toggleExpand(q.id)}
+                style={[
+                  styles.qCard,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: selectionMode && isSelected ? '#4F46E5' : colors.border,
+                    borderWidth: selectionMode && isSelected ? 2 : 1,
+                  },
+                ]}
               >
                 {/* top accent */}
-                <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.qAccentBar} />
+                <LinearGradient
+                  colors={isSelected && selectionMode ? ['#4F46E5', '#7C3AED'] : ['#4F46E5', '#7C3AED']}
+                  style={styles.qAccentBar}
+                />
 
                 <View style={styles.qBody}>
                   {/* header row */}
@@ -162,38 +296,47 @@ export default function SavedScreen() {
                       )}
                     </View>
                     <View style={styles.qActions}>
-                      <Text style={[styles.savedTime, { color: colors.mutedForeground }]}>
-                        {timeAgo(q.savedAt)}
-                      </Text>
-                      <Pressable
-                        onPress={() => handleUnsave(q.id)}
-                        hitSlop={8}
-                        style={[styles.unsaveBtn, { backgroundColor: '#FEE2E2' }]}
-                      >
-                        <Ionicons name="trash-outline" size={13} color="#DC2626" />
-                      </Pressable>
+                      {selectionMode ? (
+                        <View style={[styles.checkbox, isSelected && styles.checkboxActive]}>
+                          {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
+                        </View>
+                      ) : (
+                        <>
+                          <Text style={[styles.savedTime, { color: colors.mutedForeground }]}>
+                            {timeAgo(q.savedAt)}
+                          </Text>
+                          <Pressable
+                            onPress={() => handleUnsave(q.id)}
+                            hitSlop={8}
+                            style={[styles.unsaveBtn, { backgroundColor: '#FEE2E2' }]}
+                          >
+                            <Ionicons name="trash-outline" size={13} color="#DC2626" />
+                          </Pressable>
+                        </>
+                      )}
                     </View>
                   </View>
 
-                  {/* question text + expand toggle */}
-                  <Pressable onPress={() => toggleExpand(q.id)} style={styles.questionRow}>
+                  {/* question text */}
+                  <View style={styles.questionRow}>
                     <View style={[styles.qNumBadge, { backgroundColor: '#EEF2FF' }]}>
                       <Ionicons name="help-circle" size={14} color="#4F46E5" />
                     </View>
                     <Text style={[styles.questionText, { color: colors.text }]} numberOfLines={isOpen ? undefined : 3}>
                       {q.question}
                     </Text>
-                    <Ionicons
-                      name={isOpen ? 'chevron-up' : 'chevron-down'}
-                      size={14}
-                      color={colors.mutedForeground}
-                    />
-                  </Pressable>
+                    {!selectionMode && (
+                      <Ionicons
+                        name={isOpen ? 'chevron-up' : 'chevron-down'}
+                        size={14}
+                        color={colors.mutedForeground}
+                      />
+                    )}
+                  </View>
 
                   {/* expanded: options + solution */}
-                  {isOpen && (
+                  {isOpen && !selectionMode && (
                     <View style={styles.expandedBody}>
-                      {/* options */}
                       {q.options && q.options.length > 0 && (
                         <View style={styles.optionsWrap}>
                           <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Options</Text>
@@ -214,16 +357,13 @@ export default function SavedScreen() {
                                 <Text style={[styles.optText, { color: isCorrect ? '#065F46' : colors.text, flex: 1 }]}>
                                   {opt}
                                 </Text>
-                                {isCorrect && (
-                                  <Ionicons name="checkmark-circle" size={16} color="#059669" />
-                                )}
+                                {isCorrect && <Ionicons name="checkmark-circle" size={16} color="#059669" />}
                               </View>
                             );
                           })}
                         </View>
                       )}
 
-                      {/* solution / explanation */}
                       {(q.explanation || q.solution || q.tip) && (
                         <View style={[styles.solutionBox, { backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' }]}>
                           <View style={styles.solutionHeader}>
@@ -233,9 +373,7 @@ export default function SavedScreen() {
                             <Text style={styles.solutionTitle}>Why this answer is correct</Text>
                           </View>
                           {(q.explanation || q.solution) && (
-                            <Text style={styles.solutionText}>
-                              {q.explanation || q.solution}
-                            </Text>
+                            <Text style={styles.solutionText}>{q.explanation || q.solution}</Text>
                           )}
                           {q.tip && (
                             <View style={[styles.tipBox, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
@@ -247,13 +385,41 @@ export default function SavedScreen() {
                     </View>
                   )}
                 </View>
-              </View>
+              </Pressable>
             );
           })
         )}
       </ScrollView>
 
-      <BottomTabBar activeTab="saved" />
+      {/* ── FLOATING START QUIZ BAR (selection mode) ── */}
+      {selectionMode && (
+        <View style={[styles.startBar, {
+          paddingBottom: insets.bottom + (Platform.OS === 'web' ? 8 : 0) + 16,
+          backgroundColor: colors.card,
+          borderTopColor: colors.border,
+        }]}>
+          <View style={styles.startBarInfo}>
+            <Text style={[styles.startBarCount, { color: colors.text }]}>
+              {selectedIds.size} question{selectedIds.size !== 1 ? 's' : ''} selected
+            </Text>
+            <Text style={[styles.startBarSub, { color: colors.mutedForeground }]}>
+              tap cards to select / deselect
+            </Text>
+          </View>
+          <Pressable
+            onPress={handleStartSelected}
+            disabled={selectedIds.size === 0}
+            style={{ borderRadius: 14, overflow: 'hidden', opacity: selectedIds.size === 0 ? 0.4 : 1 }}
+          >
+            <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.startQuizBtn}>
+              <Ionicons name="play-circle" size={18} color="#FFF" />
+              <Text style={styles.startQuizText}>Start Quiz</Text>
+            </LinearGradient>
+          </Pressable>
+        </View>
+      )}
+
+      {!selectionMode && <BottomTabBar activeTab="saved" />}
     </View>
   );
 }
@@ -267,7 +433,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
     overflow: 'hidden',
-    gap: 18,
+    gap: 14,
   },
   headerDecor1: {
     position: 'absolute', top: -40, right: -40,
@@ -279,14 +445,40 @@ const styles = StyleSheet.create({
     width: 100, height: 100, borderRadius: 50,
     backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  headerRow: { flexDirection: 'row', alignItems: 'center' },
+  headerRow:   { flexDirection: 'row', alignItems: 'center' },
   headerTitle: { fontSize: 26, fontWeight: '800', color: '#FFF', letterSpacing: -0.5 },
-  headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 3 },
-  headerIcon: {
-    width: 48, height: 48, borderRadius: 16,
+  headerSub:   { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 3 },
+
+  headerActions:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerIconBtn:  { padding: 6 },
+  headerActionBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
+  },
+  headerActionText: { fontSize: 13, fontWeight: '600', color: '#FFF' },
+
+  practiceAllBtn: { borderRadius: 20, overflow: 'hidden' },
+  practiceAllGrad: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, paddingVertical: 9,
+  },
+  practiceAllText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+
+  selectAllBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
+  },
+  selectAllCheck: {
+    width: 20, height: 20, borderRadius: 6,
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.6)',
     alignItems: 'center', justifyContent: 'center',
   },
+  selectAllCheckActive: {
+    backgroundColor: '#4F46E5', borderColor: '#4F46E5',
+  },
+  selectAllText: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.9)' },
 
   statsStrip: {
     flexDirection: 'row',
@@ -296,9 +488,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.14)',
     overflow: 'hidden',
   },
-  statItem: { flex: 1, alignItems: 'center', paddingVertical: 12, gap: 3 },
+  statItem:  { flex: 1, alignItems: 'center', paddingVertical: 12, gap: 3 },
   statBorder: { borderLeftWidth: 1, borderLeftColor: 'rgba(255,255,255,0.16)' },
-  statVal: { fontSize: 15, fontWeight: '800', color: '#FFF' },
+  statVal:   { fontSize: 15, fontWeight: '800', color: '#FFF' },
   statLabel: { fontSize: 10, color: 'rgba(255,255,255,0.65)' },
 
   emptyCard: {
@@ -310,8 +502,8 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   emptyTitle: { fontSize: 18, fontWeight: '700' },
-  emptySub: { fontSize: 13, textAlign: 'center', lineHeight: 20 },
-  emptyBtn: { marginTop: 8, borderRadius: 16, overflow: 'hidden' },
+  emptySub:   { fontSize: 13, textAlign: 'center', lineHeight: 20 },
+  emptyBtn:   { marginTop: 8, borderRadius: 16, overflow: 'hidden' },
   emptyBtnGrad: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 24, paddingVertical: 13,
@@ -319,43 +511,48 @@ const styles = StyleSheet.create({
   emptyBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
 
   qCard: {
-    borderRadius: 20, borderWidth: 1, flexDirection: 'row',
+    borderRadius: 20, flexDirection: 'row',
     overflow: 'hidden',
     shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 3,
   },
   qAccentBar: { width: 5, alignSelf: 'stretch' },
-  qBody: { flex: 1, padding: 14, gap: 10 },
+  qBody:      { flex: 1, padding: 14, gap: 10 },
 
-  qHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  qMeta: { flex: 1, gap: 4 },
+  qHeaderRow:    { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  qMeta:         { flex: 1, gap: 4 },
   subjectPill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     alignSelf: 'flex-start',
     paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20,
   },
   subjectPillText: { fontSize: 11, fontWeight: '700', color: '#4F46E5' },
-  chapterText: { fontSize: 11 },
-  qActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  savedTime: { fontSize: 10 },
+  chapterText:   { fontSize: 11 },
+  qActions:      { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  savedTime:     { fontSize: 10 },
   unsaveBtn: {
     width: 28, height: 28, borderRadius: 8,
     alignItems: 'center', justifyContent: 'center',
   },
 
-  questionRow: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+  checkbox: {
+    width: 24, height: 24, borderRadius: 7,
+    borderWidth: 2, borderColor: '#C7D2FE',
+    alignItems: 'center', justifyContent: 'center',
   },
+  checkboxActive: {
+    backgroundColor: '#4F46E5', borderColor: '#4F46E5',
+  },
+
+  questionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   qNumBadge: {
     width: 28, height: 28, borderRadius: 8,
-    alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   questionText: { flex: 1, fontSize: 14, fontWeight: '600', lineHeight: 21 },
 
   expandedBody: { gap: 12 },
-
-  optionsWrap: { gap: 7 },
+  optionsWrap:  { gap: 7 },
   sectionLabel: { fontSize: 11, fontWeight: '600', marginBottom: 2 },
   optionRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -364,24 +561,37 @@ const styles = StyleSheet.create({
   },
   optLabel: {
     width: 24, height: 24, borderRadius: 7,
-    alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   optLabelText: { fontSize: 11, fontWeight: '800' },
-  optText: { fontSize: 13, lineHeight: 19 },
+  optText:      { fontSize: 13, lineHeight: 19 },
 
-  solutionBox: {
-    borderRadius: 16, borderWidth: 1, padding: 14, gap: 10,
-  },
+  solutionBox:    { borderRadius: 16, borderWidth: 1, padding: 14, gap: 10 },
   solutionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   solutionIcon: {
     width: 24, height: 24, borderRadius: 7,
     alignItems: 'center', justifyContent: 'center',
   },
   solutionTitle: { fontSize: 13, fontWeight: '700', color: '#4F46E5' },
-  solutionText: { fontSize: 13, color: '#1E1B4B', lineHeight: 20 },
-  tipBox: {
-    borderRadius: 10, borderWidth: 1, padding: 10,
+  solutionText:  { fontSize: 13, color: '#1E1B4B', lineHeight: 20 },
+  tipBox:        { borderRadius: 10, borderWidth: 1, padding: 10 },
+  tipText:       { fontSize: 12, color: '#92400E', lineHeight: 18 },
+
+  /* ── floating start bar ── */
+  startBar: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingTop: 14,
+    borderTopWidth: 1,
+    shadowColor: '#000', shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08, shadowRadius: 12, elevation: 16,
   },
-  tipText: { fontSize: 12, color: '#92400E', lineHeight: 18 },
+  startBarInfo:  { flex: 1 },
+  startBarCount: { fontSize: 15, fontWeight: '700' },
+  startBarSub:   { fontSize: 11, marginTop: 2 },
+  startQuizBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 20, paddingVertical: 13,
+  },
+  startQuizText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
 });
