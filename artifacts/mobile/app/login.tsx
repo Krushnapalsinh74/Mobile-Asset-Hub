@@ -36,7 +36,7 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  const { setStudent } = useApp();
+  const { setStudent, boardId, standardId } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const otpInputRef = useRef<TextInput>(null);
@@ -83,7 +83,7 @@ export default function LoginScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (res.name) {
         await setStudent(res.name, email);
-        router.replace('/onboarding');
+        router.replace(boardId && standardId ? '/subjects' : '/onboarding');
       } else {
         setStep('name');
       }
@@ -98,7 +98,7 @@ export default function LoginScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await setStudent(trimmed, email);
-      router.replace('/onboarding');
+      router.replace(boardId && standardId ? '/subjects' : '/onboarding');
     } catch (e: any) { setError(e?.message ?? 'Something went wrong. Please try again.'); }
     finally { setLoading(false); }
   };
