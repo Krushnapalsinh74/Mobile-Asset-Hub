@@ -19,6 +19,7 @@
       },
       "package": "com.knowledgepark.app",
       "edgeToEdgeEnabled": true,
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.VIBRATE"
