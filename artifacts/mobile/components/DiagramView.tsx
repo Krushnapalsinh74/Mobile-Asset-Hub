@@ -1,5 +1,6 @@
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Image, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { WebView } from 'react-native-webview';
 
 interface DiagramViewProps {
   textDiagram?: string | null;
@@ -13,10 +14,9 @@ interface DiagramViewProps {
 
 /**
  * Renders a question diagram.
- * Supports:
- *  - textDiagram: ASCII / text diagram shown in a monospace block
- *  - diagram.url: image shown via <img> (web) or Image (native)
- *  - diagram.content with type=tikz: TikZ code rendered via TikZJax (web only)
+ *  - textDiagram → monospace ASCII block (all platforms)
+ *  - diagram.url → image (web: <img>, native: <Image>)
+ *  - diagram.type=tikz → TikZJax (web: <iframe>, native: <WebView>)
  */
 export default function DiagramView({ textDiagram, diagram }: DiagramViewProps) {
   const hasDiagram = !!textDiagram || !!diagram?.url || !!diagram?.content;
@@ -30,18 +30,16 @@ export default function DiagramView({ textDiagram, diagram }: DiagramViewProps) 
         <Text style={styles.label}>Diagram</Text>
       </View>
 
-      {/* TikZ diagram via TikZJax (web only) */}
-      {Platform.OS === 'web' && diagram?.type === 'tikz' && diagram.content && (
+      {/* TikZ diagram */}
+      {diagram?.type === 'tikz' && diagram.content && (
         <TikzDiagram code={diagram.content} />
       )}
 
       {/* Image from URL */}
-      {diagram?.url && Platform.OS === 'web' && (
-        <img
-          src={diagram.url}
-          alt="Question diagram"
-          style={{ maxWidth: '100%', borderRadius: 8, marginTop: 8 }}
-        />
+      {diagram?.url && (
+        Platform.OS === 'web'
+          ? <img src={diagram.url} alt="Question diagram" style={{ maxWidth: '100%', borderRadius: 8, marginTop: 8 } as any} />
+          : <Image source={{ uri: diagram.url }} style={styles.image} resizeMode="contain" />
       )}
 
       {/* ASCII / text diagram */}
@@ -54,19 +52,17 @@ export default function DiagramView({ textDiagram, diagram }: DiagramViewProps) 
   );
 }
 
-// ── TikZJax iframe (web only) ─────────────────────────────────────────────
+// ── TikZJax renderer ──────────────────────────────────────────────────────
 function TikzDiagram({ code }: { code: string }) {
-  if (Platform.OS !== 'web' || typeof document === 'undefined') return null;
-
   const html = `<!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="stylesheet" type="text/css" href="https://tikzjax.com/v1/fonts.css">
   <script src="https://tikzjax.com/v1/tikzjax.js"></script>
   <style>
-    body { margin: 0; padding: 8px; background: transparent; display: flex; justify-content: center; }
-    svg { max-width: 100%; }
+    body{margin:0;padding:8px;background:transparent;display:flex;justify-content:center}
+    svg{max-width:100%}
   </style>
 </head>
 <body>
@@ -74,22 +70,26 @@ function TikzDiagram({ code }: { code: string }) {
 </body>
 </html>`;
 
-  const blob = new Blob([html], { type: 'text/html' });
-  const src = URL.createObjectURL(blob);
+  if (Platform.OS === 'web' && typeof document !== 'undefined') {
+    const blob = new Blob([html], { type: 'text/html' });
+    const src = URL.createObjectURL(blob);
+    return (
+      <iframe
+        src={src}
+        style={{ width: '100%', height: 260, border: 'none', borderRadius: 8, background: 'transparent', marginTop: 8 } as any}
+        sandbox="allow-scripts"
+        title="TikZ diagram"
+      />
+    );
+  }
 
+  // Native (Android / iOS)
   return (
-    <iframe
-      src={src}
-      style={{
-        width: '100%',
-        height: 260,
-        border: 'none',
-        borderRadius: 8,
-        background: 'transparent',
-        marginTop: 8,
-      } as any}
-      sandbox="allow-scripts"
-      title="TikZ diagram"
+    <WebView
+      source={{ html }}
+      style={{ height: 260, borderRadius: 8, marginTop: 8 }}
+      scrollEnabled={false}
+      originWhitelist={['*']}
     />
   );
 }
@@ -123,6 +123,12 @@ const styles = StyleSheet.create({
     color: '#6366F1',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
+  },
+  image: {
+    width: '100%',
+    height: 220,
+    borderRadius: 8,
+    marginTop: 8,
   },
   monoText: {
     fontFamily: Platform.OS === 'web' ? 'monospace' : 'Courier',
