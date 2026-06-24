@@ -243,6 +243,39 @@ export interface Question {
   standardId?: string;
 }
 
+/** Normalize the diagram/image field from a raw Yunora question into DiagramView's expected shape */
+function normalizeDiagram(raw: any): { type?: string; content?: string; url?: string } | null {
+  // Try every field the API might use for an image/diagram
+  const src =
+    raw.diagram ??
+    raw.imageUrl ??
+    raw.image ??
+    raw.questionImage ??
+    raw.figureUrl ??
+    raw.diagramUrl ??
+    null;
+
+  if (!src) return null;
+
+  // Plain URL string → wrap into standard shape
+  if (typeof src === 'string') {
+    const lower = src.toLowerCase();
+    if (lower.startsWith('http') || lower.startsWith('data:image')) {
+      return { type: 'image', url: src };
+    }
+    // Could be TikZ source or ASCII — keep as textDiagram (handled separately)
+    return null;
+  }
+
+  // Already an object — normalise its URL key (API sometimes uses imageUrl inside the object)
+  if (typeof src === 'object') {
+    const url = src.url ?? src.imageUrl ?? src.src ?? null;
+    return { type: src.type ?? (url ? 'image' : undefined), url: url ?? undefined, content: src.content };
+  }
+
+  return null;
+}
+
 /** Convert a raw Yunora API question to the internal Question interface */
 export function normalizeYunoraQuestion(raw: any): Question {
   // options come as "A) text\nB) text\n..." — parse to plain array
@@ -252,6 +285,14 @@ export function normalizeYunoraQuestion(raw: any): Question {
     .map(line => line.replace(/^[A-Ea-e]\)\s*/, '').trim())
     .filter(line => line.length > 0);
 
+  // textDiagram: prefer explicit field; fall back to plain string diagram values
+  const rawDiagram = raw.diagram ?? null;
+  const textDiagram: string | undefined =
+    raw.textDiagram ??
+    (typeof rawDiagram === 'string' && !rawDiagram.startsWith('http') && !rawDiagram.startsWith('data:')
+      ? rawDiagram
+      : undefined);
+
   return {
     id: raw.id,
     question: raw.question ?? '',
@@ -260,7 +301,8 @@ export function normalizeYunoraQuestion(raw: any): Question {
     solution: raw.explanation ?? raw.solution ?? '',
     explanation: raw.explanation,
     type: raw.questionType ?? raw.type,
-    diagram: raw.diagram ?? null,
+    textDiagram,
+    diagram: normalizeDiagram(raw),
     diagramId: raw.diagramId ?? null,
     difficulty: raw.difficulty ?? undefined,
     topicId: raw.topicId ?? undefined,

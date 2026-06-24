@@ -1,25 +1,40 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 interface DiagramViewProps {
   textDiagram?: string | null;
   diagram?: {
-    type?: 'tikz' | 'image' | 'url';
+    type?: string;
     content?: string;
     url?: string;
-  } | null;
+  } | string | null;
   diagramId?: string | null;
+}
+
+/** Resolve diagram prop to a normalised object */
+function resolveDiagram(d: DiagramViewProps['diagram']): { type?: string; content?: string; url?: string } | null {
+  if (!d) return null;
+  if (typeof d === 'string') {
+    if (d.startsWith('http') || d.startsWith('data:image')) return { type: 'image', url: d };
+    return null;
+  }
+  return d;
 }
 
 /**
  * Renders a question diagram.
- *  - textDiagram → monospace ASCII block (all platforms)
- *  - diagram.url → image (web: <img>, native: <Image>)
+ *  - textDiagram  → monospace ASCII block (all platforms)
+ *  - diagram.url  → image with tap-to-fullscreen on native
  *  - diagram.type=tikz → TikZJax (web: <iframe>, native: <WebView>)
  */
 export default function DiagramView({ textDiagram, diagram }: DiagramViewProps) {
-  const hasDiagram = !!textDiagram || !!diagram?.url || !!diagram?.content;
+  const resolved = resolveDiagram(diagram);
+  const imageUrl = resolved?.url ?? null;
+  const hasDiagram = !!textDiagram || !!imageUrl || !!resolved?.content;
+  const [fullscreen, setFullscreen] = useState(false);
+
   if (!hasDiagram) return null;
 
   return (
@@ -31,15 +46,56 @@ export default function DiagramView({ textDiagram, diagram }: DiagramViewProps) 
       </View>
 
       {/* TikZ diagram */}
-      {diagram?.type === 'tikz' && diagram.content && (
-        <TikzDiagram code={diagram.content} />
+      {resolved?.type === 'tikz' && resolved.content && (
+        <TikzDiagram code={resolved.content} />
       )}
 
       {/* Image from URL */}
-      {diagram?.url && (
-        Platform.OS === 'web'
-          ? <img src={diagram.url} alt="Question diagram" style={{ maxWidth: '100%', borderRadius: 8, marginTop: 8 } as any} />
-          : <Image source={{ uri: diagram.url }} style={styles.image} resizeMode="contain" />
+      {imageUrl && (
+        Platform.OS === 'web' ? (
+          <img
+            src={imageUrl}
+            alt="Question diagram"
+            style={{ maxWidth: '100%', borderRadius: 8, marginTop: 8, cursor: 'zoom-in' } as any}
+            onClick={() => window.open(imageUrl, '_blank')}
+          />
+        ) : (
+          <>
+            <Pressable onPress={() => setFullscreen(true)} style={styles.imagePressable}>
+              <Image
+                source={{ uri: imageUrl }}
+                style={styles.image}
+                resizeMode="contain"
+              />
+              <View style={styles.zoomHint}>
+                <Ionicons name="expand-outline" size={12} color="#6366F1" />
+                <Text style={styles.zoomHintText}>Tap to expand</Text>
+              </View>
+            </Pressable>
+
+            {/* Fullscreen modal */}
+            <Modal visible={fullscreen} transparent animationType="fade" onRequestClose={() => setFullscreen(false)}>
+              <View style={styles.modalOverlay}>
+                <Pressable style={styles.modalClose} onPress={() => setFullscreen(false)}>
+                  <Ionicons name="close-circle" size={32} color="#fff" />
+                </Pressable>
+                <ScrollView
+                  maximumZoomScale={4}
+                  minimumZoomScale={1}
+                  centerContent
+                  style={{ flex: 1 }}
+                  contentContainerStyle={styles.modalContent}
+                >
+                  <Image
+                    source={{ uri: imageUrl }}
+                    style={styles.modalImage}
+                    resizeMode="contain"
+                  />
+                </ScrollView>
+              </View>
+            </Modal>
+          </>
+        )
       )}
 
       {/* ASCII / text diagram */}
@@ -83,7 +139,6 @@ function TikzDiagram({ code }: { code: string }) {
     );
   }
 
-  // Native (Android / iOS)
   return (
     <WebView
       source={{ html }}
@@ -124,11 +179,43 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
+  imagePressable: {
+    marginTop: 8,
+  },
   image: {
     width: '100%',
     height: 220,
     borderRadius: 8,
-    marginTop: 8,
+  },
+  zoomHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  zoomHintText: {
+    fontSize: 11,
+    color: '#6366F1',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+  },
+  modalClose: {
+    position: 'absolute',
+    top: 48,
+    right: 16,
+    zIndex: 10,
+  },
+  modalContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalImage: {
+    width: '100%',
+    height: 500,
   },
   monoText: {
     fontFamily: Platform.OS === 'web' ? 'monospace' : 'Courier',
