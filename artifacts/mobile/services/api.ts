@@ -231,6 +231,39 @@ export interface Question {
   tip?: string;
   type?: string;
   textDiagram?: string;
+  diagram?: any;
+  diagramId?: string;
+  // Yunora metadata — present on questions from the bank
+  chapterId?: string;
+  subjectId?: string;
+  boardId?: string;
+  standardId?: string;
+}
+
+/** Convert a raw Yunora API question to the internal Question interface */
+export function normalizeYunoraQuestion(raw: any): Question {
+  // options come as "A) text\nB) text\n..." — parse to plain array
+  const rawOpts: string = typeof raw.options === 'string' ? raw.options : '';
+  const options = rawOpts
+    .split('\n')
+    .map(line => line.replace(/^[A-Ea-e]\)\s*/, '').trim())
+    .filter(line => line.length > 0);
+
+  return {
+    id: raw.id,
+    question: raw.question ?? '',
+    options: options.length > 0 ? options : (Array.isArray(raw.options) ? raw.options : undefined),
+    answer: raw.correctAnswer ?? raw.answer ?? '',
+    solution: raw.explanation ?? raw.solution ?? '',
+    explanation: raw.explanation,
+    type: raw.questionType ?? raw.type,
+    diagram: raw.diagram ?? null,
+    diagramId: raw.diagramId ?? null,
+    chapterId: raw.chapterId,
+    subjectId: raw.subjectId,
+    boardId: raw.boardId,
+    standardId: raw.standardId,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
