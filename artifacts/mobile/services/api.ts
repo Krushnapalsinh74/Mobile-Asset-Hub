@@ -362,10 +362,14 @@ export const eduApi = {
       items.map((s) => ({ id: s.id, name: s.name, level: (s as any).level }))
     ),
 
-  getSubjects: (boardId: string, stdId: string) =>
-    yunoraList<Subject>('/subjects', { boardId, standardId: stdId }).then((items) =>
-      items.map((s) => ({ id: s.id, name: s.name }))
-    ),
+  getSubjects: async (boardId: string, stdId: string) => {
+    let items = await yunoraList<Subject>('/subjects', { boardId, standardId: stdId });
+    // Yunora API only has CBSE-tagged subjects — fall back to all subjects for other boards
+    if (items.length === 0) {
+      items = await yunoraList<Subject>('/subjects');
+    }
+    return items.map((s) => ({ id: s.id, name: s.name }));
+  },
 
   getChapters: (_boardId: string, _stdId: string, subId: string) =>
     yunoraList<Chapter>('/chapters', { subjectId: subId }).then((items) =>
