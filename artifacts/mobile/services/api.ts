@@ -233,6 +233,9 @@ export interface Question {
   textDiagram?: string;
   diagram?: any;
   diagramId?: string;
+  difficulty?: string;
+  topicId?: string;
+  topicName?: string;
   // Yunora metadata — present on questions from the bank
   chapterId?: string;
   subjectId?: string;
@@ -259,6 +262,9 @@ export function normalizeYunoraQuestion(raw: any): Question {
     type: raw.questionType ?? raw.type,
     diagram: raw.diagram ?? null,
     diagramId: raw.diagramId ?? null,
+    difficulty: raw.difficulty ?? undefined,
+    topicId: raw.topicId ?? undefined,
+    topicName: raw.topicName ?? undefined,
     chapterId: raw.chapterId,
     subjectId: raw.subjectId,
     boardId: raw.boardId,
@@ -490,5 +496,18 @@ export const eduApi = {
           .join('&')
       : '';
     return req<Question[]>(`/questions${qs}`);
+  },
+
+  // ── Fetch pre-saved questions from Yunora question bank ────────────────
+  // Uses chapter= / topic= params (not chapterId=/topicId=)
+  getBankQuestions: (filters: {
+    chapterId: string;
+    topicId?: string;
+  }): Promise<Question[]> => {
+    const params: Record<string, string> = { chapter: filters.chapterId };
+    if (filters.topicId) params.topic = filters.topicId;
+    return yunoraList<any>('/questions', params).then(items =>
+      items.map(normalizeYunoraQuestion),
+    );
   },
 };

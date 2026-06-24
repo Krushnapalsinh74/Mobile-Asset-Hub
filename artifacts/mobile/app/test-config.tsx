@@ -285,9 +285,6 @@ export default function TestConfigScreen() {
     setError('');
 
     try {
-      // Server now batches internally (up to 3×20 parallel AI calls + dedup),
-      // so request the full needed count in one shot. Only retry if we're still
-      // short AND the server didn't signal it hit its own limit (actualMcqCount).
       const MAX_ATTEMPTS = 3;
       const chapterResults: any[][] = [];
 
@@ -295,36 +292,115 @@ export default function TestConfigScreen() {
         const cfg = configList[chapterIdx]!;
 
         let resolvedTopicName: string | undefined;
+        let resolvedTopicIds: string[] = [];
+
         if (cfg.expanded) {
           const topicQuery = topicQueries[chapterIdx];
           const loadedTopics: Topic[] = topicQuery?.data ?? [];
-          const activeTopicNames = loadedTopics
-            .filter(t => topicStates[getId(t)]?.selected !== false)
-            .map(t => t.name);
-          if (activeTopicNames.length > 0 && activeTopicNames.length < loadedTopics.length) {
-            resolvedTopicName = activeTopicNames.join(', ');
+          const activeTopics = loadedTopics.filter(
+            t => topicStates[getId(t)]?.selected !== false,
+          );
+          if (activeTopics.length > 0 && activeTopics.length < loadedTopics.length) {
+            resolvedTopicName = activeTopics.map(t => t.name).join(', ');
+            resolvedTopicIds = activeTopics.map(t => getId(t));
           }
         } else {
           const presetForChapter = presetTopicNamesByChapterIndex[chapterIdx] ?? [];
           if (presetForChapter.length > 0) {
             resolvedTopicName = presetForChapter.join(', ');
           }
+          // Single topic selected via URL param
+          if (paramTopicId && chapterIds.length === 1) {
+            resolvedTopicIds = [paramTopicId];
+          }
         }
 
-        const chapterLabel = resolvedTopicName
-          ? `"${resolvedTopicName.slice(0, 30)}"`
-          : `"${cfg.chapterName}"`;
-
-        const globalSeen = new Set<string>();
-
-        // Fire all selected difficulty levels in parallel
         const activeDiffs = cfg.difficulties.filter(
           d => (cfg.difficultyBreakdown[d] ?? 0) > 0,
         );
 
+        // ── Step 1: Try fetching from the admin question bank ──────────────
+        setLoadingMsg(`📚 Fetching saved questions for "${cfg.chapterName}"…`);
+
+        let usedBank = false;
+        let bankPool: any[] = [];
+
+        try {
+          const singleTopicId = resolvedTopicIds.length === 1 ? resolvedTopicIds[0] : undefined;
+          const bankQuestions = await eduApi.getBankQuestions({
+            chapterId: cfg.chapterId,
+            topicId: singleTopicId,
+          });
+
+          // Filter by topic names if multiple topics selected
+          let filtered = bankQuestions;
+          if (resolvedTopicName && !singleTopicId && bankQuestions.length > 0) {
+            const topicNameSet = resolvedTopicName
+              .split(', ')
+              .map(t => t.trim().toLowerCase());
+            const byTopic = bankQuestions.filter(
+              q => q.topicName &&
+                topicNameSet.some(t => q.topicName!.toLowerCase().includes(t)),
+            );
+            if (byTopic.length > 0) filtered = byTopic;
+          }
+
+          if (filtered.length > 0) {
+            // Group by difficulty
+            const byDiff: Record<string, any[]> = {};
+            for (const q of filtered) {
+              const d = q.difficulty ?? 'medium';
+              byDiff[d] = [...(byDiff[d] ?? []), q];
+            }
+
+            // Check if bank has enough per requested difficulty
+            const totalNeededForChapter = activeDiffs.reduce(
+              (s, d) => s + Math.min(cfg.difficultyBreakdown[d] ?? 0, 25),
+              0,
+            );
+            const hasEnoughPerDiff = activeDiffs.every(d => {
+              const needed = Math.min(cfg.difficultyBreakdown[d] ?? 0, 25);
+              return (byDiff[d]?.length ?? 0) >= needed;
+            });
+
+            if (hasEnoughPerDiff) {
+              // Perfect — take exact needed count per difficulty
+              for (const diff of activeDiffs) {
+                const needed = Math.min(cfg.difficultyBreakdown[diff] ?? 0, 25);
+                const diffLabel = DIFFICULTY_OPTIONS.find(o => o.value === diff)?.label ?? diff;
+                const shuffled = [...(byDiff[diff] ?? [])].sort(() => Math.random() - 0.5);
+                bankPool.push(
+                  ...shuffled.slice(0, needed).map(q => ({ ...q, _difficulty: diffLabel })),
+                );
+              }
+              usedBank = true;
+            } else if (filtered.length >= totalNeededForChapter) {
+              // Has enough total but not split by difficulty — shuffle and take needed
+              const shuffled = [...filtered].sort(() => Math.random() - 0.5);
+              bankPool = shuffled.slice(0, totalNeededForChapter).map(q => ({
+                ...q,
+                _difficulty:
+                  DIFFICULTY_OPTIONS.find(o => o.value === (q.difficulty ?? 'medium'))?.label ??
+                  'Medium',
+              }));
+              usedBank = true;
+            }
+          }
+        } catch {
+          // Bank unavailable — fall through to AI
+        }
+
+        if (usedBank) {
+          chapterResults.push(bankPool);
+          continue;
+        }
+
+        // ── Step 2: Fall back to AI generation ────────────────────────────
         setLoadingMsg(
           `⚡ Generating ${activeDiffs.map(d => DIFFICULTY_OPTIONS.find(o => o.value === d)?.label).join(' + ')} for "${cfg.chapterName}"…`,
         );
+
+        const globalSeen = new Set<string>();
 
         const diffResults = await Promise.all(
           activeDiffs.map(async diff => {
