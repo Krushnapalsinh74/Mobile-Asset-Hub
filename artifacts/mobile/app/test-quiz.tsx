@@ -1,5 +1,7 @@
 import { useApp } from '@/context/AppContext';
 import type { SavedQuestion } from '@/context/AppContext';
+import DiagramView from '@/components/DiagramView';
+import MathText from '@/components/MathText';
 import { useColors } from '@/hooks/useColors';
 import { eduApi } from '@/services/api';
 import type { Question } from '@/services/api';
@@ -541,9 +543,11 @@ export default function TestQuizScreen() {
                       <View style={[styles.reviewQNum, { backgroundColor: statusBg }]}>
                         <Text style={[styles.reviewQNumText, { color: statusColor }]}>{index + 1}</Text>
                       </View>
-                      <Text style={styles.reviewQuestion} numberOfLines={isExpanded ? undefined : 2}>
-                        {q.question}
-                      </Text>
+                      <MathText
+                        text={q.question}
+                        style={styles.reviewQuestion}
+                        numberOfLines={isExpanded ? undefined : 2}
+                      />
                       <View style={styles.reviewCardIcons}>
                         <Ionicons name={statusIcon as any} size={20} color={statusColor} />
                         <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={12} color="#9CA3AF" />
@@ -564,15 +568,11 @@ export default function TestQuizScreen() {
 
                   {isExpanded && (
                     <View style={styles.reviewExpanded}>
-                      {(q as any).textDiagram ? (
-                        <View style={styles.diagramBox}>
-                          <View style={styles.diagramHeader}>
-                            <View style={styles.diagramDot} />
-                            <Text style={styles.diagramLabel}>Diagram</Text>
-                          </View>
-                          <Text style={styles.diagramText}>{(q as any).textDiagram}</Text>
-                        </View>
-                      ) : null}
+                      <DiagramView
+                        textDiagram={(q as any).textDiagram}
+                        diagram={(q as any).diagram}
+                        diagramId={(q as any).diagramId}
+                      />
                       {q.options?.map((opt, oi) => {
                         const isCorrectOpt = oi === correctIdx;
                         const isUserChoice = userAns === opt;
@@ -589,9 +589,10 @@ export default function TestQuizScreen() {
                                 {OPTION_LABELS[oi]}
                               </Text>
                             </View>
-                            <Text style={[styles.reviewOptText, { color: isCorrectOpt ? '#065F46' : isWrong ? '#991B1B' : '#374151', flex: 1 }]}>
-                              {opt}
-                            </Text>
+                            <MathText
+                              text={opt}
+                              style={[styles.reviewOptText, { color: isCorrectOpt ? '#065F46' : isWrong ? '#991B1B' : '#374151', flex: 1 }]}
+                            />
                             {isCorrectOpt && <Ionicons name="checkmark-circle" size={14} color="#059669" />}
                             {isWrong && <Ionicons name="close-circle" size={14} color="#DC2626" />}
                           </View>
@@ -603,8 +604,8 @@ export default function TestQuizScreen() {
                             <Ionicons name="bulb" size={13} color="#4F46E5" />
                             <Text style={styles.solutionLabel}>Explanation</Text>
                           </View>
-                          {q.solution && <Text style={styles.solutionText}>{q.solution}</Text>}
-                          {q.tip && <Text style={styles.tipText}>💡 {q.tip}</Text>}
+                          {q.solution && <MathText text={q.solution} style={styles.solutionText} />}
+                          {q.tip && <MathText text={`💡 ${q.tip}`} style={styles.tipText} />}
                         </View>
                       )}
                     </View>
@@ -702,7 +703,7 @@ export default function TestQuizScreen() {
               <Text style={[styles.mcqPillText, { color: colors.mutedForeground }]}>MCQ</Text>
             </View>
           </View>
-          <Text style={[styles.questionText, { color: colors.text }]}>{q.question}</Text>
+          <MathText text={q.question} style={[styles.questionText, { color: colors.text }]} />
           {chapterName && (
             <Text style={[styles.questionMeta, { color: colors.mutedForeground }]}>
               {chapterName.split('|||')[0] || chapterName}
@@ -710,16 +711,12 @@ export default function TestQuizScreen() {
           )}
         </View>
 
-        {/* Text Diagram */}
-        {(q as any).textDiagram ? (
-          <View style={styles.diagramBox}>
-            <View style={styles.diagramHeader}>
-              <View style={styles.diagramDot} />
-              <Text style={styles.diagramLabel}>Diagram</Text>
-            </View>
-            <Text style={styles.diagramText}>{(q as any).textDiagram}</Text>
-          </View>
-        ) : null}
+        {/* Diagram (text or structured from API) */}
+        <DiagramView
+          textDiagram={(q as any).textDiagram}
+          diagram={(q as any).diagram}
+          diagramId={(q as any).diagramId}
+        />
 
         {/* Options */}
         <View style={styles.optionsWrap}>
@@ -749,9 +746,10 @@ export default function TestQuizScreen() {
                     <Text style={[styles.optionLetterText, { color: colors.mutedForeground }]}>{label}</Text>
                   </View>
                 )}
-                <Text style={[styles.optionText, { color: colors.text, fontWeight: isSelected ? '700' : '400' }]}>
-                  {opt}
-                </Text>
+                <MathText
+                  text={opt}
+                  style={[styles.optionText, { color: colors.text, fontWeight: isSelected ? '700' : '400' }]}
+                />
                 {isSelected && <Ionicons name="checkmark-circle" size={20} color="#4F46E5" />}
               </Pressable>
             );

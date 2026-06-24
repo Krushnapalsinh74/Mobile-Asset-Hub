@@ -1,4 +1,5 @@
 import { useApp } from '@/context/AppContext';
+import MathText from '@/components/MathText';
 import { useColors } from '@/hooks/useColors';
 import { eduApi } from '@/services/api';
 import { LANGUAGES, translateText } from '@/services/translate';
@@ -21,6 +22,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+function stripBold(s: string) {
+  return s.replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1');
+}
+
 function FormattedText({ text, colors }: { text: string; colors: ReturnType<typeof useColors> }) {
   const lines = text.split('\n');
   return (
@@ -28,40 +33,30 @@ function FormattedText({ text, colors }: { text: string; colors: ReturnType<type
       {lines.map((line, i) => {
         if (line.startsWith('### ')) {
           return (
-            <Text key={i} style={[styles.heading3, { color: colors.text }]}>
-              {line.slice(4).replace(/\*\*(.*?)\*\*/g, '$1')}
-            </Text>
+            <MathText key={i} text={stripBold(line.slice(4))} style={[styles.heading3, { color: colors.text }]} />
           );
         }
         if (line.startsWith('## ')) {
           return (
-            <Text key={i} style={[styles.heading2, { color: colors.text }]}>
-              {line.slice(3).replace(/\*\*(.*?)\*\*/g, '$1')}
-            </Text>
+            <MathText key={i} text={stripBold(line.slice(3))} style={[styles.heading2, { color: colors.text }]} />
           );
         }
         if (line.startsWith('# ')) {
           return (
-            <Text key={i} style={[styles.heading1, { color: colors.text }]}>
-              {line.slice(2).replace(/\*\*(.*?)\*\*/g, '$1')}
-            </Text>
+            <MathText key={i} text={stripBold(line.slice(2))} style={[styles.heading1, { color: colors.text }]} />
           );
         }
         if (line.startsWith('- ') || line.startsWith('* ')) {
-          const content = line.slice(2).replace(/\*\*(.*?)\*\*/g, '$1');
           return (
             <View key={i} style={styles.bulletRow}>
               <View style={[styles.bulletDot, { backgroundColor: colors.accent }]} />
-              <Text style={[styles.bodyText, { color: colors.text }]}>{content}</Text>
+              <MathText text={stripBold(line.slice(2))} style={[styles.bodyText, { color: colors.text, flex: 1 }]} />
             </View>
           );
         }
         if (!line.trim()) return <View key={i} style={{ height: 6 }} />;
-        const stripped = line.replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1');
         return (
-          <Text key={i} style={[styles.bodyText, { color: colors.text }]}>
-            {stripped}
-          </Text>
+          <MathText key={i} text={stripBold(line)} style={[styles.bodyText, { color: colors.text }]} />
         );
       })}
     </View>
