@@ -49,6 +49,12 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "9dbf2998-e91f-4741-8289-139ce8769481"
+      }
+    },
+    "owner": "kpark-edu"
   }
 }
