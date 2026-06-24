@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "c31a51a8-9b68-4950-932d-13839ca8bc9d"
+      }
+    },
+    "android": {
+      "package": "com.kparkedu.workspace"
+    }
+  }
+}
