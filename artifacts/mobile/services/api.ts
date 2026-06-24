@@ -478,14 +478,20 @@ export const eduApi = {
 
   chat: (params: {
     message: string;
-    history: ChatMessage[];
-    board: string;
-    standard: string;
-    filters: { subject: string; chapter?: string };
+    context?: string;
+    boardId?: string;
+    standardId?: string;
+    subjectId?: string;
+    chapterId?: string;
+    topicId?: string;
   }) =>
-    req<Record<string, unknown>>('/chat', {
+    fetch('https://kpark-edu.web.app/api/chat', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
+    }).then(async (r) => {
+      if (!r.ok) throw new Error(`Chat API error: ${r.status}`);
+      return r.json() as Promise<{ response: string }>;
     }),
 
   generateQuestions: (params: {

@@ -2,7 +2,7 @@ import { MessageContent } from '@/components/MessageContent';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { eduApi, getId } from '@/services/api';
-import type { ChatMessage, Chapter, Subject, Topic } from '@/services/api';
+import type { Chapter, Subject, Topic } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -164,26 +164,26 @@ export default function ChatScreen() {
     setIsLoading(true);
 
     try {
-      const history: ChatMessage[] = [...currentMessages]
-        .reverse()
-        .map((m) => ({ role: m.role, content: m.content }));
+      // Build a context string so the AI knows the student's curriculum scope
+      const contextParts: string[] = [];
+      if (boardName) contextParts.push(`Board: ${boardName}`);
+      if (standardName) contextParts.push(`Class: ${standardName}`);
+      if (selSubjectName) contextParts.push(`Subject: ${selSubjectName}`);
+      if (selChapterName) contextParts.push(`Chapter: ${selChapterName}`);
+      if (selTopicName) contextParts.push(`Topic: ${selTopicName}`);
 
       const res = await eduApi.chat({
         message: text,
-        history,
-        board: boardName ?? boardId ?? '',
-        standard: standardName ?? standardId ?? '',
-        filters: {
-          subject: selSubjectName,
-          chapter: selChapterName || undefined,
-        },
+        context: contextParts.length > 0 ? contextParts.join(' | ') : undefined,
+        boardId: boardId ?? undefined,
+        standardId: standardId ?? undefined,
+        subjectId: selSubjectId || undefined,
+        chapterId: selChapterId || undefined,
+        topicId: selTopicId || undefined,
       });
 
       const responseText =
-        (res as any)?.response ??
-        (res as any)?.message ??
-        (res as any)?.text ??
-        (res as any)?.answer ??
+        res?.response ??
         'I received your message but could not parse the response.';
 
       const aiMsg: Message = {
