@@ -260,10 +260,46 @@ function normalizeDiagram(
 export function normalizeYunoraQuestion(raw: any): Question {
   // options come as "A) text\nB) text\n..." — parse to plain array
   const rawOpts: string = typeof raw.options === "string" ? raw.options : "";
-  const options = rawOpts
+  const parsedOptions = rawOpts
     .split("\n")
     .map((line) => line.replace(/^[A-Ea-e]\)\s*/, "").trim())
     .filter((line) => line.length > 0);
+
+  const baseOptions: string[] | undefined =
+    parsedOptions.length > 0
+      ? parsedOptions
+      : Array.isArray(raw.options)
+        ? raw.options
+        : undefined;
+
+  // Determine correct option text so we can re-map after shuffling
+  const rawAnswer: string = raw.correctAnswer ?? raw.answer ?? "";
+  const letterMatch = rawAnswer.trim().match(/^([A-Ea-e])/);
+  const correctIdx = letterMatch
+    ? letterMatch[1].toUpperCase().charCodeAt(0) - "A".charCodeAt(0)
+    : 0;
+
+  // Shuffle options so the correct answer is not always position A
+  let finalOptions = baseOptions;
+  let finalAnswer = rawAnswer;
+  if (baseOptions && baseOptions.length > 1) {
+    const correctText = baseOptions[correctIdx] ?? baseOptions[0];
+    // Fisher-Yates shuffle
+    const shuffled = [...baseOptions];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = shuffled[i]!;
+      shuffled[i] = shuffled[j]!;
+      shuffled[j] = tmp;
+    }
+    const newIdx = shuffled.indexOf(correctText);
+    if (newIdx >= 0 && correctText !== undefined) {
+      finalOptions = shuffled;
+      // Update answer to reflect new position (keep just the letter so
+      // extractCorrectLetter in test-quiz.tsx can parse it)
+      finalAnswer = String.fromCharCode("A".charCodeAt(0) + newIdx);
+    }
+  }
 
   // textDiagram: prefer explicit field; fall back to plain string diagram values
   const rawDiagram = raw.diagram ?? null;
@@ -278,13 +314,8 @@ export function normalizeYunoraQuestion(raw: any): Question {
   return {
     id: raw.id,
     question: raw.question ?? "",
-    options:
-      options.length > 0
-        ? options
-        : Array.isArray(raw.options)
-          ? raw.options
-          : undefined,
-    answer: raw.correctAnswer ?? raw.answer ?? "",
+    options: finalOptions,
+    answer: finalAnswer,
     solution: raw.explanation ?? raw.solution ?? "",
     explanation: raw.explanation,
     type: raw.questionType ?? raw.type,
@@ -558,8 +589,18 @@ export const eduApi = {
   }): Promise<Question[]> => {
     const params: Record<string, string> = { chapter: filters.chapterId };
     if (filters.topicId) params.topic = filters.topicId;
-    return yunoraList<any>("/questions", params).then((items) =>
-      items.map(normalizeYunoraQuestion),
-    );
+    return yunoraList<any>("/questions", params).then((items) => {
+      // Deduplicate by question text before normalizing — the API can return
+      // the same record multiple times (e.g. when the same question belongs
+      // to multiple topics and the filter is loose)
+      const seen = new Set<string>();
+      const unique = items.filter((raw: any) => {
+        const key = String(raw?.question ?? "").trim().slice(0, 120);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      return unique.map(normalizeYunoraQuestion);
+    });
   },
 };
