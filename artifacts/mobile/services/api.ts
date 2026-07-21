@@ -2,62 +2,40 @@
 // Yunora / kpark-edu.web.app — curriculum backend
 // ─────────────────────────────────────────────────────────────────────────────
 const YUNORA_BASE = "https://kpark-edu.web.app/api";
-const FIREBASE_API_KEY = "AIzaSyDpUmL0FJseGKE07gEUa5sk0ekxXkAVnhk";
 const YUNORA_EMAIL = process.env.EXPO_PUBLIC_YUNORA_EMAIL ?? "admin@yunora.ai";
 const YUNORA_PASSWORD = process.env.EXPO_PUBLIC_YUNORA_PASSWORD ?? "admin123";
 
-interface FirebaseTokenState {
-  idToken: string;
-  refreshToken: string;
+interface YunoraTokenState {
+  token: string;
   expiresAt: number;
 }
 
-let _firebaseToken: FirebaseTokenState | null = null;
+let _yunoraToken: YunoraTokenState | null = null;
 let _tokenPromise: Promise<string> | null = null;
 
-async function _signInFresh(): Promise<FirebaseTokenState> {
-  const r = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: YUNORA_EMAIL,
-        password: YUNORA_PASSWORD,
-        returnSecureToken: true,
-      }),
-    },
-  );
-  if (!r.ok) {
-    const msg = await r.text().catch(() => "");
-    throw new Error(`Yunora auth failed: ${msg}`);
+/** Decode JWT expiry without a library — returns ms timestamp */
+function _jwtExpiresAt(jwt: string): number {
+  try {
+    const payload = JSON.parse(atob(jwt.split(".")[1]));
+    return Number(payload.exp) * 1000;
+  } catch {
+    return Date.now() + 6 * 24 * 60 * 60 * 1000; // fallback: 6 days
   }
-  const d = await r.json();
-  return {
-    idToken: d.idToken,
-    refreshToken: d.refreshToken,
-    expiresAt: Date.now() + Number(d.expiresIn) * 1000,
-  };
 }
 
-async function _refreshToken(
-  refreshToken: string,
-): Promise<FirebaseTokenState> {
-  const r = await fetch(
-    `https://securetoken.googleapis.com/v1/token?key=${FIREBASE_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(refreshToken)}`,
-    },
-  );
-  if (!r.ok) throw new Error("Token refresh failed");
+async function _signInFresh(): Promise<YunoraTokenState> {
+  const r = await fetch(`${YUNORA_BASE}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: YUNORA_EMAIL, password: YUNORA_PASSWORD }),
+  });
+  if (!r.ok) {
+    const msg = await r.text().catch(() => "");
+    throw new Error(`Yunora auth failed (${r.status}): ${msg}`);
+  }
   const d = await r.json();
-  return {
-    idToken: d.id_token,
-    refreshToken: d.refresh_token,
-    expiresAt: Date.now() + Number(d.expires_in) * 1000,
-  };
+  const token: string = d.token;
+  return { token, expiresAt: _jwtExpiresAt(token) };
 }
 
 async function getYunoraToken(): Promise<string> {
@@ -67,20 +45,11 @@ async function getYunoraToken(): Promise<string> {
   _tokenPromise = (async () => {
     try {
       // Return cached token if still valid (with 60s buffer)
-      if (_firebaseToken && _firebaseToken.expiresAt > Date.now() + 60_000) {
-        return _firebaseToken.idToken;
+      if (_yunoraToken && _yunoraToken.expiresAt > Date.now() + 60_000) {
+        return _yunoraToken.token;
       }
-      // Try refresh first, fall back to fresh sign-in
-      if (_firebaseToken?.refreshToken) {
-        try {
-          _firebaseToken = await _refreshToken(_firebaseToken.refreshToken);
-          return _firebaseToken.idToken;
-        } catch {
-          // fall through to fresh sign-in
-        }
-      }
-      _firebaseToken = await _signInFresh();
-      return _firebaseToken.idToken;
+      _yunoraToken = await _signInFresh();
+      return _yunoraToken.token;
     } finally {
       _tokenPromise = null;
     }
@@ -113,7 +82,7 @@ async function yunoraReq<T>(path: string, init?: RequestInit): Promise<T> {
 
   // If 401, invalidate cached token and retry once
   if (res.status === 401) {
-    _firebaseToken = null;
+    _yunoraToken = null;
     const newToken = await getYunoraToken();
     res = await doFetch(newToken);
   }

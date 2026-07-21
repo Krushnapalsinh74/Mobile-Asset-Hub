@@ -74,4 +74,4 @@ packages = ["eas-cli"]
 
 [userenv.shared]
 PORT = "8080"
-EXPO_PUBLIC_YUNORA_EMAIL = "admin@yunora.edu"
+EXPO_PUBLIC_YUNORA_EMAIL = "admin@yunora.ai"
