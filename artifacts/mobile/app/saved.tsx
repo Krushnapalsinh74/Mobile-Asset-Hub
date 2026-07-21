@@ -1,4 +1,5 @@
 import { BottomTabBar, BOTTOM_TAB_INNER_HEIGHT } from '@/components/BottomTabBar';
+import MathText from '@/components/MathText';
 import { useApp } from '@/context/AppContext';
 import type { SavedQuestion } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
@@ -322,9 +323,7 @@ export default function SavedScreen() {
                     <View style={[styles.qNumBadge, { backgroundColor: '#EEF2FF' }]}>
                       <Ionicons name="help-circle" size={14} color="#4F46E5" />
                     </View>
-                    <Text style={[styles.questionText, { color: colors.text }]} numberOfLines={isOpen ? undefined : 3}>
-                      {q.question}
-                    </Text>
+                    <MathText style={[styles.questionText, { color: colors.text }]} numberOfLines={isOpen ? undefined : 3} text={q.question} />
                     {!selectionMode && (
                       <Ionicons
                         name={isOpen ? 'chevron-up' : 'chevron-down'}
@@ -354,9 +353,7 @@ export default function SavedScreen() {
                                     {OPTION_LABELS[oi]}
                                   </Text>
                                 </View>
-                                <Text style={[styles.optText, { color: isCorrect ? '#065F46' : colors.text, flex: 1 }]}>
-                                  {opt}
-                                </Text>
+                                <MathText style={[styles.optText, { color: isCorrect ? '#065F46' : colors.text, flex: 1 }]} text={opt} />
                                 {isCorrect && <Ionicons name="checkmark-circle" size={16} color="#059669" />}
                               </View>
                             );
@@ -373,11 +370,11 @@ export default function SavedScreen() {
                             <Text style={styles.solutionTitle}>Why this answer is correct</Text>
                           </View>
                           {(q.explanation || q.solution) && (
-                            <Text style={styles.solutionText}>{q.explanation || q.solution}</Text>
+                            <MathText style={styles.solutionText} text={q.explanation || q.solution || ''} />
                           )}
                           {q.tip && (
                             <View style={[styles.tipBox, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
-                              <Text style={styles.tipText}>💡 {q.tip}</Text>
+                              <MathText style={styles.tipText} text={`💡 ${q.tip}`} />
                             </View>
                           )}
                         </View>
