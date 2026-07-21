@@ -3,8 +3,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 const YUNORA_BASE = 'https://kpark-edu.web.app/api';
 const FIREBASE_API_KEY = 'AIzaSyDpUmL0FJseGKE07gEUa5sk0ekxXkAVnhk';
-const YUNORA_EMAIL = 'admin@yunora.edu';
-const YUNORA_PASSWORD = 'admin123';
+const YUNORA_EMAIL = process.env.EXPO_PUBLIC_YUNORA_EMAIL ?? 'admin@yunora.ai';
+const YUNORA_PASSWORD = process.env.EXPO_PUBLIC_YUNORA_PASSWORD ?? 'admin123';
 
 interface FirebaseTokenState {
   idToken: string;
