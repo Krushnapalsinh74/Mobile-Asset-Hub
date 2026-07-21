@@ -3,9 +3,9 @@ import {
   Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
-  useFonts,
 } from "@expo-google-fonts/inter";
 import { Ionicons } from "@expo/vector-icons";
+import { useFonts } from "expo-font";
 import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -71,27 +71,36 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
+  // Load Ionicons separately — icons must always render regardless of CDN font status
+  const [iconFontsLoaded, iconFontError] = useFonts({
+    ...Ionicons.font,
+  });
+
+  // Load Inter fonts separately — these load from Google Fonts CDN on web and may be slower
+  const [interFontsLoaded, interFontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
-    // Load Ionicons font explicitly so icons render in Expo Go and dev builds
-    ...Ionicons.font,
   });
 
+  const iconsReady = iconFontsLoaded || !!iconFontError;
+  const interReady = interFontsLoaded || !!interFontError;
+
   useEffect(() => {
-    if (fontsLoaded || fontError) {
+    if (iconsReady && interReady) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, fontError]);
+  }, [iconsReady, interReady]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', onAppStateChange);
     return () => subscription.remove();
   }, []);
 
-  if (!fontsLoaded && !fontError) return null;
+  // Wait until icon fonts are ready (they load from local Metro assets — should be fast).
+  // Proceed even if Inter CDN fonts fail, so icons are never blocked.
+  if (!iconsReady) return null;
 
   return (
     <SafeAreaProvider>
