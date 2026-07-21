@@ -4,13 +4,10 @@ import * as schema from "./schema";
 
 const { Pool } = pg;
 
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
-}
-
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle(pool, { schema });
+// db is null when DATABASE_URL is not configured.
+// Routes must check for null and return graceful fallbacks instead of crashing.
+export const db = process.env.DATABASE_URL
+  ? drizzle(new Pool({ connectionString: process.env.DATABASE_URL }), { schema })
+  : null;
 
 export * from "./schema";
