@@ -24,21 +24,49 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
   }
 }
 
-// ── LaTeX parser (shared web + native) ───────────────────────────────────
+// ── LaTeX pattern ─────────────────────────────────────────────────────────
 const PATTERN =
   /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\$(?!\$)(?:[^$\n\\]|\\.)*?\$|\\\((?:[^)\\]|\\.)*?\\\))/g;
 
+// ── SVG diagram extractor ─────────────────────────────────────────────────
+// Matches <diagram type="svg">…</diagram> embedded in question text.
+// We pull these out BEFORE HTML-escaping so they render as real SVG markup.
+const DIAGRAM_SVG_RE = /<diagram[^>]*type=["']svg["'][^>]*>([\s\S]*?)<\/diagram>/g;
+
+function extractDiagrams(text: string): { text: string; diagrams: string[] } {
+  const diagrams: string[] = [];
+  const out = text.replace(DIAGRAM_SVG_RE, (_match, svgContent: string) => {
+    // Unescape literal \n / \" sequences that arrive from JSON-serialised strings
+    const svg = svgContent.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+    const html = `<div style="margin:12px 0;overflow-x:auto;text-align:center;line-height:0">${svg}</div>`;
+    const idx = diagrams.length;
+    diagrams.push(html);
+    return `\x00DIAG${idx}\x00`; // null-byte placeholder survives escapeHtml
+  });
+  return { text: out, diagrams };
+}
+
+// ── HTML escape ───────────────────────────────────────────────────────────
+function escapeHtml(s: string) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ── LaTeX + SVG renderer (shared web + native) ────────────────────────────
 function renderLatex(text: string): string {
   if (!text) return '';
+
+  // Extract SVG diagram blocks before any HTML-escaping
+  const { text: safeText, diagrams } = extractDiagrams(text);
+
   let result = '';
   let lastIndex = 0;
 
-  for (const match of text.matchAll(PATTERN)) {
-    result += escapeHtml(text.slice(lastIndex, match.index));
+  for (const match of safeText.matchAll(PATTERN)) {
+    result += escapeHtml(safeText.slice(lastIndex, match.index));
     const raw = match[0];
     const isDisplay = raw.startsWith('$$') || raw.startsWith('\\[');
     let inner = raw;
-    if (raw.startsWith('$$'))    inner = raw.slice(2, -2);
+    if (raw.startsWith('$$'))       inner = raw.slice(2, -2);
     else if (raw.startsWith('\\[')) inner = raw.slice(2, -2);
     else if (raw.startsWith('$'))   inner = raw.slice(1, -1);
     else if (raw.startsWith('\\(')) inner = raw.slice(2, -2);
@@ -49,12 +77,14 @@ function renderLatex(text: string): string {
     } catch { result += escapeHtml(raw); }
     lastIndex = match.index! + raw.length;
   }
-  result += escapeHtml(text.slice(lastIndex));
-  return result;
-}
+  result += escapeHtml(safeText.slice(lastIndex));
 
-function escapeHtml(s: string) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // Restore SVG diagram blocks (placeholders were untouched by escapeHtml)
+  if (diagrams.length) {
+    result = result.replace(/\x00DIAG(\d+)\x00/g, (_, i) => diagrams[+i]);
+  }
+
+  return result;
 }
 
 // ── Build a self-contained HTML page (used by native WebView) ─────────────
@@ -84,6 +114,7 @@ html,body{background:transparent;overflow:hidden}
 }
 .katex{font-size:1em}
 .katex-display{margin:4px 0;overflow-x:auto}
+svg{max-width:100%;height:auto}
 </style>
 </head>
 <body>
@@ -138,7 +169,8 @@ function MathTextNative({ text, style }: MathTextProps) {
 
 // ── Main export ───────────────────────────────────────────────────────────
 /**
- * Drop-in replacement for <Text> that renders LaTeX with KaTeX.
+ * Drop-in replacement for <Text> that renders LaTeX with KaTeX
+ * and inline SVG diagrams embedded as <diagram type="svg">…</diagram>.
  *  • Web  → <div dangerouslySetInnerHTML> (fast, inline)
  *  • Native → <WebView> with pre-rendered KaTeX HTML + CSS
  */
