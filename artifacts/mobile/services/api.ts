@@ -1,10 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Yunora / kpark-edu.web.app — curriculum backend
 // ─────────────────────────────────────────────────────────────────────────────
-const YUNORA_BASE = 'https://kpark-edu.web.app/api';
-const FIREBASE_API_KEY = 'AIzaSyDpUmL0FJseGKE07gEUa5sk0ekxXkAVnhk';
-const YUNORA_EMAIL = process.env.EXPO_PUBLIC_YUNORA_EMAIL ?? 'admin@yunora.edu';
-const YUNORA_PASSWORD = process.env.EXPO_PUBLIC_YUNORA_PASSWORD ?? 'admin123';
+const YUNORA_BASE = "https://kpark-edu.web.app/api";
+const FIREBASE_API_KEY = "AIzaSyDpUmL0FJseGKE07gEUa5sk0ekxXkAVnhk";
+const YUNORA_EMAIL = process.env.EXPO_PUBLIC_YUNORA_EMAIL ?? "admin@yunora.ai";
+const YUNORA_PASSWORD = process.env.EXPO_PUBLIC_YUNORA_PASSWORD ?? "admin123";
 
 interface FirebaseTokenState {
   idToken: string;
@@ -19,17 +19,17 @@ async function _signInFresh(): Promise<FirebaseTokenState> {
   const r = await fetch(
     `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
     {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         email: YUNORA_EMAIL,
         password: YUNORA_PASSWORD,
         returnSecureToken: true,
       }),
-    }
+    },
   );
   if (!r.ok) {
-    const msg = await r.text().catch(() => '');
+    const msg = await r.text().catch(() => "");
     throw new Error(`Yunora auth failed: ${msg}`);
   }
   const d = await r.json();
@@ -40,16 +40,18 @@ async function _signInFresh(): Promise<FirebaseTokenState> {
   };
 }
 
-async function _refreshToken(refreshToken: string): Promise<FirebaseTokenState> {
+async function _refreshToken(
+  refreshToken: string,
+): Promise<FirebaseTokenState> {
   const r = await fetch(
     `https://securetoken.googleapis.com/v1/token?key=${FIREBASE_API_KEY}`,
     {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(refreshToken)}`,
-    }
+    },
   );
-  if (!r.ok) throw new Error('Token refresh failed');
+  if (!r.ok) throw new Error("Token refresh failed");
   const d = await r.json();
   return {
     idToken: d.id_token,
@@ -101,7 +103,7 @@ async function yunoraReq<T>(path: string, init?: RequestInit): Promise<T> {
     fetch(YUNORA_BASE + path, {
       ...init,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         Authorization: `Bearer ${idToken}`,
         ...init?.headers,
       },
@@ -117,7 +119,7 @@ async function yunoraReq<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   if (!res.ok) {
-    const msg = await res.text().catch(() => '');
+    const msg = await res.text().catch(() => "");
     throw new Error(`Yunora API ${res.status}: ${msg}`);
   }
 
@@ -125,8 +127,11 @@ async function yunoraReq<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 // Fetch all pages for a list endpoint (handles pagination automatically)
-async function yunoraList<T>(path: string, params: Record<string, string> = {}): Promise<T[]> {
-  const qs = new URLSearchParams({ limit: '200', ...params }).toString();
+async function yunoraList<T>(
+  path: string,
+  params: Record<string, string> = {},
+): Promise<T[]> {
+  const qs = new URLSearchParams({ limit: "200", ...params }).toString();
   const result = await yunoraReq<YunoraListResponse<T>>(`${path}?${qs}`);
   // result can also be a plain array (question-types endpoint)
   if (Array.isArray(result)) return result as unknown as T[];
@@ -136,11 +141,11 @@ async function yunoraList<T>(path: string, params: Record<string, string> = {}):
 // ─────────────────────────────────────────────────────────────────────────────
 // kparkit.com — fallback for question generation, chat, topic details
 // ─────────────────────────────────────────────────────────────────────────────
-const OTP_BASE = 'https://otp.kparkit.com';
+const OTP_BASE = "https://otp.kparkit.com";
 
 const BASE_URLS = [
-  'https://kparkit.com/edu/api',
-  'https://dalalifree.com/edu/api',
+  "https://kparkit.com/edu/api",
+  "https://dalalifree.com/edu/api",
 ];
 
 let activeBaseIndex = 0;
@@ -148,7 +153,7 @@ let activeBaseIndex = 0;
 async function tryFetch(url: string, init?: RequestInit): Promise<Response> {
   return fetch(url, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
+    headers: { "Content-Type": "application/json", ...init?.headers },
   });
 }
 
@@ -165,17 +170,17 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
         return r.json() as Promise<T>;
       }
       if (r.status >= 400 && r.status < 500) {
-        const msg = await r.text().catch(() => '');
+        const msg = await r.text().catch(() => "");
         throw new Error(`API error ${r.status}: ${msg}`);
       }
     } catch (err: any) {
-      const isClientError = err?.message?.includes('API error 4');
+      const isClientError = err?.message?.includes("API error 4");
       if (isClientError || attempt === BASE_URLS.length - 1) {
         throw err;
       }
     }
   }
-  throw new Error('All API servers unreachable');
+  throw new Error("All API servers unreachable");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -214,11 +219,11 @@ export interface Topic {
 }
 
 export function getId(item: { _id?: string; id?: string }): string {
-  return (item._id ?? item.id ?? '');
+  return item._id ?? item.id ?? "";
 }
 
 export interface ChatMessage {
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
 }
 export interface Question {
@@ -244,7 +249,9 @@ export interface Question {
 }
 
 /** Normalize the diagram/image field from a raw Yunora question into DiagramView's expected shape */
-function normalizeDiagram(raw: any): { type?: string; content?: string; url?: string } | null {
+function normalizeDiagram(
+  raw: any,
+): { type?: string; content?: string; url?: string } | null {
   // Try every field the API might use for an image/diagram
   const src =
     raw.diagram ??
@@ -258,19 +265,23 @@ function normalizeDiagram(raw: any): { type?: string; content?: string; url?: st
   if (!src) return null;
 
   // Plain URL string → wrap into standard shape
-  if (typeof src === 'string') {
+  if (typeof src === "string") {
     const lower = src.toLowerCase();
-    if (lower.startsWith('http') || lower.startsWith('data:image')) {
-      return { type: 'image', url: src };
+    if (lower.startsWith("http") || lower.startsWith("data:image")) {
+      return { type: "image", url: src };
     }
     // Could be TikZ source or ASCII — keep as textDiagram (handled separately)
     return null;
   }
 
   // Already an object — normalise its URL key (API sometimes uses imageUrl inside the object)
-  if (typeof src === 'object') {
+  if (typeof src === "object") {
     const url = src.url ?? src.imageUrl ?? src.src ?? null;
-    return { type: src.type ?? (url ? 'image' : undefined), url: url ?? undefined, content: src.content };
+    return {
+      type: src.type ?? (url ? "image" : undefined),
+      url: url ?? undefined,
+      content: src.content,
+    };
   }
 
   return null;
@@ -279,26 +290,33 @@ function normalizeDiagram(raw: any): { type?: string; content?: string; url?: st
 /** Convert a raw Yunora API question to the internal Question interface */
 export function normalizeYunoraQuestion(raw: any): Question {
   // options come as "A) text\nB) text\n..." — parse to plain array
-  const rawOpts: string = typeof raw.options === 'string' ? raw.options : '';
+  const rawOpts: string = typeof raw.options === "string" ? raw.options : "";
   const options = rawOpts
-    .split('\n')
-    .map(line => line.replace(/^[A-Ea-e]\)\s*/, '').trim())
-    .filter(line => line.length > 0);
+    .split("\n")
+    .map((line) => line.replace(/^[A-Ea-e]\)\s*/, "").trim())
+    .filter((line) => line.length > 0);
 
   // textDiagram: prefer explicit field; fall back to plain string diagram values
   const rawDiagram = raw.diagram ?? null;
   const textDiagram: string | undefined =
     raw.textDiagram ??
-    (typeof rawDiagram === 'string' && !rawDiagram.startsWith('http') && !rawDiagram.startsWith('data:')
+    (typeof rawDiagram === "string" &&
+    !rawDiagram.startsWith("http") &&
+    !rawDiagram.startsWith("data:")
       ? rawDiagram
       : undefined);
 
   return {
     id: raw.id,
-    question: raw.question ?? '',
-    options: options.length > 0 ? options : (Array.isArray(raw.options) ? raw.options : undefined),
-    answer: raw.correctAnswer ?? raw.answer ?? '',
-    solution: raw.explanation ?? raw.solution ?? '',
+    question: raw.question ?? "",
+    options:
+      options.length > 0
+        ? options
+        : Array.isArray(raw.options)
+          ? raw.options
+          : undefined,
+    answer: raw.correctAnswer ?? raw.answer ?? "",
+    solution: raw.explanation ?? raw.solution ?? "",
     explanation: raw.explanation,
     type: raw.questionType ?? raw.type,
     textDiagram,
@@ -320,12 +338,12 @@ export function normalizeYunoraQuestion(raw: any): Question {
 
 async function otpReq<T>(path: string, body: unknown): Promise<T> {
   const r = await fetch(OTP_BASE + path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!r.ok) {
-    const msg = await r.text().catch(() => '');
+    const msg = await r.text().catch(() => "");
     throw new Error(`OTP error ${r.status}: ${msg}`);
   }
   return r.json() as Promise<T>;
@@ -355,14 +373,13 @@ export interface OtpVerifyResult {
 }
 
 export const otpApi = {
-  sendOtp: (email: string) =>
-    otpReq<OtpSendResult>('/send-otp', { email }),
+  sendOtp: (email: string) => otpReq<OtpSendResult>("/send-otp", { email }),
   verifyOtp: (email: string, otp: string) =>
-    otpReq<OtpVerifyResult>('/verify-otp', { email, otp }),
+    otpReq<OtpVerifyResult>("/verify-otp", { email, otp }),
   saveProfile: (email: string, profile: OtpUserProfile) =>
-    otpReq<{ success: boolean }>('/save-profile', { email, ...profile }),
+    otpReq<{ success: boolean }>("/save-profile", { email, ...profile }),
   getProfile: (email: string) =>
-    otpReq<OtpUserProfile & { success?: boolean }>('/get-profile', { email }),
+    otpReq<OtpUserProfile & { success?: boolean }>("/get-profile", { email }),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -371,8 +388,8 @@ export const otpApi = {
 
 function getLocalBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  if (domain) return `https://${domain.replace(/^https?:\/\//, '')}:3001`;
-  return 'http://localhost:3001';
+  if (domain) return `https://${domain.replace(/^https?:\/\//, "")}:3001`;
+  return "http://localhost:3001";
 }
 
 async function localReq<T>(path: string, init?: RequestInit): Promise<T> {
@@ -383,10 +400,10 @@ async function localReq<T>(path: string, init?: RequestInit): Promise<T> {
     const r = await fetch(url, {
       ...init,
       signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', ...init?.headers },
+      headers: { "Content-Type": "application/json", ...init?.headers },
     });
     if (!r.ok) {
-      const msg = await r.text().catch(() => '');
+      const msg = await r.text().catch(() => "");
       throw new Error(`Profile API error ${r.status}: ${msg}`);
     }
     return r.json() as Promise<T>;
@@ -406,10 +423,12 @@ export interface UserProfile {
 
 export const localApi = {
   getProfile: (email: string) =>
-    localReq<UserProfile>(`/api/user/profile?email=${encodeURIComponent(email)}`),
+    localReq<UserProfile>(
+      `/api/user/profile?email=${encodeURIComponent(email)}`,
+    ),
   saveProfile: (profile: UserProfile) =>
-    localReq<{ success: boolean }>('/api/user/profile', {
-      method: 'POST',
+    localReq<{ success: boolean }>("/api/user/profile", {
+      method: "POST",
       body: JSON.stringify(profile),
     }),
 };
@@ -436,37 +455,46 @@ export interface AppSettings {
 
 export const eduApi = {
   // Settings still from kparkit.com
-  getSettings: () => req<AppSettings>('/settings'),
+  getSettings: () => req<AppSettings>("/settings"),
 
   // ── Curriculum hierarchy — Yunora backend ──────────────────────────────
 
   getBoards: () =>
-    yunoraList<Board>('/boards').then((items) =>
-      items.map((b) => ({ id: b.id, name: b.name, code: (b as any).code }))
+    yunoraList<Board>("/boards").then((items) =>
+      items.map((b) => ({ id: b.id, name: b.name, code: (b as any).code })),
     ),
 
   getStandards: (boardId: string) =>
-    yunoraList<Standard>('/standards', { boardId }).then((items) =>
-      items.map((s) => ({ id: s.id, name: s.name, level: (s as any).level }))
+    yunoraList<Standard>("/standards", { boardId }).then((items) =>
+      items.map((s) => ({ id: s.id, name: s.name, level: (s as any).level })),
     ),
 
   getSubjects: (boardId: string, stdId: string) =>
-    yunoraList<Subject>('/subjects', { boardId, standardId: stdId }).then((items) =>
-      items.map((s) => ({ id: s.id, name: s.name }))
+    yunoraList<Subject>("/subjects", { boardId, standardId: stdId }).then(
+      (items) => items.map((s) => ({ id: s.id, name: s.name })),
     ),
 
   getChapters: (_boardId: string, _stdId: string, subId: string) =>
-    yunoraList<Chapter>('/chapters', { subjectId: subId }).then((items) =>
+    yunoraList<Chapter>("/chapters", { subjectId: subId }).then((items) =>
       items.map((c) => ({
         id: c.id,
         name: c.name,
         order: (c as any).orderIndex ?? (c as any).order,
-      }))
+      })),
     ),
 
-  getTopics: (_boardId: string, _stdId: string, _subId: string, chapId: string) =>
-    yunoraList<Topic>('/topics', { chapterId: chapId }).then((items) =>
-      items.map((t) => ({ id: t.id, name: t.name, description: (t as any).description }))
+  getTopics: (
+    _boardId: string,
+    _stdId: string,
+    _subId: string,
+    chapId: string,
+  ) =>
+    yunoraList<Topic>("/topics", { chapterId: chapId }).then((items) =>
+      items.map((t) => ({
+        id: t.id,
+        name: t.name,
+        description: (t as any).description,
+      })),
     ),
 
   // ── Question generation & AI — kparkit.com ────────────────────────────
@@ -478,8 +506,8 @@ export const eduApi = {
     chapter: string;
     topic: string;
   }) =>
-    req<Record<string, unknown>>('/curriculum/topic-details', {
-      method: 'POST',
+    req<Record<string, unknown>>("/curriculum/topic-details", {
+      method: "POST",
       body: JSON.stringify({ ...params, freshQuestions: true }),
     }),
 
@@ -492,9 +520,9 @@ export const eduApi = {
     chapterId?: string;
     topicId?: string;
   }) =>
-    fetch('https://kpark-edu.web.app/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    fetch("https://kpark-edu.web.app/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
     }).then(async (r) => {
       if (!r.ok) throw new Error(`Chat API error: ${r.status}`);
@@ -507,11 +535,11 @@ export const eduApi = {
     subject: string;
     chapter: string;
     topic?: string;
-    options: { mode: 'mcq'; count: number; seed?: number; difficulty?: string };
+    options: { mode: "mcq"; count: number; seed?: number; difficulty?: string };
     freshQuestions?: boolean;
   }) =>
-    req<Record<string, unknown>>('/generate-questions', {
-      method: 'POST',
+    req<Record<string, unknown>>("/generate-questions", {
+      method: "POST",
       body: JSON.stringify({ ...params, freshQuestions: true }),
     }),
 
@@ -524,8 +552,8 @@ export const eduApi = {
     totalQuestions: number;
     timestamp: string;
   }) =>
-    req<void>('/test/submit', {
-      method: 'POST',
+    req<void>("/test/submit", {
+      method: "POST",
       body: JSON.stringify(params),
     }),
 
@@ -537,19 +565,19 @@ export const eduApi = {
     topicId?: string;
     questions: Question[];
   }) =>
-    req<void>('/questions/save', {
-      method: 'POST',
+    req<void>("/questions/save", {
+      method: "POST",
       body: JSON.stringify(params),
     }),
 
   getSavedQuestions: (filters?: { topicId?: string; chapterId?: string }) => {
     const qs = filters
-      ? '?' +
+      ? "?" +
         Object.entries(filters)
           .filter(([, v]) => !!v)
           .map(([k, v]) => `${k}=${encodeURIComponent(v!)}`)
-          .join('&')
-      : '';
+          .join("&")
+      : "";
     return req<Question[]>(`/questions${qs}`);
   },
 
@@ -561,7 +589,7 @@ export const eduApi = {
   }): Promise<Question[]> => {
     const params: Record<string, string> = { chapter: filters.chapterId };
     if (filters.topicId) params.topic = filters.topicId;
-    return yunoraList<any>('/questions', params).then(items =>
+    return yunoraList<any>("/questions", params).then((items) =>
       items.map(normalizeYunoraQuestion),
     );
   },
