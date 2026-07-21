@@ -1,8 +1,13 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "P8ekwnb2VjSXqzUQfUZgm"
 uri = "file://artifacts/mobile/assets/images/icon.png"
 type = "image"
 title = "eduapp icon book circuit"
+
+[[outputs]]
+id = "2prqlUdLQHi6HEvfSteXi"
+uri = "file://attached_assets/diagram.svg"
+type = "image"
+title = "Ellipse Problem Diagram"
