@@ -48,6 +48,10 @@ AI-powered quiz and test prep app for Indian school students (CBSE/ICSE/GSEB).
 - Result screen: gradient header with score, expandable per-question review with explanations
 - AI Chat: topic-specific chat sessions per chapter, persistent history in AsyncStorage
 
+## Replit environment quirks
+
+- `lib/tar-local/` is a verbatim copy of the `tar@7.5.15` npm package (dist included, build scripts stripped). It exists because Replit's package firewall blocks the `tar` tarball from the npm registry. The `pnpm-workspace.yaml` has an `overrides.tar: "file:./lib/tar-local"` entry that redirects every package that depends on `tar` to this local copy. Do not delete `lib/tar-local` or remove the override, or `pnpm install` will fail.
+
 ## Gotchas
 
 - The home screen is `artifacts/mobile/app/subjects.tsx` (not `app/(tabs)/index.tsx`, which just redirects)

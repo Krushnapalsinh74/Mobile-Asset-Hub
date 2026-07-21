@@ -39,6 +39,7 @@ packages:
   - lib/*
   - lib/integrations/*
   - scripts
+  - lib/tar-local
 
 catalog:
   '@replit/vite-plugin-cartographer': ^0.5.1
@@ -75,6 +76,8 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
+  # tar is blocked by the Replit package firewall; use a local copy instead
+  tar: "file:./lib/tar-local"
   # replit uses linux-x64 only, we can exclude all other platforms
   "esbuild>@esbuild/darwin-arm64": "-"
   "esbuild>@esbuild/darwin-x64": "-"
