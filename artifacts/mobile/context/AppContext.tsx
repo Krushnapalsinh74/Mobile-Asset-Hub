@@ -143,7 +143,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setBoard = async (id: string, name: string) => {
-    await AsyncStorage.multiSet([[KEYS.boardId, id], [KEYS.boardName, name]]);
+    await AsyncStorage.multiSet([[KEYS.boardId, String(id)], [KEYS.boardName, String(name)]]);
     setState(s => {
       const email = s.studentEmail ?? '';
       localApi.saveProfile({ email, boardId: id, boardName: name }).catch(() => {});
@@ -153,7 +153,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setStandard = async (id: string, name: string) => {
-    await AsyncStorage.multiSet([[KEYS.standardId, id], [KEYS.standardName, name]]);
+    await AsyncStorage.multiSet([[KEYS.standardId, String(id)], [KEYS.standardName, String(name)]]);
     setState(s => {
       const email = s.studentEmail ?? '';
       localApi.saveProfile({ email, standardId: id, standardName: name }).catch(() => {});
