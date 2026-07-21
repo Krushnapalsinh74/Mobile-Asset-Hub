@@ -2,6 +2,7 @@ import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { eduApi, getId } from '@/services/api';
 import type { Topic } from '@/services/api';
+import { LANGUAGES } from '@/services/translate';
 import { saveQuestions } from '@/store/questionStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueries } from '@tanstack/react-query';
@@ -187,6 +188,7 @@ export default function TestConfigScreen() {
   });
 
   const [topicStates, setTopicStates] = useState<Record<string, TopicState>>({});
+  const [selectedLang, setSelectedLang] = useState('en');
   const [loading, setLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState('');
   const [error, setError] = useState('');
@@ -272,6 +274,55 @@ export default function TestConfigScreen() {
 
   function filterMcq(qs: any[]): any[] {
     return qs.filter(q => Array.isArray(q?.options) && q.options.length >= 2);
+  }
+
+  // ── AI Translation ────────────────────────────────────────────────────────
+  async function translateQuestionsWithAI(
+    questions: any[],
+    targetLang: string,
+    targetLangName: string,
+  ): Promise<any[]> {
+    const BATCH = 5;
+    const result = questions.map(q => ({ ...q }));
+
+    for (let i = 0; i < questions.length; i += BATCH) {
+      const batch = questions.slice(i, i + BATCH);
+      const payload = batch.map((q, bi) => ({
+        i: i + bi,
+        q: String(q.question ?? ''),
+        o: Array.isArray(q.options) ? q.options : [],
+      }));
+
+      const prompt = [
+        `Translate these quiz questions to ${targetLangName}. Return ONLY a valid JSON array, no extra text.`,
+        `Each element must be: {"i":<original_index>,"q":"<translated question>","o":["<opt1>","<opt2>","<opt3>","<opt4>"]}`,
+        `Rules: preserve math expressions, numbers, chemical formulae, and proper nouns unchanged. Do NOT add or remove options.`,
+        `Input: ${JSON.stringify(payload)}`,
+      ].join('\n');
+
+      try {
+        const res = await (eduApi as any).chat({ message: prompt });
+        const text = String((res as any)?.response ?? '').trim();
+        const match = text.match(/\[[\s\S]*\]/);
+        if (!match) continue;
+        const items: { i: number; q: string; o: string[] }[] = JSON.parse(match[0]);
+        for (const item of items) {
+          if (typeof item.i === 'number' && result[item.i]) {
+            result[item.i] = {
+              ...result[item.i],
+              question: item.q || result[item.i].question,
+              options: Array.isArray(item.o) && item.o.length >= 2
+                ? item.o
+                : result[item.i].options,
+            };
+          }
+        }
+      } catch {
+        // Keep originals for this batch on failure
+      }
+    }
+
+    return result;
   }
 
   const handleGenerate = async () => {
@@ -499,6 +550,17 @@ export default function TestConfigScreen() {
         firstCfg.subjectName,
         firstCfg.chapterName,
       );
+
+      // ── Translate questions if a non-English language is selected ──────
+      const selectedLangObj = LANGUAGES.find(l => l.code === selectedLang);
+      if (selectedLang !== 'en' && selectedLangObj) {
+        setLoadingMsg(`🌐 Translating to ${selectedLangObj.native}…`);
+        allQuestions = await translateQuestionsWithAI(
+          allQuestions,
+          selectedLang,
+          selectedLangObj.name,
+        );
+      }
 
       const sessionId = saveQuestions(allQuestions);
 
@@ -897,6 +959,65 @@ export default function TestConfigScreen() {
           );
         })}
 
+        {/* ── Language Selector ── */}
+        <View style={[styles.langCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.langHeader}>
+            <Ionicons name="language-outline" size={16} color={colors.primary} />
+            <Text style={[styles.langTitle, { color: colors.text }]}>Question Language</Text>
+            {selectedLang !== 'en' && (
+              <View style={[styles.langAiBadge, { backgroundColor: colors.primary + '15' }]}>
+                <Ionicons name="sparkles-outline" size={11} color={colors.primary} />
+                <Text style={[styles.langAiBadgeText, { color: colors.primary }]}>AI Translated</Text>
+              </View>
+            )}
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.langRow}
+          >
+            {LANGUAGES.map(lang => {
+              const active = selectedLang === lang.code;
+              return (
+                <Pressable
+                  key={lang.code}
+                  style={[
+                    styles.langChip,
+                    {
+                      backgroundColor: active ? colors.primary : colors.secondary,
+                      borderColor: active ? colors.primary : colors.border,
+                      borderWidth: active ? 1.5 : 1,
+                    },
+                  ]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSelectedLang(lang.code);
+                  }}
+                >
+                  <Text style={[styles.langChipNative, { color: active ? '#FFF' : colors.text }]}>
+                    {lang.native}
+                  </Text>
+                  {lang.code !== 'en' && (
+                    <Text style={[styles.langChipSub, { color: active ? 'rgba(255,255,255,0.75)' : colors.mutedForeground }]}>
+                      {lang.name}
+                    </Text>
+                  )}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          {selectedLang !== 'en' && (
+            <View style={[styles.langHintRow, { borderTopColor: colors.border }]}>
+              <Ionicons name="information-circle-outline" size={13} color={colors.mutedForeground} />
+              <Text style={[styles.langHintText, { color: colors.mutedForeground }]}>
+                Questions will be AI-translated after generation. English terms and formulas stay unchanged.
+              </Text>
+            </View>
+          )}
+        </View>
+
         {!!error && (
           <View style={[styles.errorBanner, { backgroundColor: colors.destructive + '18' }]}>
             <Ionicons name="alert-circle-outline" size={16} color={colors.destructive} />
@@ -1104,6 +1225,37 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   topicName: { flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 18 },
+  langCard: {
+    borderRadius: 20, borderWidth: 1, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, shadowRadius: 8, elevation: 1,
+  },
+  langHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 14, paddingVertical: 12,
+  },
+  langTitle: { fontSize: 13, fontFamily: 'Inter_600SemiBold', fontWeight: '600', flex: 1 },
+  langAiBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20,
+  },
+  langAiBadgeText: { fontSize: 10, fontFamily: 'Inter_600SemiBold', fontWeight: '700' },
+  langRow: {
+    flexDirection: 'row', gap: 8,
+    paddingHorizontal: 14, paddingBottom: 12,
+  },
+  langChip: {
+    alignItems: 'center', borderRadius: 12, borderWidth: 1,
+    paddingHorizontal: 12, paddingVertical: 8, gap: 2,
+  },
+  langChipNative: { fontSize: 14, fontFamily: 'Inter_600SemiBold', fontWeight: '700' },
+  langChipSub: { fontSize: 9, fontFamily: 'Inter_400Regular' },
+  langHintRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 6,
+    paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1,
+  },
+  langHintText: { flex: 1, fontSize: 11, fontFamily: 'Inter_400Regular', lineHeight: 16 },
+
   errorBanner: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
     padding: 14, borderRadius: 14,
