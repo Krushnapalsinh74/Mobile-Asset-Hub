@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 const YUNORA_BASE = 'https://kpark-edu.web.app/api';
 const FIREBASE_API_KEY = 'AIzaSyDpUmL0FJseGKE07gEUa5sk0ekxXkAVnhk';
-const YUNORA_EMAIL = process.env.EXPO_PUBLIC_YUNORA_EMAIL ?? 'admin@yunora.ai';
+const YUNORA_EMAIL = process.env.EXPO_PUBLIC_YUNORA_EMAIL ?? 'admin@yunora.edu';
 const YUNORA_PASSWORD = process.env.EXPO_PUBLIC_YUNORA_PASSWORD ?? 'admin123';
 
 interface FirebaseTokenState {
@@ -377,15 +377,22 @@ function getLocalBase(): string {
 
 async function localReq<T>(path: string, init?: RequestInit): Promise<T> {
   const url = getLocalBase() + path;
-  const r = await fetch(url, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
-  });
-  if (!r.ok) {
-    const msg = await r.text().catch(() => '');
-    throw new Error(`Profile API error ${r.status}: ${msg}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3000); // 3 s timeout
+  try {
+    const r = await fetch(url, {
+      ...init,
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', ...init?.headers },
+    });
+    if (!r.ok) {
+      const msg = await r.text().catch(() => '');
+      throw new Error(`Profile API error ${r.status}: ${msg}`);
+    }
+    return r.json() as Promise<T>;
+  } finally {
+    clearTimeout(timer);
   }
-  return r.json() as Promise<T>;
 }
 
 export interface UserProfile {
