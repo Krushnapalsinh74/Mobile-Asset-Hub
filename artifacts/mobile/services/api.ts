@@ -529,6 +529,29 @@ export const eduApi = {
       return r.json() as Promise<{ response: string }>;
     }),
 
+  translateQuestion: (params: {
+    questionId: string;
+    targetLanguage: string;
+  }) =>
+    fetch("https://kpark-edu.web.app/api/translate-question", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    }).then(async (r) => {
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.details || err.error || 'Translation failed');
+      }
+      return r.json() as Promise<{
+        translated: {
+          questionTranslated: string;
+          explanationTranslated: string;
+          optionsTranslated: string[];
+          correctAnswerTranslated: string;
+        };
+      }>;
+    }),
+
   generateQuestions: (params: {
     board: string;
     standard: string;
