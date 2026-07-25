@@ -50,7 +50,7 @@ async function generateDiagramsForQuestions(
   ].join('\n');
 
   try {
-    const res = await eduApi.chat({
+    const res = await (eduApi as any).chat({
       message: prompt,
       history: [],
       board,
@@ -276,55 +276,6 @@ export default function TestConfigScreen() {
     return qs.filter(q => Array.isArray(q?.options) && q.options.length >= 2);
   }
 
-  // ── AI Translation ────────────────────────────────────────────────────────
-  async function translateQuestionsWithAI(
-    questions: any[],
-    targetLang: string,
-    targetLangName: string,
-  ): Promise<any[]> {
-    const BATCH = 5;
-    const result = questions.map(q => ({ ...q }));
-
-    for (let i = 0; i < questions.length; i += BATCH) {
-      const batch = questions.slice(i, i + BATCH);
-      const payload = batch.map((q, bi) => ({
-        i: i + bi,
-        q: String(q.question ?? ''),
-        o: Array.isArray(q.options) ? q.options : [],
-      }));
-
-      const prompt = [
-        `Translate these quiz questions to ${targetLangName}. Return ONLY a valid JSON array, no extra text.`,
-        `Each element must be: {"i":<original_index>,"q":"<translated question>","o":["<opt1>","<opt2>","<opt3>","<opt4>"]}`,
-        `Rules: preserve math expressions, numbers, chemical formulae, and proper nouns unchanged. Do NOT add or remove options.`,
-        `Input: ${JSON.stringify(payload)}`,
-      ].join('\n');
-
-      try {
-        const res = await (eduApi as any).chat({ message: prompt });
-        const text = String((res as any)?.response ?? '').trim();
-        const match = text.match(/\[[\s\S]*\]/);
-        if (!match) continue;
-        const items: { i: number; q: string; o: string[] }[] = JSON.parse(match[0]);
-        for (const item of items) {
-          if (typeof item.i === 'number' && result[item.i]) {
-            result[item.i] = {
-              ...result[item.i],
-              question: item.q || result[item.i].question,
-              options: Array.isArray(item.o) && item.o.length >= 2
-                ? item.o
-                : result[item.i].options,
-            };
-          }
-        }
-      } catch {
-        // Keep originals for this batch on failure
-      }
-    }
-
-    return result;
-  }
-
   const handleGenerate = async () => {
     if (chapterIds.length === 0) {
       setError('No chapters selected.');
@@ -381,6 +332,7 @@ export default function TestConfigScreen() {
           const bankQuestions = await eduApi.getBankQuestions({
             chapterId: cfg.chapterId,
             topicId: singleTopicId,
+            lang: selectedLang,
           });
 
           // Filter by topic names if multiple topics selected
@@ -550,17 +502,6 @@ export default function TestConfigScreen() {
         firstCfg.subjectName,
         firstCfg.chapterName,
       );
-
-      // ── Translate questions if a non-English language is selected ──────
-      const selectedLangObj = LANGUAGES.find(l => l.code === selectedLang);
-      if (selectedLang !== 'en' && selectedLangObj) {
-        setLoadingMsg(`🌐 Translating to ${selectedLangObj.native}…`);
-        allQuestions = await translateQuestionsWithAI(
-          allQuestions,
-          selectedLang,
-          selectedLangObj.name,
-        );
-      }
 
       const sessionId = saveQuestions(allQuestions);
 
@@ -967,7 +908,7 @@ export default function TestConfigScreen() {
             {selectedLang !== 'en' && (
               <View style={[styles.langAiBadge, { backgroundColor: colors.primary + '15' }]}>
                 <Ionicons name="sparkles-outline" size={11} color={colors.primary} />
-                <Text style={[styles.langAiBadgeText, { color: colors.primary }]}>AI Translated</Text>
+                <Text style={[styles.langAiBadgeText, { color: colors.primary }]}>Translated</Text>
               </View>
             )}
           </View>
@@ -1012,7 +953,7 @@ export default function TestConfigScreen() {
             <View style={[styles.langHintRow, { borderTopColor: colors.border }]}>
               <Ionicons name="information-circle-outline" size={13} color={colors.mutedForeground} />
               <Text style={[styles.langHintText, { color: colors.mutedForeground }]}>
-                Questions will be AI-translated after generation. English terms and formulas stay unchanged.
+                Questions will be translated after generation.
               </Text>
             </View>
           )}

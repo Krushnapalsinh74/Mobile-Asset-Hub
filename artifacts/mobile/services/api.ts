@@ -586,9 +586,11 @@ export const eduApi = {
   getBankQuestions: (filters: {
     chapterId: string;
     topicId?: string;
+    lang?: string;
   }): Promise<Question[]> => {
     const params: Record<string, string> = { chapter: filters.chapterId };
     if (filters.topicId) params.topic = filters.topicId;
+    if (filters.lang && filters.lang !== "en") params.lang = filters.lang;
     return yunoraList<any>("/questions", params).then((items) => {
       // Deduplicate by question text before normalizing — the API can return
       // the same record multiple times (e.g. when the same question belongs
