@@ -276,43 +276,6 @@ export default function TestConfigScreen() {
     return qs.filter(q => Array.isArray(q?.options) && q.options.length >= 2);
   }
 
-  // ── Translation ───────────────────────────────────────────────────────────
-  async function translateQuestionsWithAI(
-    questions: any[],
-    targetLang: string,
-    targetLangName: string,
-  ): Promise<any[]> {
-    const result = questions.map(q => ({ ...q }));
-
-    for (let i = 0; i < result.length; i++) {
-      const q = result[i];
-      if (!q.id) continue;
-
-      try {
-        const res = await eduApi.translateQuestion({
-          questionId: q.id,
-          targetLanguage: targetLang,
-        });
-
-        if (res?.translated) {
-          result[i] = {
-            ...q,
-            question: res.translated.questionTranslated || q.question,
-            explanation: res.translated.explanationTranslated || q.explanation,
-            options: Array.isArray(res.translated.optionsTranslated) && res.translated.optionsTranslated.length >= 2
-              ? res.translated.optionsTranslated
-              : q.options,
-            answer: res.translated.correctAnswerTranslated || q.answer,
-          };
-        }
-      } catch (err) {
-        console.error('Translation failed for question', q.id, err);
-      }
-    }
-
-    return result;
-  }
-
   const handleGenerate = async () => {
     if (chapterIds.length === 0) {
       setError('No chapters selected.');
@@ -369,6 +332,7 @@ export default function TestConfigScreen() {
           const bankQuestions = await eduApi.getBankQuestions({
             chapterId: cfg.chapterId,
             topicId: singleTopicId,
+            lang: selectedLang,
           });
 
           // Filter by topic names if multiple topics selected
@@ -538,17 +502,6 @@ export default function TestConfigScreen() {
         firstCfg.subjectName,
         firstCfg.chapterName,
       );
-
-      // ── Translate questions if a non-English language is selected ──────
-      const selectedLangObj = LANGUAGES.find(l => l.code === selectedLang);
-      if (selectedLang !== 'en' && selectedLangObj) {
-        setLoadingMsg(`🌐 Translating to ${selectedLangObj.native}…`);
-        allQuestions = await translateQuestionsWithAI(
-          allQuestions,
-          selectedLang,
-          selectedLangObj.name,
-        );
-      }
 
       const sessionId = saveQuestions(allQuestions);
 
