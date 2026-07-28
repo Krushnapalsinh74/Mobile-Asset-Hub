@@ -606,3 +606,51 @@ export const eduApi = {
     });
   },
 };
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Subscription API (Plans, Register, Verify)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SubscriptionPlan {
+  id: string | number;
+  name: string;
+  price: number;
+  questionLimit: number;
+}
+
+export interface RegisterPayload {
+  name?: string;
+  email?: string;
+  password?: string;
+  planId?: string | number;
+}
+
+export interface RegisterResponse {
+  token: string;
+  user: any;
+  order: {
+    id: string;
+    amount: number;
+    currency: string;
+  };
+}
+
+export interface VerifyPaymentPayload {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
+
+export const subscriptionApi = {
+  getPlans: () => localReq<SubscriptionPlan[]>("/api/plans"),
+  register: (payload: RegisterPayload) => localReq<RegisterResponse>("/api/students/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }),
+  verifyPayment: (token: string, payload: VerifyPaymentPayload) => localReq<{ success: boolean }>("/api/payments/verify", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload)
+  })
+};

@@ -314,8 +314,7 @@ export default function OnboardingScreen() {
                     colors={gradPair}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
-                    style={StyleSheet.absoluteFill}
-                    borderRadius={20}
+                    style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
                   />
                 )}
 

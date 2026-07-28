@@ -283,6 +283,19 @@ export default function LoginScreen() {
                 <Text style={[styles.trustNote, { color: colors.mutedForeground }]}>
                   Aligned with NCERT curriculum for all boards
                 </Text>
+
+                <View style={styles.divider}>
+                  <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+                  <Text style={[styles.dividerText, { color: colors.mutedForeground, backgroundColor: colors.card }]}>OR</Text>
+                </View>
+
+                <Pressable
+                  style={[styles.outlineButton, { borderColor: colors.border }]}
+                  onPress={() => router.push('/pricing')}
+                >
+                  <Ionicons name="sparkles-outline" size={18} color="#4F46E5" />
+                  <Text style={[styles.outlineButtonText, { color: colors.text }]}>New? View Premium Plans</Text>
+                </Pressable>
               </>
             ) : (
               <>
@@ -543,6 +556,12 @@ const styles = StyleSheet.create({
   cardHeaderText: { flex: 1 },
   cardHeading: { fontSize: 19, fontWeight: '700', marginBottom: 3 },
   cardSub: { fontSize: 13, lineHeight: 19 },
+
+  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 20 },
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: { paddingHorizontal: 10, fontSize: 12, fontWeight: '600' },
+  outlineButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 16, borderWidth: 1 },
+  outlineButtonText: { fontSize: 15, fontWeight: '600' },
 
   /* Back row */
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20, alignSelf: 'flex-start' },
