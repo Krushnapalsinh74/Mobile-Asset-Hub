@@ -148,7 +148,7 @@ export default function ExplanationScreen() {
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
 
-  const query = useQuery({
+  const query = useQuery<any>({
     queryKey: ['topic-details', boardId, standardId, subjectId, chapterId, topicId],
     queryFn: () =>
       eduApi.getTopicDetails({

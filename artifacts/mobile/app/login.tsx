@@ -38,7 +38,7 @@ const STATS = [
 
 const COUNTRY_CODES = [
   { code: '+91', flag: '🇮🇳', label: 'India' },
-  { code: '+1',  flag: '🇺🇸', label: 'USA' },
+  { code: '+1', flag: '🇺🇸', label: 'USA' },
   { code: '+44', flag: '🇬🇧', label: 'UK' },
   { code: '+971', flag: '🇦🇪', label: 'UAE' },
   { code: '+61', flag: '🇦🇺', label: 'Australia' },
@@ -247,7 +247,7 @@ export default function LoginScreen() {
             await setStudent(googleName || existing?.name || '', googleEmail);
             if (existing?.boardId && existing?.boardName && !boardId) await setBoard(existing.boardId, existing.boardName);
             if (existing?.standardId && existing?.standardName && !standardId) await setStandard(existing.standardId, existing.standardName);
-            localApi.saveProfile({ email: googleEmail, name: googleName }).catch(() => {});
+            localApi.saveProfile({ email: googleEmail, name: googleName }).catch(() => { });
             const hasBoardStd = (existing?.boardId && existing?.standardId) || (boardId && standardId);
             if (googleName || existing?.name) {
               router.replace(hasBoardStd ? '/subjects' : '/onboarding');
@@ -282,7 +282,7 @@ export default function LoginScreen() {
     try {
       const identifier = authMethod === 'phone' ? fullPhone : email;
       await setStudent(trimmed, identifier);
-      localApi.saveProfile({ email: identifier, name: trimmed }).catch(() => {});
+      localApi.saveProfile({ email: identifier, name: trimmed }).catch(() => { });
       router.replace(boardId && standardId ? '/subjects' : '/onboarding');
     } catch (e: any) { setError(e?.message ?? 'Something went wrong. Please try again.'); }
     finally { setLoading(false); }
@@ -459,6 +459,19 @@ export default function LoginScreen() {
                 <Text style={[styles.trustNote, { color: colors.mutedForeground }]}>
                   Aligned with NCERT curriculum for all boards
                 </Text>
+
+                <View style={styles.divider}>
+                  <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+                  <Text style={[styles.dividerText, { color: colors.mutedForeground, backgroundColor: colors.card }]}>OR</Text>
+                </View>
+
+                <Pressable
+                  style={[styles.outlineButton, { borderColor: colors.border }]}
+                  onPress={() => router.push('/pricing')}
+                >
+                  <Ionicons name="sparkles-outline" size={18} color="#4F46E5" />
+                  <Text style={[styles.outlineButtonText, { color: colors.text }]}>New? View Premium Plans</Text>
+                </Pressable>
               </>
             )}
 
@@ -852,6 +865,12 @@ const styles = StyleSheet.create({
   cardHeaderText: { flex: 1 },
   cardHeading: { fontSize: 19, fontWeight: '700', marginBottom: 3 },
   cardSub: { fontSize: 13, lineHeight: 19 },
+
+  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 20 },
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: { paddingHorizontal: 10, fontSize: 12, fontWeight: '600' },
+  outlineButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 16, borderWidth: 1 },
+  outlineButtonText: { fontSize: 15, fontWeight: '600' },
 
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20, alignSelf: 'flex-start' },
   backCircle: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
