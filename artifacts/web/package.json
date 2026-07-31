@@ -10,16 +10,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@workspace/api-client-react": "workspace:*",
+    "firebase": "^12.16.0",
+    "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "wouter": "catalog:",
-    "lucide-react": "catalog:",
-    "@workspace/api-client-react": "workspace:*"
+    "wouter": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@types/react-katex": "^3.0.4",
     "@vitejs/plugin-react": "catalog:",
     "oxlint": "^1.71.0",
     "typescript": "~5.9.3",

@@ -1,0 +1,682 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Yunora / kpark-edu.web.app — curriculum backend
+// ─────────────────────────────────────────────────────────────────────────────
+const YUNORA_BASE = "https://kpark-edu.web.app/api";
+const YUNORA_EMAIL = import.meta.env.VITE_YUNORA_EMAIL ?? "admin@yunora.ai";
+const YUNORA_PASSWORD = import.meta.env.VITE_YUNORA_PASSWORD ?? "admin123";
+
+interface YunoraTokenState {
+  token: string;
+  expiresAt: number;
+}
+
+let _yunoraToken: YunoraTokenState | null = null;
+let _tokenPromise: Promise<string> | null = null;
+
+/** Decode JWT expiry without a library — returns ms timestamp */
+function _jwtExpiresAt(jwt: string): number {
+  try {
+    const payload = JSON.parse(atob(jwt.split(".")[1]));
+    return Number(payload.exp) * 1000;
+  } catch {
+    return Date.now() + 6 * 24 * 60 * 60 * 1000; // fallback: 6 days
+  }
+}
+
+async function _signInFresh(): Promise<YunoraTokenState> {
+  const r = await fetch(`${YUNORA_BASE}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: YUNORA_EMAIL, password: YUNORA_PASSWORD }),
+  });
+  if (!r.ok) {
+    const msg = await r.text().catch(() => "");
+    throw new Error(`Yunora auth failed (${r.status}): ${msg}`);
+  }
+  const d = await r.json();
+  const token: string = d.token;
+  return { token, expiresAt: _jwtExpiresAt(token) };
+}
+
+async function getYunoraToken(): Promise<string> {
+  // Deduplicate concurrent calls
+  if (_tokenPromise) return _tokenPromise;
+
+  _tokenPromise = (async () => {
+    try {
+      // Return cached token if still valid (with 60s buffer)
+      if (_yunoraToken && _yunoraToken.expiresAt > Date.now() + 60_000) {
+        return _yunoraToken.token;
+      }
+      _yunoraToken = await _signInFresh();
+      return _yunoraToken.token;
+    } finally {
+      _tokenPromise = null;
+    }
+  })();
+
+  return _tokenPromise;
+}
+
+interface YunoraListResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+async function yunoraReq<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = await getYunoraToken();
+
+  const doFetch = (idToken: string) =>
+    fetch(YUNORA_BASE + path, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+        ...init?.headers,
+      },
+    });
+
+  let res = await doFetch(token);
+
+  // If 401, invalidate cached token and retry once
+  if (res.status === 401) {
+    _yunoraToken = null;
+    const newToken = await getYunoraToken();
+    res = await doFetch(newToken);
+  }
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(`Yunora API ${res.status}: ${msg}`);
+  }
+
+  return res.json() as Promise<T>;
+}
+
+// Fetch all pages for a list endpoint (handles pagination automatically)
+async function yunoraList<T>(
+  path: string,
+  params: Record<string, string> = {},
+): Promise<T[]> {
+  const qs = new URLSearchParams({ limit: "200", ...params }).toString();
+  const result = await yunoraReq<YunoraListResponse<T>>(`${path}?${qs}`);
+  // result can also be a plain array (question-types endpoint)
+  if (Array.isArray(result)) return result as unknown as T[];
+  return result.data ?? [];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// kparkit.com — fallback for question generation, chat, topic details
+// ─────────────────────────────────────────────────────────────────────────────
+const OTP_BASE = "https://otp.kparkit.com";
+
+const BASE_URLS = [
+  "https://kparkit.com/edu/api",
+  "https://dalalifree.com/edu/api",
+];
+
+let activeBaseIndex = 0;
+
+async function tryFetch(url: string, init?: RequestInit): Promise<Response> {
+  return fetch(url, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...init?.headers },
+  });
+}
+
+async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const startIndex = activeBaseIndex;
+
+  for (let attempt = 0; attempt < BASE_URLS.length; attempt++) {
+    const index = (startIndex + attempt) % BASE_URLS.length;
+    const url = BASE_URLS[index] + path;
+    try {
+      const r = await tryFetch(url, init);
+      if (r.ok) {
+        activeBaseIndex = index;
+        return r.json() as Promise<T>;
+      }
+      if (r.status >= 400 && r.status < 500) {
+        const msg = await r.text().catch(() => "");
+        throw new Error(`API error ${r.status}: ${msg}`);
+      }
+    } catch (err: any) {
+      const isClientError = err?.message?.includes("API error 4");
+      if (isClientError || attempt === BASE_URLS.length - 1) {
+        throw err;
+      }
+    }
+  }
+  throw new Error("All API servers unreachable");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface Board {
+  _id?: string;
+  id?: string;
+  name: string;
+  code?: string;
+}
+export interface Standard {
+  _id?: string;
+  id?: string;
+  name: string;
+  level?: number;
+}
+export interface Subject {
+  _id?: string;
+  id?: string;
+  name: string;
+  code?: string;
+}
+export interface Chapter {
+  _id?: string;
+  id?: string;
+  name: string;
+  order?: number;
+}
+export interface Topic {
+  _id?: string;
+  id?: string;
+  name: string;
+  description?: string;
+}
+
+export function getId(item: { _id?: string; id?: string }): string {
+  return item._id ?? item.id ?? "";
+}
+
+
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+export interface Question {
+  id?: string;
+  question: string;
+  options?: string[];
+  answer?: string;
+  solution?: string;
+  explanation?: string;
+  tip?: string;
+  type?: string;
+  textDiagram?: string;
+  diagram?: any;
+  diagramId?: string;
+  difficulty?: string;
+  topicId?: string;
+  topicName?: string;
+  // Yunora metadata — present on questions from the bank
+  chapterId?: string;
+  subjectId?: string;
+  boardId?: string;
+  standardId?: string;
+}
+
+/** Normalize the diagram/image field from a raw Yunora question into DiagramView's expected shape */
+function normalizeDiagram(
+  raw: any,
+): { type?: string; content?: string; url?: string } | null {
+  // Try every field the API might use for an image/diagram
+  const src =
+    raw.diagram ??
+    raw.imageUrl ??
+    raw.image ??
+    raw.questionImage ??
+    raw.figureUrl ??
+    raw.diagramUrl ??
+    null;
+
+  if (!src) return null;
+
+  // Plain URL string → wrap into standard shape
+  if (typeof src === "string") {
+    const lower = src.toLowerCase();
+    if (lower.startsWith("http") || lower.startsWith("data:image")) {
+      return { type: "image", url: src };
+    }
+    // Could be TikZ source or ASCII — keep as textDiagram (handled separately)
+    return null;
+  }
+
+  // Already an object — normalise its URL key (API sometimes uses imageUrl inside the object)
+  if (typeof src === "object") {
+    const url = src.url ?? src.imageUrl ?? src.src ?? null;
+    return {
+      type: src.type ?? (url ? "image" : undefined),
+      url: url ?? undefined,
+      content: src.content,
+    };
+  }
+
+  return null;
+}
+
+/** Convert a raw Yunora API question to the internal Question interface */
+export function normalizeYunoraQuestion(raw: any): Question {
+  // options come as "A) text\nB) text\n..." — parse to plain array
+  const rawOpts: string = typeof raw.options === "string" ? raw.options : "";
+  const parsedOptions = rawOpts
+    .split("\n")
+    .map((line) => line.replace(/^[A-Ea-e]\)\s*/, "").trim())
+    .filter((line) => line.length > 0);
+
+  const baseOptions: string[] | undefined =
+    parsedOptions.length > 0
+      ? parsedOptions
+      : Array.isArray(raw.options)
+        ? raw.options
+        : undefined;
+
+  // Determine correct option text so we can re-map after shuffling
+  const rawAnswer: string = raw.correctAnswer ?? raw.answer ?? "";
+  const letterMatch = rawAnswer.trim().match(/^([A-Ea-e])/);
+  const correctIdx = letterMatch
+    ? letterMatch[1].toUpperCase().charCodeAt(0) - "A".charCodeAt(0)
+    : 0;
+
+  // Shuffle options so the correct answer is not always position A
+  let finalOptions = baseOptions;
+  let finalAnswer = rawAnswer;
+  if (baseOptions && baseOptions.length > 1) {
+    const correctText = baseOptions[correctIdx] ?? baseOptions[0];
+    // Fisher-Yates shuffle
+    const shuffled = [...baseOptions];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = shuffled[i]!;
+      shuffled[i] = shuffled[j]!;
+      shuffled[j] = tmp;
+    }
+    const newIdx = shuffled.indexOf(correctText);
+    if (newIdx >= 0 && correctText !== undefined) {
+      finalOptions = shuffled;
+      // Update answer to reflect new position (keep just the letter so
+      // extractCorrectLetter in test-quiz.tsx can parse it)
+      finalAnswer = String.fromCharCode("A".charCodeAt(0) + newIdx);
+    }
+  }
+
+  // textDiagram: prefer explicit field; fall back to plain string diagram values
+  const rawDiagram = raw.diagram ?? null;
+  const textDiagram: string | undefined =
+    raw.textDiagram ??
+    (typeof rawDiagram === "string" &&
+    !rawDiagram.startsWith("http") &&
+    !rawDiagram.startsWith("data:")
+      ? rawDiagram
+      : undefined);
+
+  return {
+    id: raw.id,
+    question: raw.question ?? "",
+    options: finalOptions,
+    answer: finalAnswer,
+    solution: raw.explanation ?? raw.solution ?? "",
+    explanation: raw.explanation,
+    type: raw.questionType ?? raw.type,
+    textDiagram,
+    diagram: normalizeDiagram(raw),
+    diagramId: raw.diagramId ?? null,
+    difficulty: raw.difficulty ?? undefined,
+    topicId: raw.topicId ?? undefined,
+    topicName: raw.topicName ?? undefined,
+    chapterId: raw.chapterId,
+    subjectId: raw.subjectId,
+    boardId: raw.boardId,
+    standardId: raw.standardId,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OTP auth (student login — unchanged)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function otpReq<T>(path: string, body: unknown): Promise<T> {
+  const r = await fetch(OTP_BASE + path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    const msg = await r.text().catch(() => "");
+    throw new Error(`OTP error ${r.status}: ${msg}`);
+  }
+  return r.json() as Promise<T>;
+}
+
+export interface OtpSendResult {
+  success: boolean;
+  message?: string;
+}
+
+export interface OtpUserProfile {
+  name?: string;
+  boardId?: string;
+  boardName?: string;
+  standardId?: string;
+  standardName?: string;
+}
+
+export interface OtpVerifyResult {
+  success: boolean;
+  name?: string;
+  email?: string;
+  token?: string;
+  message?: string;
+  profile?: OtpUserProfile;
+  user?: OtpUserProfile;
+}
+
+export const otpApi = {
+  sendOtp: (email: string) => otpReq<OtpSendResult>("/send-otp", { email }),
+  verifyOtp: (email: string, otp: string) =>
+    otpReq<OtpVerifyResult>("/verify-otp", { email, otp }),
+  saveProfile: (email: string, profile: OtpUserProfile) =>
+    otpReq<{ success: boolean }>("/save-profile", { email, ...profile }),
+  getProfile: (email: string) =>
+    otpReq<OtpUserProfile & { success?: boolean }>("/get-profile", { email }),
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SMS OTP — phone number login
+// Uses the same kparkit.com OTP server with the phone number as the identifier.
+// Swap in Firebase Phone Auth or a real SMS gateway in Layer 2.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SmsOtpSendResult {
+  success: boolean;
+  message?: string;
+}
+
+export interface SmsOtpVerifyResult {
+  success: boolean;
+  message?: string;
+  name?: string;
+  phone?: string;
+}
+
+export const smsOtpApi = {
+  /** Send OTP to a phone number (E.164 format, e.g. +919876543210) */
+  sendOtp: (phone: string): Promise<SmsOtpSendResult> =>
+    otpReq<SmsOtpSendResult>("/send-otp", { email: phone }),
+
+  /** Verify the OTP received on the phone */
+  verifyOtp: (phone: string, otp: string): Promise<SmsOtpVerifyResult> =>
+    otpReq<SmsOtpVerifyResult>("/verify-otp", { email: phone, otp }),
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Local Express backend (student profile storage)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function getLocalBase(): string {
+  // Use production backend since local dev requires Google Application Credentials
+  return YUNORA_BASE;
+}
+
+async function localReq<T>(path: string, init?: RequestInit): Promise<T> {
+  const url = getLocalBase() + path;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3000); // 3 s timeout
+  try {
+    const r = await fetch(url, {
+      ...init,
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json", ...init?.headers },
+    });
+    if (!r.ok) {
+      const msg = await r.text().catch(() => "");
+      throw new Error(`Profile API error ${r.status}: ${msg}`);
+    }
+    return r.json() as Promise<T>;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export interface UserProfile {
+  email: string;
+  name?: string | null;
+  boardId?: string | null;
+  boardName?: string | null;
+  standardId?: string | null;
+  standardName?: string | null;
+}
+
+export const localApi = {
+  getProfile: (email: string) =>
+    localReq<UserProfile>(
+      `/api/user/profile?email=${encodeURIComponent(email)}`,
+    ),
+  saveProfile: (profile: UserProfile) =>
+    localReq<{ success: boolean }>("/api/user/profile", {
+      method: "POST",
+      body: JSON.stringify(profile),
+    }),
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// App settings (still from kparkit.com)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface AppSettings {
+  aiApiKey?: string;
+  razorpayKey?: string;
+  razorpayKeyId?: string;
+  paymentGateway?: string;
+  premiumPrice?: number;
+  premiumCurrency?: string;
+  appName?: string;
+  [key: string]: unknown;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main edu API — curriculum data from kpark-edu.web.app,
+//               generation/chat/questions from kparkit.com
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const eduApi = {
+  // Settings still from kparkit.com
+  getSettings: () => req<AppSettings>("/settings"),
+
+  // ── Curriculum hierarchy — Yunora backend ──────────────────────────────
+
+  getBoards: () =>
+    yunoraList<Board>("/boards").then((items) =>
+      items.map((b) => ({ id: b.id, name: b.name, code: (b as any).code })),
+    ),
+
+  getStandards: (boardId: string) =>
+    yunoraList<Standard>("/standards", { boardId }).then((items) =>
+      items.map((s) => ({ id: s.id, name: s.name, level: (s as any).level })),
+    ),
+
+  getSubjects: (boardId: string, stdId: string) =>
+    yunoraList<Subject>("/subjects", { boardId, standardId: stdId }).then(
+      (items) => items.map((s) => ({ id: s.id, name: s.name })),
+    ),
+
+  getChapters: (_boardId: string, _stdId: string, subId: string) =>
+    yunoraList<Chapter>("/chapters", { subjectId: subId }).then((items) =>
+      items.map((c) => ({
+        id: c.id,
+        name: c.name,
+        order: (c as any).orderIndex ?? (c as any).order,
+      })),
+    ),
+
+  getTopics: (
+    _boardId: string,
+    _stdId: string,
+    _subId: string,
+    chapId: string,
+  ) =>
+    yunoraList<Topic>("/topics", { chapterId: chapId }).then((items) =>
+      items.map((t) => ({
+        id: t.id,
+        name: t.name,
+        description: (t as any).description,
+      })),
+    ),
+
+  // ── Question generation & AI — kparkit.com ────────────────────────────
+
+  getTopicDetails: (params: {
+    board: string;
+    standard: string;
+    subject: string;
+    chapter: string;
+    topic: string;
+  }) =>
+    req<Record<string, unknown>>("/curriculum/topic-details", {
+      method: "POST",
+      body: JSON.stringify({ ...params, freshQuestions: true }),
+    }),
+
+  chat: (params: {
+    message: string;
+    context?: string;
+    boardId?: string;
+    standardId?: string;
+    subjectId?: string;
+    chapterId?: string;
+    topicId?: string;
+  }) =>
+    yunoraReq<{ reply: string }>("/chat", {
+      method: "POST",
+      body: JSON.stringify(params),
+    }).then((res) => ({ response: res.reply })),
+
+  generateQuestions: (params: {
+    board: string;
+    standard: string;
+    subject: string;
+    chapter: string;
+    topic?: string;
+    options: { mode: "mcq"; count: number; seed?: number; difficulty?: string };
+    freshQuestions?: boolean;
+  }) =>
+    req<Record<string, unknown>>("/generate-questions", {
+      method: "POST",
+      body: JSON.stringify({ ...params, freshQuestions: true }),
+    }),
+
+  submitTest: (params: {
+    studentName: string;
+    board: string;
+    standard: string;
+    subject: string;
+    score: number;
+    totalQuestions: number;
+    timestamp: string;
+  }) =>
+    req<void>("/test/submit", {
+      method: "POST",
+      body: JSON.stringify(params),
+    }),
+
+  saveQuestions: (params: {
+    boardId: string;
+    standardId: string;
+    subjectId: string;
+    chapterId: string;
+    topicId?: string;
+    questions: Question[];
+  }) =>
+    req<void>("/questions/save", {
+      method: "POST",
+      body: JSON.stringify(params),
+    }),
+
+  getSavedQuestions: (filters?: { topicId?: string; chapterId?: string }) => {
+    const qs = filters
+      ? "?" +
+        Object.entries(filters)
+          .filter(([, v]) => !!v)
+          .map(([k, v]) => `${k}=${encodeURIComponent(v!)}`)
+          .join("&")
+      : "";
+    return req<Question[]>(`/questions${qs}`);
+  },
+
+  // ── Fetch pre-saved questions from Yunora question bank ────────────────
+  // Uses chapter= / topic= params (not chapterId=/topicId=)
+  getBankQuestions: (filters: {
+    chapterId: string;
+    topicId?: string;
+    lang?: string;
+  }): Promise<Question[]> => {
+    const params: Record<string, string> = { chapter: filters.chapterId };
+    if (filters.topicId) params.topic = filters.topicId;
+    if (filters.lang && filters.lang !== "en") params.lang = filters.lang;
+    return yunoraList<any>("/questions", params).then((items) => {
+      // Deduplicate by question text before normalizing — the API can return
+      // the same record multiple times (e.g. when the same question belongs
+      // to multiple topics and the filter is loose)
+      const seen = new Set<string>();
+      const unique = items.filter((raw: any) => {
+        const key = String(raw?.question ?? "").trim().slice(0, 120);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      return unique.map(normalizeYunoraQuestion);
+    });
+  },
+};
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Subscription API (Plans, Register, Verify)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SubscriptionPlan {
+  id: string | number;
+  name: string;
+  price: number;
+  questionLimit: number;
+}
+
+export interface RegisterPayload {
+  name?: string;
+  email?: string;
+  password?: string;
+  planId?: string | number;
+}
+
+export interface RegisterResponse {
+  token: string;
+  user: any;
+  order: {
+    id: string;
+    amount: number;
+    currency: string;
+  };
+}
+
+export interface VerifyPaymentPayload {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
+
+export const subscriptionApi = {
+  getPlans: () => localReq<SubscriptionPlan[]>("/api/plans"),
+  register: (payload: RegisterPayload) => localReq<RegisterResponse>("/api/students/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }),
+  verifyPayment: (token: string, payload: VerifyPaymentPayload) => localReq<{ success: boolean }>("/api/payments/verify", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload)
+  })
+};
+
