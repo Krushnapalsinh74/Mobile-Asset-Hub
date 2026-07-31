@@ -575,7 +575,7 @@ export default function SubjectsScreen() {
             </View>
           )}
 
-          {subjects.length > 0 && search.trim() && filteredSubjects.length === 0 && (
+          {subjects.length > 0 && search.trim().length > 0 && filteredSubjects.length === 0 && (
             <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Ionicons name="search-outline" size={24} color={colors.mutedForeground} />
               <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No subjects match "{search}"</Text>
@@ -799,8 +799,8 @@ const styles = StyleSheet.create({
   },
   progressCardFull: {
     borderRadius: 26, padding: 20, overflow: 'hidden',
-    shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28, shadowRadius: 16, elevation: 10,
+    elevation: 10,
+    ...Platform.select({ web: { boxShadow: '0 8px 16px rgba(79,70,229,0.28)' }, default: { shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.28, shadowRadius: 16 } }),
   },
   progressDecorCircle: {
     position: 'absolute', width: 160, height: 160, borderRadius: 80,
@@ -853,8 +853,8 @@ const styles = StyleSheet.create({
     width: (SCREEN_WIDTH - 48) / 2,
     borderRadius: 20, borderWidth: 1.5,
     padding: 16, gap: 6,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+    elevation: 3,
+    ...Platform.select({ web: { boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }, default: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 } }),
   },
   statCardIconWrap: {
     width: 38, height: 38, borderRadius: 12,

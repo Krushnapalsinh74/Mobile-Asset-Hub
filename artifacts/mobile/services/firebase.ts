@@ -40,23 +40,56 @@ try {
   _auth = getAuth(app);
 }
 
+// We want real SMS to work, so we removed the test mode override.
+
 export { _auth as firebaseAuth };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Phone OTP helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { Platform } from 'react-native';
+import { RecaptchaVerifier } from 'firebase/auth';
+
 /** Send SMS OTP via Firebase Phone Auth. Returns a ConfirmationResult. */
 export async function sendFirebasePhoneOtp(
   phoneNumber: string,            // E.164 format e.g. +919876543210
 ): Promise<ConfirmationResult> {
-  // On React Native, Firebase JS SDK uses reCAPTCHA via expo-web-browser
-  // Pass a fake ApplicationVerifier — Firebase handles it internally on RN
+  let verifier: any = undefined;
+
+  if (Platform.OS === 'web') {
+    // On web, Firebase strictly requires an ApplicationVerifier (reCAPTCHA)
+    
+    // 1. Clear any old, stale ReCAPTCHA instance that might be crashing the Google script
+    if ((window as any).recaptchaVerifier) {
+      try {
+        (window as any).recaptchaVerifier.clear();
+      } catch (e) {}
+      (window as any).recaptchaVerifier = undefined;
+    }
+
+    // 2. Safely create or find the container
+    let el = document.getElementById('recaptcha-container');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'recaptcha-container';
+      // Ensure it is appended to the body safely
+      document.body.appendChild(el);
+    }
+
+    // 3. Initialize a fresh verifier attached directly to the DOM element
+    (window as any).recaptchaVerifier = new RecaptchaVerifier(_auth, el, {
+      size: 'invisible',
+    });
+    
+    verifier = (window as any).recaptchaVerifier;
+  }
+
+  // On React Native (iOS/Android), applicationVerifier is not required
   const confirmationResult = await signInWithPhoneNumber(
     _auth,
     phoneNumber,
-    // applicationVerifier is NOT required on React Native (only on web)
-    undefined as any,
+    verifier
   );
   return confirmationResult;
 }
