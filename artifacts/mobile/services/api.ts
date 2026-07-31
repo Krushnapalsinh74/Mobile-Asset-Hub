@@ -383,6 +383,34 @@ export const otpApi = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SMS OTP — phone number login
+// Uses the same kparkit.com OTP server with the phone number as the identifier.
+// Swap in Firebase Phone Auth or a real SMS gateway in Layer 2.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SmsOtpSendResult {
+  success: boolean;
+  message?: string;
+}
+
+export interface SmsOtpVerifyResult {
+  success: boolean;
+  message?: string;
+  name?: string;
+  phone?: string;
+}
+
+export const smsOtpApi = {
+  /** Send OTP to a phone number (E.164 format, e.g. +919876543210) */
+  sendOtp: (phone: string): Promise<SmsOtpSendResult> =>
+    otpReq<SmsOtpSendResult>("/send-otp", { email: phone }),
+
+  /** Verify the OTP received on the phone */
+  verifyOtp: (phone: string, otp: string): Promise<SmsOtpVerifyResult> =>
+    otpReq<SmsOtpVerifyResult>("/verify-otp", { email: phone, otp }),
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Local Express backend (student profile storage)
 // ─────────────────────────────────────────────────────────────────────────────
 
