@@ -1,6 +1,8 @@
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-import { localApi, otpApi, smsOtpApi, type OtpUserProfile } from '@/services/api';
+import { localApi, otpApi, type OtpUserProfile } from '@/services/api';
+import { sendFirebasePhoneOtp, verifyFirebasePhoneOtp } from '@/services/firebase';
+import type { ConfirmationResult } from 'firebase/auth';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -69,6 +71,8 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const otpInputRef = useRef<TextInput>(null);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Holds Firebase ConfirmationResult between send and verify steps
+  const firebaseConfirmRef = useRef<ConfirmationResult | null>(null);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
@@ -155,36 +159,59 @@ export default function LoginScreen() {
     finally { setLoading(false); }
   };
 
-  // ── SMS / Phone OTP ────────────────────────────────────────────────────────
+  // ── SMS / Phone OTP — Firebase Phone Auth ─────────────────────────────────
   const handleSendSmsOtp = async () => {
     if (!isValidPhone(phone)) { setError('Please enter a valid phone number.'); return; }
     setError(''); setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const res = await smsOtpApi.sendOtp(fullPhone);
-      if (res.success === false) { setError(res.message ?? 'Could not send OTP.'); return; }
+      // Firebase sends a real SMS and returns a ConfirmationResult
+      const confirmation = await sendFirebasePhoneOtp(fullPhone);
+      firebaseConfirmRef.current = confirmation;
       setStep('otp'); startCooldown();
       setTimeout(() => otpInputRef.current?.focus(), 300);
-    } catch (e: any) { setError(e?.message ?? 'Failed to send OTP. Check your connection.'); }
+    } catch (e: any) {
+      const msg = e?.message ?? '';
+      if (msg.includes('invalid-phone-number') || msg.includes('INVALID_PHONE_NUMBER')) {
+        setError('Invalid phone number. Use format: +91XXXXXXXXXX');
+      } else if (msg.includes('too-many-requests') || msg.includes('TOO_MANY_ATTEMPTS')) {
+        setError('Too many attempts. Please wait a few minutes and try again.');
+      } else if (msg.includes('quota-exceeded')) {
+        setError('SMS quota exceeded. Please try email login instead.');
+      } else {
+        setError(msg || 'Failed to send OTP. Check your connection.');
+      }
+    }
     finally { setLoading(false); }
   };
 
   const handleVerifySmsOtp = async () => {
     const trimmedOtp = otp.trim();
-    if (trimmedOtp.length < 4) { setError('Please enter the OTP sent to your phone.'); return; }
+    if (trimmedOtp.length < 6) { setError('Please enter the 6-digit OTP sent to your phone.'); return; }
+    if (!firebaseConfirmRef.current) { setError('Session expired. Please resend OTP.'); resetToInput(); return; }
     setError(''); setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const res = await smsOtpApi.verifyOtp(fullPhone, trimmedOtp);
-      if (res.success === false) {
-        setError(res.message ?? 'Invalid OTP. Please try again.');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        return;
-      }
+      // Verify OTP with Firebase — throws if wrong code
+      const firebaseUser = await verifyFirebasePhoneOtp(firebaseConfirmRef.current, trimmedOtp);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Phone login: use phone as identifier, check if name already exists
-      await finishLogin(fullPhone, res.name ?? null, undefined);
-    } catch (e: any) { setError(e?.message ?? 'Verification failed. Please try again.'); }
+      // Use Firebase UID + phone as identifier
+      const identifier = firebaseUser.phoneNumber ?? fullPhone;
+      const displayName = firebaseUser.displayName ?? null;
+      // Check our DB for an existing profile
+      const existing = await localApi.getProfile(identifier).catch(() => null);
+      await finishLogin(identifier, displayName ?? existing?.name ?? null, existing ?? undefined);
+    } catch (e: any) {
+      const msg = e?.message ?? '';
+      if (msg.includes('invalid-verification-code') || msg.includes('INVALID_CODE')) {
+        setError('Incorrect OTP. Please check and try again.');
+      } else if (msg.includes('code-expired') || msg.includes('CODE_EXPIRED')) {
+        setError('OTP expired. Please request a new one.');
+      } else {
+        setError(msg || 'Verification failed. Please try again.');
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
     finally { setLoading(false); }
   };
 
@@ -195,13 +222,16 @@ export default function LoginScreen() {
       if (authMethod === 'email') {
         await otpApi.sendOtp(email);
       } else {
-        await smsOtpApi.sendOtp(fullPhone);
+        // Resend via Firebase — store new ConfirmationResult
+        const confirmation = await sendFirebasePhoneOtp(fullPhone);
+        firebaseConfirmRef.current = confirmation;
       }
       startCooldown();
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch { setError('Could not resend OTP. Try again.'); }
     finally { setLoading(false); }
   };
+
 
   // ── Google Sign-In ─────────────────────────────────────────────────────────
   const handleGoogleSignIn = async () => {
@@ -851,12 +881,12 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 10, color: 'rgba(255,255,255,0.65)', letterSpacing: 0.2 },
 
   formArea: { paddingHorizontal: 20, paddingTop: 22, gap: 16 },
-  card: { borderRadius: 28, padding: 24, shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.12, shadowRadius: 24, elevation: 8 },
+  card: { borderRadius: 28, padding: 24, elevation: 8, ...Platform.select({ web: { boxShadow: '0 8px 24px rgba(79,70,229,0.12)' }, default: { shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.12, shadowRadius: 24 } }) },
 
   // Auth method tabs
   methodTabs: { flexDirection: 'row', borderRadius: 16, padding: 4, gap: 2 },
   methodTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 10, borderRadius: 12 },
-  methodTabActive: { backgroundColor: '#FFFFFF', shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 3 },
+  methodTabActive: { backgroundColor: '#FFFFFF', elevation: 3, ...Platform.select({ web: { boxShadow: '0 2px 6px rgba(79,70,229,0.12)' }, default: { shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6 } }) },
   methodTabText: { fontSize: 12, fontWeight: '600' },
 
   cardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 22 },
@@ -897,8 +927,8 @@ const styles = StyleSheet.create({
   // Google button
   googleBtn: {
     borderRadius: 18, borderWidth: 1.5, borderColor: '#DADCE0',
-    backgroundColor: '#FFFFFF', marginTop: 4,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2,
+    backgroundColor: '#FFFFFF', marginTop: 4, elevation: 2,
+    ...Platform.select({ web: { boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }, default: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4 } }),
   },
   googleBtnInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, gap: 12 },
   googleLogo: {
