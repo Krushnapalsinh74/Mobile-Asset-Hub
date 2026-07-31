@@ -239,8 +239,13 @@ export default function LoginScreen() {
     setGoogleLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      // Build Google OAuth URL manually (expo-auth-session approach)
-      const redirectUri = `com.knowledgepark.app:/oauth2redirect/google`;
+      // Build Google OAuth URL manually
+      // Google's Web Client IDs reject custom schemes (like com.knowledgepark.app:/)
+      // So on Web, we must use the window origin (e.g. http://localhost:8081)
+      const redirectUri = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : `com.knowledgepark.app:/oauth2redirect/google`;
+        
       const scope = encodeURIComponent('openid profile email');
       const authUrl =
         `https://accounts.google.com/o/oauth2/v2/auth` +

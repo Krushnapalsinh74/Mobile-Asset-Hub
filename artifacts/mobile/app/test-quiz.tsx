@@ -129,6 +129,20 @@ export default function TestQuizScreen() {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [expandedReview, setExpandedReview] = useState<Set<number>>(new Set());
 
+  // NTA Style State
+  const [visited, setVisited] = useState<Set<number>>(new Set([0]));
+  const [markedForReview, setMarkedForReview] = useState<Set<number>>(new Set());
+  const [showGrid, setShowGrid] = useState(false);
+
+  useEffect(() => {
+    setVisited(prev => {
+      if (prev.has(currentIndex)) return prev;
+      const next = new Set(prev);
+      next.add(currentIndex);
+      return next;
+    });
+  }, [currentIndex]);
+
   const savedIds = useMemo(
     () => new Set(savedQuestions.map(q => q.id)),
     [savedQuestions],
@@ -766,56 +780,90 @@ export default function TestQuizScreen() {
         )}
       </ScrollView>
 
-      {/* ── FIXED BOTTOM — Next / Submit ── */}
+      {/* ── FIXED BOTTOM ── */}
       <View style={[styles.bottomNav, {
         backgroundColor: colors.background,
         borderTopColor: colors.border,
-        paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 8,
+        paddingBottom: insets.bottom + (Platform.OS === 'web' ? 24 : 0) + 8,
       }]}>
-        {/* Answered indicator */}
-        <View style={styles.bottomInfo}>
-          <Text style={[styles.bottomInfoText, { color: colors.mutedForeground }]}>
-            {answeredCount} of {questions.length} answered
-          </Text>
-          <Text style={[styles.bottomInfoPct, { color: '#4F46E5' }]}>
-            {Math.round((answeredCount / questions.length) * 100)}%
-          </Text>
+        <View style={styles.bottomNavTopRow}>
+          <Pressable
+            style={[
+              styles.reviewToggleBtn,
+              { borderColor: colors.border, backgroundColor: colors.card },
+              markedForReview.has(currentIndex) && { backgroundColor: '#F3E8FF', borderColor: '#D8B4FE' }
+            ]}
+            onPress={() => {
+              Haptics.selectionAsync();
+              setMarkedForReview(prev => {
+                const next = new Set(prev);
+                if (next.has(currentIndex)) next.delete(currentIndex);
+                else next.add(currentIndex);
+                return next;
+              });
+            }}
+          >
+            <Ionicons name="flag" size={14} color={markedForReview.has(currentIndex) ? '#9333EA' : colors.mutedForeground} />
+            <Text style={[styles.reviewToggleText, { color: markedForReview.has(currentIndex) ? '#9333EA' : colors.mutedForeground }]}>
+              {markedForReview.has(currentIndex) ? 'Marked for Review' : 'Mark for Review'}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.gridBtn, { backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' }]}
+            onPress={() => { Haptics.selectionAsync(); setShowGrid(true); }}
+          >
+            <Ionicons name="grid" size={14} color="#4F46E5" />
+            <Text style={styles.gridBtnText}>Question Grid</Text>
+          </Pressable>
         </View>
 
-        {isLastQ ? (
-          <Pressable
-            style={[styles.nextBtn, { opacity: submitting ? 0.6 : 1 }]}
-            onPress={() => setShowSubmitModal(true)}
-            disabled={submitting}
-          >
-            <LinearGradient
-              colors={['#059669', '#10B981']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.nextBtnGrad}
-            >
-              <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-              <Text style={styles.nextBtnText}>Submit & View Results</Text>
-            </LinearGradient>
-          </Pressable>
-        ) : (
-          <Pressable
-            style={[styles.nextBtn, { opacity: userAns ? 1 : 0.55 }]}
-            onPress={userAns ? goNext : undefined}
-          >
-            <LinearGradient
-              colors={['#4F46E5', '#7C3AED']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.nextBtnGrad}
-            >
-              <Text style={styles.nextBtnText}>
-                {userAns ? 'Next Question' : 'Select an option'}
-              </Text>
-              {userAns && <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />}
-            </LinearGradient>
-          </Pressable>
-        )}
+        <View style={styles.bottomNavMainRow}>
+           {/* Previous button */}
+           <Pressable
+             style={[styles.navBtnPrev, { opacity: currentIndex === 0 ? 0.4 : 1, backgroundColor: colors.muted, borderColor: colors.border }]}
+             onPress={() => { if (currentIndex > 0) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCurrentIndex(i => i - 1); } }}
+             disabled={currentIndex === 0}
+           >
+             <Ionicons name="chevron-back" size={20} color={colors.text} />
+           </Pressable>
+           
+           {/* Next/Submit Button */}
+           <View style={{ flex: 1 }}>
+              {isLastQ ? (
+                <Pressable
+                  style={[styles.nextBtn, { opacity: submitting ? 0.6 : 1 }]}
+                  onPress={() => setShowSubmitModal(true)}
+                  disabled={submitting}
+                >
+                  <LinearGradient
+                    colors={['#059669', '#10B981']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.nextBtnGrad}
+                  >
+                    <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+                    <Text style={styles.nextBtnText}>Submit Test</Text>
+                  </LinearGradient>
+                </Pressable>
+              ) : (
+                <Pressable
+                  style={styles.nextBtn}
+                  onPress={goNext}
+                >
+                  <LinearGradient
+                    colors={['#4F46E5', '#7C3AED']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.nextBtnGrad}
+                  >
+                    <Text style={styles.nextBtnText}>Save & Next</Text>
+                    <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
+                  </LinearGradient>
+                </Pressable>
+              )}
+           </View>
+        </View>
       </View>
 
       {/* ── SUBMIT MODAL ── */}
@@ -889,7 +937,96 @@ export default function TestQuizScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+      {/* ── NTA QUESTION GRID MODAL ── */}
+      <Modal
+        visible={showGrid}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowGrid(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowGrid(false)}>
+          <Pressable
+            style={[styles.modalSheet, { backgroundColor: colors.background, padding: 0, overflow: 'hidden' }]}
+            onPress={e => e.stopPropagation()}
+          >
+            <View style={{ padding: 20, paddingBottom: 10 }}>
+              <View style={styles.modalHandle} />
+              
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <Text style={[styles.modalTitle, { color: colors.text, marginBottom: 0, textAlign: 'left' }]}>Question Grid</Text>
+                <Pressable onPress={() => setShowGrid(false)} style={{ padding: 4, backgroundColor: colors.muted, borderRadius: 12 }}>
+                  <Ionicons name="close" size={20} color={colors.text} />
+                </Pressable>
+              </View>
 
+              {/* Legend */}
+              <View style={styles.gridLegend}>
+                {[
+                  { label: 'Answered', color: '#10B981', bg: '#D1FAE5' },
+                  { label: 'Not Answered', color: '#EF4444', bg: '#FEE2E2' },
+                  { label: 'Not Visited', color: colors.mutedForeground, bg: colors.muted, border: colors.border },
+                  { label: 'Marked for Review', color: '#9333EA', bg: '#F3E8FF' },
+                  { label: 'Answered & Marked', color: '#FFFFFF', bg: '#9333EA', badge: '#10B981' },
+                ].map((leg, i) => (
+                  <View key={i} style={styles.legendItem}>
+                    <View style={[styles.legendBox, { backgroundColor: leg.bg, borderColor: leg.border || leg.bg }]}>
+                      {leg.badge && <View style={[styles.legendBadge, { backgroundColor: leg.badge }]} />}
+                      {leg.label === 'Answered & Marked' && <Text style={{ color: leg.color, fontSize: 10, fontWeight: 'bold' }}>✓</Text>}
+                    </View>
+                    <Text style={[styles.legendLabel, { color: colors.text }]}>{leg.label}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
+              <View style={styles.gridContainer}>
+                {questions.map((_, i) => {
+                  const isAns = !!answers[i];
+                  const isMarked = markedForReview.has(i);
+                  const isVis = visited.has(i);
+                  const isCurrent = currentIndex === i;
+
+                  let bg = colors.muted;
+                  let color = colors.mutedForeground;
+                  let border = colors.border;
+                  let badge = null;
+
+                  if (isAns && isMarked) {
+                    bg = '#9333EA'; color = '#FFFFFF'; border = '#9333EA'; badge = '#10B981';
+                  } else if (isMarked) {
+                    bg = '#F3E8FF'; color = '#9333EA'; border = '#D8B4FE';
+                  } else if (isAns) {
+                    bg = '#D1FAE5'; color = '#059669'; border = '#34D399';
+                  } else if (isVis) {
+                    bg = '#FEE2E2'; color = '#DC2626'; border = '#FCA5A5';
+                  } else {
+                    bg = colors.background; color = colors.mutedForeground; border = colors.border;
+                  }
+
+                  return (
+                    <Pressable
+                      key={i}
+                      style={[
+                        styles.gridSquare,
+                        { backgroundColor: bg, borderColor: isCurrent ? colors.text : border, borderWidth: isCurrent ? 2 : 1 }
+                      ]}
+                      onPress={() => {
+                        Haptics.impactAsync();
+                        setCurrentIndex(i);
+                        setShowGrid(false);
+                      }}
+                    >
+                      {badge && <View style={[styles.gridSquareBadge, { backgroundColor: badge }]} />}
+                      <Text style={[styles.gridSquareText, { color, fontWeight: isCurrent ? '800' : '600' }]}>{i + 1}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -979,17 +1116,56 @@ const styles = StyleSheet.create({
   /* ── Bottom nav ── */
   bottomNav: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, gap: 8,
+    paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, gap: 12,
   },
-  bottomInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  bottomInfoText: { fontSize: 12 },
-  bottomInfoPct: { fontSize: 13, fontWeight: '700' },
-  nextBtn: { borderRadius: 18, overflow: 'hidden' },
+  bottomNavTopRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
+  reviewToggleBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1,
+  },
+  reviewToggleText: { fontSize: 13, fontWeight: '700' },
+  gridBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1,
+  },
+  gridBtnText: { fontSize: 13, fontWeight: '700', color: '#4F46E5' },
+  bottomNavMainRow: { flexDirection: 'row', gap: 10 },
+  navBtnPrev: {
+    width: 50, height: 50, borderRadius: 16, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  nextBtn: { flex: 1, borderRadius: 16, overflow: 'hidden' },
   nextBtnGrad: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-    paddingVertical: 17,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    height: 50,
   },
-  nextBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+  nextBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+
+  /* ── Grid Modal ── */
+  gridLegend: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10,
+    padding: 12, backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: 12,
+  },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6, width: '45%' },
+  legendBox: {
+    width: 20, height: 20, borderRadius: 6, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  legendBadge: {
+    position: 'absolute', top: -3, right: -3, width: 8, height: 8, borderRadius: 4,
+    borderWidth: 1, borderColor: '#FFF',
+  },
+  legendLabel: { fontSize: 11, flex: 1 },
+  gridContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'flex-start' },
+  gridSquare: {
+    width: 44, height: 44, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  gridSquareText: { fontSize: 16 },
+  gridSquareBadge: {
+    position: 'absolute', top: -4, right: -4, width: 12, height: 12, borderRadius: 6,
+    borderWidth: 2, borderColor: '#FFF',
+  },
 
   /* ── Modal ── */
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },

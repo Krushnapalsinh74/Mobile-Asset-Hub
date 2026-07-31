@@ -15,13 +15,13 @@ import {
 
 // Firebase config from google-services.json
 const FIREBASE_CONFIG = {
-  apiKey:            'AIzaSyB3E4906IcuIMYW5zwkoq--XsA-rBkgcDo',
-  authDomain:        'kpark-edu.firebaseapp.com',
-  projectId:         'kpark-edu',
-  storageBucket:     'kpark-edu.firebasestorage.app',
+  apiKey: 'AIzaSyB3E4906IcuIMYW5zwkoq--XsA-rBkgcDo',
+  authDomain: 'kpark-edu.firebaseapp.com',
+  projectId: 'kpark-edu',
+  storageBucket: 'kpark-edu.firebasestorage.app',
   messagingSenderId: '1027948040827',
-  appId:             '1:1027948040827:android:a1300754e4ccb17e8c48de',
-  databaseURL:       'https://kpark-edu-default-rtdb.firebaseio.com',
+  appId: '1:1027948040827:android:a1300754e4ccb17e8c48de',
+  databaseURL: 'https://kpark-edu-default-rtdb.firebaseio.com',
 };
 
 // Initialise Firebase app once
@@ -59,12 +59,12 @@ export async function sendFirebasePhoneOtp(
 
   if (Platform.OS === 'web') {
     // On web, Firebase strictly requires an ApplicationVerifier (reCAPTCHA)
-    
+
     // 1. Clear any old, stale ReCAPTCHA instance that might be crashing the Google script
     if ((window as any).recaptchaVerifier) {
       try {
         (window as any).recaptchaVerifier.clear();
-      } catch (e) {}
+      } catch (e) { }
       (window as any).recaptchaVerifier = undefined;
     }
 
@@ -81,7 +81,7 @@ export async function sendFirebasePhoneOtp(
     (window as any).recaptchaVerifier = new RecaptchaVerifier(_auth, el, {
       size: 'invisible',
     });
-    
+
     verifier = (window as any).recaptchaVerifier;
   }
 
