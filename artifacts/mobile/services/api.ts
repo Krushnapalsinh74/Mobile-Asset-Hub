@@ -387,9 +387,8 @@ export const otpApi = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function getLocalBase(): string {
-  const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  if (domain) return `https://${domain.replace(/^https?:\/\//, "")}:3001`;
-  return "http://localhost:3001";
+  // Use production backend since local dev requires Google Application Credentials
+  return YUNORA_BASE;
 }
 
 async function localReq<T>(path: string, init?: RequestInit): Promise<T> {
