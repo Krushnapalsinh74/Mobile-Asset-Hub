@@ -53,9 +53,9 @@ export default function Chapters() {
               className="card" 
               style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                <div style={{ padding: '8px', background: 'var(--bg-primary)', borderRadius: '8px', color: 'var(--brand-primary)' }}>
-                  <Layers size={20} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+                <div style={{ padding: '12px', background: 'rgba(79, 70, 229, 0.05)', borderRadius: '12px', color: 'var(--brand-primary)' }}>
+                  <Layers size={22} />
                 </div>
                 <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-tertiary)' }}>
                   Ch {chap.order || index + 1}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, CheckCircle2, XCircle, MessageCircle, RefreshCw } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import { MathText } from "../components/MathText";
 
 export default function Explanation() {
   const [, setLocation] = useLocation();
@@ -118,8 +119,29 @@ export default function Explanation() {
 
                   {/* Body */}
                   <div style={{ padding: '24px' }}>
-                    <p style={{ fontSize: '16px', fontWeight: 500, margin: '0 0 24px 0', color: 'var(--text-primary)', lineHeight: 1.6 }}>{q.question}</p>
+                    <MathText text={q.question} style={{ fontSize: '16px', fontWeight: 500, margin: '0 0 24px 0', color: 'var(--text-primary)' }} />
                     
+                    {q.diagram?.url && (
+                      <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'center' }}>
+                        <img src={q.diagram.url} alt="Question Diagram" style={{ maxWidth: '100%', maxHeight: '300px', objectFit: 'contain', borderRadius: '8px' }} />
+                      </div>
+                    )}
+                    
+                    {q.textDiagram && (
+                      <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'center' }}>
+                        {q.textDiagram.trim().startsWith('<svg') ? (
+                          <div 
+                            dangerouslySetInnerHTML={{ __html: q.textDiagram }}
+                            style={{ maxWidth: '100%', overflowX: 'auto', background: 'white', padding: '16px', borderRadius: '8px' }}
+                          />
+                        ) : (
+                          <pre style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', overflowX: 'auto', border: '1px solid #e2e8f0', fontSize: '14px', maxWidth: '100%' }}>
+                            {q.textDiagram}
+                          </pre>
+                        )}
+                      </div>
+                    )}
+
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
                       {q.options?.map((opt: string, j: number) => {
                         const isSelected = q.userAnswer === opt;
@@ -141,7 +163,7 @@ export default function Explanation() {
                         
                         return (
                           <div key={j} style={{ padding: '12px 16px', borderRadius: '8px', background: bg, border, color: textColor, fontSize: '15px' }}>
-                            {opt}
+                            <MathText text={opt} style={{ color: textColor }} />
                           </div>
                         );
                       })}
@@ -157,7 +179,7 @@ export default function Explanation() {
                         marginTop: '24px'
                       }}>
                         <h4 style={{ margin: '0 0 8px 0', color: '#B45309', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Explanation</h4>
-                        <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: '14px' }}>{q.solution}</p>
+                        <MathText text={q.solution} style={{ color: 'var(--text-secondary)', fontSize: '14px' }} />
                       </div>
                     )}
                     

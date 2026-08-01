@@ -1,11 +1,13 @@
+import { useState } from "react";
 import { Switch, Route, Link, useLocation } from "wouter";
 import { 
   BookOpen, Layers, Clock, Bookmark, 
-  MessageCircle, Settings, LogIn 
+  MessageCircle, Settings, LogIn, ChevronLeft, ChevronRight
 } from "lucide-react";
 import { useApp } from "./context/AppContext";
 
 import Login from "./pages/Login";
+import Landing from "./pages/Landing";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import TestQuiz from "./pages/TestQuiz";
@@ -21,9 +23,14 @@ import Chat from "./pages/Chat";
 import Saved from "./pages/Saved";
 import SettingsPage from "./pages/SettingsPage";
 
+import NtaLogin from "./pages/nta/NtaLogin";
+import NtaInstructions from "./pages/nta/NtaInstructions";
+import NtaExam from "./pages/nta/NtaExam";
+
 function Sidebar() {
   const [location] = useLocation();
   const { studentName, isAuthenticated, logout } = useApp();
+  const [collapsed, setCollapsed] = useState(false);
 
   const links = [
     { href: "/dashboard", label: "Dashboard", icon: <Layers size={18} /> },
@@ -34,11 +41,35 @@ function Sidebar() {
   ];
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-logo">
         <div className="sidebar-logo-icon">KP</div>
-        Knowledge Park
+        {!collapsed && <span>Knowledge Park</span>}
       </div>
+      
+      <button 
+        onClick={() => setCollapsed(!collapsed)}
+        style={{
+          position: 'absolute',
+          top: '28px',
+          right: '-14px',
+          width: '28px',
+          height: '28px',
+          borderRadius: '50%',
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-color)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          color: 'var(--text-secondary)',
+          zIndex: 20,
+          boxShadow: 'var(--shadow-sm)'
+        }}
+      >
+        {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+      </button>
+
       <nav className="sidebar-nav">
         {links.map((link) => (
           <Link 
@@ -47,25 +78,25 @@ function Sidebar() {
             className={`nav-item ${location.startsWith(link.href) ? "active" : ""}`}
           >
             {link.icon}
-            {link.label}
+            {!collapsed && <span>{link.label}</span>}
           </Link>
         ))}
       </nav>
       
-      <div style={{ marginTop: 'auto', padding: '16px', background: 'var(--bg-primary)', borderRadius: '8px', fontSize: '13px' }}>
+      <div style={{ marginTop: 'auto', padding: collapsed ? '20px 8px' : '20px 16px', background: 'var(--bg-primary)', borderRadius: '16px', fontSize: '13px', display: 'flex', flexDirection: 'column', alignItems: collapsed ? 'center' : 'stretch' }}>
         {isAuthenticated ? (
           <>
-            <div style={{ fontWeight: 600, marginBottom: '4px' }}>{studentName || 'Student'}</div>
+            {!collapsed && <div style={{ fontWeight: 600, marginBottom: '4px', color: 'var(--text-primary)' }}>{studentName || 'Student'}</div>}
             <button onClick={logout} className="btn" style={{ padding: 0, background: 'none', color: 'var(--text-secondary)', fontSize: '13px' }}>
-              Log out
+              {collapsed ? <LogIn size={16} style={{ transform: 'rotate(180deg)' }} /> : 'Log out'}
             </button>
           </>
         ) : (
           <>
-            <div style={{ color: 'var(--text-secondary)', marginBottom: '12px' }}>Guest Mode</div>
+            {!collapsed && <div style={{ color: 'var(--text-secondary)', marginBottom: '12px' }}>Guest Mode</div>}
             <Link href="/login">
-              <button className="btn btn-primary" style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px' }}>
-                <LogIn size={16} /> Log In / Sign Up
+              <button className="btn btn-primary" style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px', padding: collapsed ? '10px 0' : '10px 18px' }}>
+                <LogIn size={16} /> {!collapsed && 'Log In / Sign Up'}
               </button>
             </Link>
           </>
@@ -79,18 +110,18 @@ function MainLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   
   // Don't show topbar inside the quiz, it has its own
-  const isQuiz = location.startsWith('/test/') || location === '/onboarding' || location === '/login';
+  const isQuiz = location.startsWith('/test/') || location === '/onboarding' || location === '/login' || location === '/';
 
   return (
     <div className="app-container">
-      {location !== '/onboarding' && location !== '/login' && <Sidebar />}
+      {location !== '/onboarding' && location !== '/login' && location !== '/' && <Sidebar />}
       <main className="main-content">
         {!isQuiz && (
           <header className="topbar">
-            <h2 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Professional Dashboard</h2>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, letterSpacing: '-0.5px' }}>Knowledge Park</h2>
             <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-              <button className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '12px' }}>
-                <MessageCircle size={14} style={{ marginRight: '6px' }} /> Ask AI
+              <button className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '13px', borderRadius: '12px', boxShadow: 'var(--shadow-glow)' }}>
+                <MessageCircle size={16} style={{ marginRight: '6px' }} /> Ask AI Tutor
               </button>
             </div>
           </header>
@@ -102,11 +133,11 @@ function MainLayout({ children }: { children: React.ReactNode }) {
 }
 
 function RouteHandler() {
-  const { boardId, standardId } = useApp();
+  const { boardId, standardId, isAuthenticated } = useApp();
   const [location, setLocation] = useLocation();
 
-  // Redirect root to onboarding or dashboard
-  if (location === "/") {
+  // Redirect root to dashboard only if fully authenticated and onboarded
+  if (location === "/" && isAuthenticated) {
     if (boardId && standardId) {
       setLocation("/dashboard");
     } else {
@@ -117,8 +148,15 @@ function RouteHandler() {
 
   return (
     <Switch>
+      <Route path="/"><Landing /></Route>
       <Route path="/login"><Login /></Route>
       <Route path="/onboarding"><Onboarding /></Route>
+
+      {/* NTA Mock Test Simulator Routes */}
+      <Route path="/nta/login"><NtaLogin /></Route>
+      <Route path="/nta/instructions"><NtaInstructions /></Route>
+      <Route path="/nta/exam"><NtaExam /></Route>
+      <Route path="/web"><NtaLogin /></Route>
       
       {/* Main App Routes */}
       <Route>

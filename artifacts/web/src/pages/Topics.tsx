@@ -65,8 +65,8 @@ export default function Topics() {
               className="card"
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px', textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: 'var(--bg-primary)', color: 'var(--brand-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '14px', backgroundColor: 'rgba(79, 70, 229, 0.05)', color: 'var(--brand-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '18px' }}>
                   {index + 1}
                 </div>
                 <div>

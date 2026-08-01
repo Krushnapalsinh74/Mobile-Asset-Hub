@@ -217,6 +217,7 @@ export interface Question {
   subjectId?: string;
   boardId?: string;
   standardId?: string;
+  translations?: Record<string, any>;
 }
 
 /** Normalize the diagram/image field from a raw Yunora question into DiagramView's expected shape */
@@ -331,6 +332,7 @@ export function normalizeYunoraQuestion(raw: any): Question {
     subjectId: raw.subjectId,
     boardId: raw.boardId,
     standardId: raw.standardId,
+    translations: raw.translations,
   };
 }
 
@@ -565,7 +567,7 @@ export const eduApi = {
   }) =>
     req<Record<string, unknown>>("/generate-questions", {
       method: "POST",
-      body: JSON.stringify({ ...params, freshQuestions: true }),
+      body: JSON.stringify({ ...params, freshQuestions: params.freshQuestions ?? true }),
     }),
 
   submitTest: (params: {

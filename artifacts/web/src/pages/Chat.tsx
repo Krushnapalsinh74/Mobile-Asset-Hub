@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageCircle, Send, Loader2, ArrowLeft, Bot, User } from "lucide-react";
+import { MessageCircle, Send, Loader2, ArrowLeft, Bot, User, PlayCircle, Plus } from "lucide-react";
+import { MathText } from "../components/MathText";
 import { useLocation } from "wouter";
 import { eduApi } from "../services/api";
 import { useApp } from "../context/AppContext";
@@ -26,11 +27,14 @@ export default function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const initRef = useRef(false);
+
   useEffect(() => {
-    if (initialQuery && messages.length === 0) {
+    if (initialQuery && messages.length === 0 && !initRef.current) {
+      initRef.current = true;
       handleSend(initialQuery);
     }
-  }, [initialQuery]);
+  }, [initialQuery, messages.length]);
 
   useEffect(() => {
     scrollToBottom();
@@ -126,7 +130,23 @@ export default function Chat() {
               lineHeight: 1.6,
               fontSize: '15px'
             }}>
-              {msg.content}
+              {msg.role === 'user' ? (
+                msg.content
+              ) : (
+                <MathText text={msg.content} />
+              )}
+              
+              {/* If AI generates A) B) C) D) options, offer a quick action button */}
+              {msg.role === 'assistant' && msg.content.match(/[A-D]\)/) && (
+                <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-color)', display: 'flex', gap: '12px' }}>
+                  <button className="btn btn-outline" style={{ fontSize: '13px', padding: '6px 12px' }}>
+                    <Plus size={14} style={{ marginRight: '6px' }} /> Save Question
+                  </button>
+                  <button className="btn btn-primary" style={{ fontSize: '13px', padding: '6px 12px' }} onClick={() => alert('Starting interactive quiz mode for this question (Coming Soon)')}>
+                    <PlayCircle size={14} style={{ marginRight: '6px' }} /> Interactive Mode
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}

@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import { Flag, ChevronRight, ChevronLeft, Check, Circle, Loader2 } from "lucide-react";
+import { Flag, ChevronRight, ChevronLeft, Check, Circle } from "lucide-react";
+import { PulseLoader } from "../components/Spinner";
+import { MathText } from "../components/MathText";
 import { useLocation } from "wouter";
 import { useApp } from "../context/AppContext";
 import { eduApi, type Question } from "../services/api";
-import { MathText } from "../components/MathText";
-
 export default function TestQuiz({ subjectId, chapterId }: { subjectId: string, chapterId: string }) {
   const [, setLocation] = useLocation();
   const { boardId, standardId, boardName, standardName, studentName, addTestResult } = useApp();
@@ -34,18 +34,34 @@ export default function TestQuiz({ subjectId, chapterId }: { subjectId: string, 
     async function loadTest() {
       try {
         setLoading(true);
-        const res = await eduApi.generateQuestions({
-          board: boardId || boardName || 'CBSE',
-          standard: standardId || standardName || 'Class 10',
-          subject: subjectId || '',
-          chapter: chapterId || '',
-          topic: topicId || undefined,
-          options: { mode: mode as any, count, difficulty },
-          freshQuestions: useAI
-        });
+        let fetchedQuestions: any[] = [];
         
-        const r = res as any;
-        let fetchedQuestions = r?.questions ?? r?.data?.questions ?? r?.result?.questions ?? (Array.isArray(r) ? r : []);
+        if (useAI) {
+          const res = await eduApi.generateQuestions({
+            board: boardId || boardName || 'CBSE',
+            standard: standardId || standardName || 'Class 10',
+            subject: subjectId || '',
+            chapter: chapterId || '',
+            topic: topicId || undefined,
+            options: { mode: mode as any, count, difficulty },
+            freshQuestions: true
+          });
+          const r = res as any;
+          fetchedQuestions = r?.questions ?? r?.data?.questions ?? r?.result?.questions ?? (Array.isArray(r) ? r : []);
+        } else {
+          const selectedLang = urlParams.get('lang') || 'en';
+          const allBank = await eduApi.getBankQuestions({
+            chapterId: chapterId || '',
+            topicId: topicId || undefined,
+            lang: selectedLang !== 'en' ? selectedLang : undefined
+          });
+          
+          if (allBank.length > 0) {
+             // Shuffle and slice `count` questions
+             const shuffled = [...allBank].sort(() => 0.5 - Math.random());
+             fetchedQuestions = shuffled.slice(0, count);
+          }
+        }
         
         if (fetchedQuestions.length === 0) {
           throw new Error("No questions returned from the server.");
@@ -175,10 +191,8 @@ export default function TestQuiz({ subjectId, chapterId }: { subjectId: string, 
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: 'var(--bg-primary)' }}>
-        <Loader2 className="lucide-spin" size={48} color="var(--brand-primary)" style={{ marginBottom: '16px' }} />
-        <h2 style={{ color: 'var(--text-primary)' }}>Generating your test...</h2>
-        <p style={{ color: 'var(--text-secondary)' }}>This may take a moment if AI is creating fresh questions.</p>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: 'var(--bg-surface)' }}>
+        <PulseLoader size={64} text="Preparing your mock test..." />
       </div>
     );
   }
@@ -240,9 +254,16 @@ export default function TestQuiz({ subjectId, chapterId }: { subjectId: string, 
             
             {currentQ.textDiagram && (
               <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'center' }}>
-                <pre style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', overflowX: 'auto', border: '1px solid #e2e8f0', fontSize: '14px' }}>
-                  {currentQ.textDiagram}
-                </pre>
+                {currentQ.textDiagram.trim().startsWith('<svg') ? (
+                  <div 
+                    dangerouslySetInnerHTML={{ __html: currentQ.textDiagram }}
+                    style={{ maxWidth: '100%', overflowX: 'auto', background: 'white', padding: '16px', borderRadius: '8px' }}
+                  />
+                ) : (
+                  <pre style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', overflowX: 'auto', border: '1px solid #e2e8f0', fontSize: '14px', maxWidth: '100%' }}>
+                    {currentQ.textDiagram}
+                  </pre>
+                )}
               </div>
             )}
 
@@ -261,9 +282,9 @@ export default function TestQuiz({ subjectId, chapterId }: { subjectId: string, 
                     <div style={{ color: isSelected ? 'var(--brand-primary)' : 'var(--text-tertiary)' }}>
                       {isSelected ? <Check size={20} /> : <Circle size={20} />}
                     </div>
-                    <span style={{ fontSize: '16px', fontWeight: isSelected ? 600 : 400, color: isSelected ? 'var(--brand-primary)' : 'var(--text-primary)' }}>
-                      <MathText text={opt} />
-                    </span>
+                    <div style={{ flex: 1 }}>
+                      <MathText text={opt} style={{ color: isSelected ? 'var(--brand-primary)' : 'var(--text-primary)', fontWeight: isSelected ? 600 : 400 }} />
+                    </div>
                     <input 
                       type="radio" 
                       name={`answer-${currentIndex}`}

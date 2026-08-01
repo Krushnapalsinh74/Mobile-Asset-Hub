@@ -40,14 +40,14 @@ export default function Subjects() {
         <div className="grid-cards">
           {subjects.map(sub => (
             <Link 
-            key={sub.id || sub._id} 
-            href={`/subjects/${sub.id || sub._id}/chapters`}
-            className="card" 
-            style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}
-          >
+              key={sub.id || sub._id} 
+              href={`/subjects/${sub.id || sub._id}/chapters`}
+              className="card" 
+              style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}
+            >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
-              <div style={{ padding: '10px', background: 'var(--bg-primary)', borderRadius: '8px', color: 'var(--brand-primary)' }}>
-                <BookOpen size={20} />
+              <div style={{ padding: '16px', background: 'rgba(79, 70, 229, 0.05)', borderRadius: '16px', color: 'var(--brand-primary)' }}>
+                <BookOpen size={24} />
               </div>
               {/* Mock progress since it's not in the base API model */}
               <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-tertiary)' }}>0% Mastery</span>
