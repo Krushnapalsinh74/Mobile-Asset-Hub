@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BookOpen, ChevronRight, Book, Trophy, MessageCircle, BarChart2, Zap, Layout, Activity, Clock, TrendingUp, PlayCircle } from "lucide-react";
+import { BookOpen, Book, Trophy, MessageCircle, BarChart2, Zap, Activity, Clock, TrendingUp, PlayCircle } from "lucide-react";
 import { PulseLoader } from "../components/Spinner";
 import { useLocation } from "wouter";
 import { eduApi, type Subject } from "../services/api";

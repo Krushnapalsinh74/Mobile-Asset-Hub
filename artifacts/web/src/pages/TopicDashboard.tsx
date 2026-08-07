@@ -38,8 +38,8 @@ const TOPIC_ACTIONS = [
 ];
 
 export default function TopicDashboard() {
-  const [match, params] = useRoute("/topics/:id/dashboard");
-  const topicId = params?.id;
+  const [, params] = useRoute("/topics/:id/dashboard");
+  const topicId = params ? (params as any).id : null;
   
   const urlParams = new URLSearchParams(window.location.search);
   const subjectId = urlParams.get('subjectId');

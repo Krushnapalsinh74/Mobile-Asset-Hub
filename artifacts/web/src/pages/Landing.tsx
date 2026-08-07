@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { ArrowRight, BookOpen, BrainCircuit, Target, Trophy, Users, BarChart, CheckCircle2, Star, PlayCircle, Zap } from "lucide-react";
+import { ArrowRight, BrainCircuit, Target, Users, BarChart, CheckCircle2, Star, PlayCircle, Zap } from "lucide-react";
 
 export default function Landing() {
   return (

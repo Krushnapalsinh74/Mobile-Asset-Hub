@@ -120,4 +120,3 @@ overrides:
   rollup>@rollup/rollup-openbsd-x64: '-'
   rollup>@rollup/rollup-openharmony-arm64: '-'
 
-  tar: file:./lib/tar-local

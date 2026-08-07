@@ -6,8 +6,8 @@ import { useApp } from "../context/AppContext";
 
 export default function Topics() {
   const { boardId, standardId } = useApp();
-  const [match, params] = useRoute("/chapters/:id/topics");
-  const chapterId = params?.id;
+  const [, params] = useRoute("/chapters/:id/topics");
+  const chapterId = params ? (params as any).id : null;
   
   // Extract subjectId from URL query string
   const urlParams = new URLSearchParams(window.location.search);

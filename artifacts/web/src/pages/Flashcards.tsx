@@ -1,11 +1,9 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Loader2, Zap, Brain, X, Check, ArrowRight } from "lucide-react";
-import { useLocation } from "wouter";
+import { ArrowLeft, Loader2, Zap, Brain, X, Check } from "lucide-react";
 import { eduApi, type Question } from "../services/api";
 import { useApp } from "../context/AppContext";
 
 export default function Flashcards() {
-  const [, setLocation] = useLocation();
   const { boardId, standardId, boardName, standardName } = useApp();
   
   const urlParams = new URLSearchParams(window.location.search);

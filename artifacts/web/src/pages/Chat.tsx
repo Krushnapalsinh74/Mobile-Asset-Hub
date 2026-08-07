@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { MessageCircle, Send, Loader2, ArrowLeft, Bot, User, PlayCircle, Plus } from "lucide-react";
 import { MathText } from "../components/MathText";
-import { useLocation } from "wouter";
 import { eduApi } from "../services/api";
 import { useApp } from "../context/AppContext";
 
@@ -11,8 +10,7 @@ interface ChatMsg {
 }
 
 export default function Chat() {
-  const [, setLocation] = useLocation();
-  const { boardId, standardId, studentName } = useApp();
+  const { boardId, standardId } = useApp();
   
   const urlParams = new URLSearchParams(window.location.search);
   const initialQuery = urlParams.get('query');

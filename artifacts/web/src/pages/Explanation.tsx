@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, CheckCircle2, XCircle, MessageCircle, RefreshCw } from "lucide-react";
-import { useApp } from "../context/AppContext";
 import { MathText } from "../components/MathText";
 
 export default function Explanation() {

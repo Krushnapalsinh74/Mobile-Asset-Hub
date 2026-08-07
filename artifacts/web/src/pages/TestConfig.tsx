@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, Globe, Settings2, Target, Type, Loader2 } from "lucide-react";
-import { useApp } from "../context/AppContext";
 import { eduApi } from "../services/api";
 
 const MARKS_OPTIONS = [1, 2, 3, 4];

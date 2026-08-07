@@ -6,8 +6,8 @@ import { useApp } from "../context/AppContext";
 
 export default function Chapters() {
   const { boardId, standardId } = useApp();
-  const [match, params] = useRoute("/subjects/:id/chapters");
-  const subjectId = params?.id;
+  const [, params] = useRoute("/subjects/:id/chapters");
+  const subjectId = params ? (params as any).id : null;
   
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [loading, setLoading] = useState(true);

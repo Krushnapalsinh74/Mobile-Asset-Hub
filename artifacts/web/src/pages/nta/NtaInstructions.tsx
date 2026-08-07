@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useApp } from "../../context/AppContext";
+
 import "./nta.css";
 
 export default function NtaInstructions() {
   const [, setLocation] = useLocation();
-  const { studentName } = useApp();
   const [agreed, setAgreed] = useState(false);
 
   return (
