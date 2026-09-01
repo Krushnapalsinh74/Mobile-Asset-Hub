@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { subscriptionApi, type SubscriptionPlan } from '../services/api';
 
 interface AppContextType {
   studentName: string | null;
@@ -8,15 +9,21 @@ interface AppContextType {
   standardId: string | null;
   standardName: string | null;
   isAuthenticated: boolean;
-  
+
+  // ── Subscription ──────────────────────────────────────────────────────────
+  plans: SubscriptionPlan[];
+  activePlanId: string | null;       // plan id the user has selected / purchased
+  isPremium: boolean;                // true when user has a paid plan
+  setActivePlan: (planId: string) => void;
+
   setStudent: (name: string | null, email: string) => void;
   setBoard: (id: string, name: string) => void;
   setStandard: (id: string, name: string) => void;
   logout: () => void;
-  
+
   testHistory: any[];
   addTestResult: (result: any) => void;
-  
+
   savedQuestions: any[];
   saveQuestion: (q: any) => void;
   unsaveQuestion: (id: string) => void;
@@ -35,6 +42,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [savedQuestions, setSavedQuestions] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
+  // ── Subscription state ────────────────────────────────────────────────────
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [activePlanId, setActivePlanIdState] = useState<string | null>(null);
+
   useEffect(() => {
     // Load from localStorage on mount
     setStudentName(localStorage.getItem('studentName'));
@@ -43,7 +54,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setBoardNameState(localStorage.getItem('boardName'));
     setStandardIdState(localStorage.getItem('standardId'));
     setStandardNameState(localStorage.getItem('standardName'));
-    
+    setActivePlanIdState(localStorage.getItem('activePlanId'));
+
     try {
       const hist = JSON.parse(localStorage.getItem('testHistory') || '[]');
       setTestHistory(Array.isArray(hist) ? hist : []);
@@ -53,9 +65,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setTestHistory([]);
       setSavedQuestions([]);
     }
-    
+
     setIsLoaded(true);
+
+    // Fetch plans from backend
+    subscriptionApi.getPlans()
+      .then(setPlans)
+      .catch(() => {
+        // Fallback: show a free plan so app doesn't break when offline
+        setPlans([{ id: 'free', name: 'Free', price: 0, questionLimit: 20 }]);
+      });
   }, []);
+
+  const setActivePlan = (planId: string) => {
+    setActivePlanIdState(planId);
+    localStorage.setItem('activePlanId', planId);
+  };
+
+  // A plan is "premium" if it exists in the fetched plans list and is not 'free'
+  const isPremium =
+    !!activePlanId &&
+    activePlanId !== 'free' &&
+    plans.some(p => String(p.id) === activePlanId);
 
   const addTestResult = (result: any) => {
     setTestHistory(prev => {
@@ -110,6 +141,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setBoardNameState(null);
     setStandardIdState(null);
     setStandardNameState(null);
+    setActivePlanIdState(null);
     setTestHistory([]);
     setSavedQuestions([]);
     localStorage.clear();
@@ -127,6 +159,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         standardId,
         standardName,
         isAuthenticated: !!studentEmail,
+        plans,
+        activePlanId,
+        isPremium,
+        setActivePlan,
         setStudent,
         setBoard,
         setStandard,

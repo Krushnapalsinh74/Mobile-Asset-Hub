@@ -22,6 +22,7 @@ import Explanation from "./pages/Explanation";
 import Chat from "./pages/Chat";
 import Saved from "./pages/Saved";
 import SettingsPage from "./pages/SettingsPage";
+import Pricing from "./pages/Pricing";
 
 import NtaLogin from "./pages/nta/NtaLogin";
 import NtaInstructions from "./pages/nta/NtaInstructions";
@@ -110,11 +111,11 @@ function MainLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   
   // Don't show topbar inside the quiz, it has its own
-  const isQuiz = location.startsWith('/test/') || location === '/onboarding' || location === '/login' || location === '/';
+  const isQuiz = location.startsWith('/test/') || location === '/onboarding' || location === '/login' || location === '/' || location === '/pricing';
 
   return (
     <div className="app-container">
-      {location !== '/onboarding' && location !== '/login' && location !== '/' && <Sidebar />}
+      {location !== '/onboarding' && location !== '/login' && location !== '/' && location !== '/pricing' && <Sidebar />}
       <main className="main-content">
         {!isQuiz && (
           <header className="topbar">
@@ -133,12 +134,14 @@ function MainLayout({ children }: { children: React.ReactNode }) {
 }
 
 function RouteHandler() {
-  const { boardId, standardId, isAuthenticated } = useApp();
+  const { boardId, standardId, isAuthenticated, activePlanId } = useApp();
   const [location, setLocation] = useLocation();
 
   // Redirect root to dashboard only if fully authenticated and onboarded
   if (location === "/" && isAuthenticated) {
-    if (boardId && standardId) {
+    if (!activePlanId) {
+      setLocation("/pricing");
+    } else if (boardId && standardId) {
       setLocation("/dashboard");
     } else {
       setLocation("/onboarding");
@@ -151,6 +154,7 @@ function RouteHandler() {
       <Route path="/"><Landing /></Route>
       <Route path="/login"><Login /></Route>
       <Route path="/onboarding"><Onboarding /></Route>
+      <Route path="/pricing"><Pricing /></Route>
 
       {/* NTA Mock Test Simulator Routes */}
       <Route path="/nta/login"><NtaLogin /></Route>
