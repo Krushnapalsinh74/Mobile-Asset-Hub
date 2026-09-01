@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { localApi, otpApi } from '@/services/api';
+import { localApi, otpApi, subscriptionApi, type SubscriptionPlan } from '@/services/api';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 export interface LastStudied {
@@ -61,6 +61,8 @@ interface AppState {
   chatHistory: ChatSession[];
   savedQuestions: SavedQuestion[];
   isLoaded: boolean;
+  plans: SubscriptionPlan[];
+  activePlanId: string | null;
 }
 
 interface AppContextValue extends AppState {
@@ -75,6 +77,8 @@ interface AppContextValue extends AppState {
   saveQuestion: (q: SavedQuestion) => Promise<void>;
   unsaveQuestion: (id: string) => Promise<void>;
   clearAll: () => Promise<void>;
+  isPremium: boolean;
+  setActivePlan: (planId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -91,6 +95,7 @@ const KEYS = {
   testHistory: '@edu:testHistory',
   chatHistory: '@edu:chatHistory',
   savedQuestions: '@edu:savedQuestions',
+  activePlanId: '@edu:activePlanId',
 };
 
 function parse<T>(s: string | null, fallback: T): T {
@@ -111,6 +116,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     chatHistory: [],
     savedQuestions: [],
     isLoaded: false,
+    plans: [],
+    activePlanId: null,
   });
 
   useEffect(() => {
@@ -129,9 +136,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         testHistory: parse(map[KEYS.testHistory], []),
         chatHistory: parse(map[KEYS.chatHistory], []),
         savedQuestions: parse(map[KEYS.savedQuestions], []),
+        activePlanId: map[KEYS.activePlanId],
         isLoaded: true,
+        plans: [],
       });
     });
+
+    subscriptionApi.getPlans()
+      .then(fetchedPlans => {
+        setState(s => ({ ...s, plans: fetchedPlans }));
+      })
+      .catch(() => {
+        // Fallback: show a free plan so app doesn't break when offline
+        setState(s => ({ ...s, plans: [{ id: 'free', name: 'Free', price: 0, questionLimit: 20 }] as SubscriptionPlan[] }));
+      });
   }, []);
 
   const setStudent = async (name: string, email: string) => {
@@ -223,12 +241,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const setActivePlan = async (planId: string) => {
+    await AsyncStorage.setItem(KEYS.activePlanId, planId);
+    setState(s => ({ ...s, activePlanId: planId }));
+  };
+
+  const isPremium = 
+    !!state.activePlanId && 
+    state.activePlanId !== 'free' && 
+    state.plans.some(p => String(p.id) === state.activePlanId);
+
   const clearAll = async () => {
     await AsyncStorage.multiRemove(Object.values(KEYS));
     setState({
       studentName: null, studentEmail: null, boardId: null, boardName: null,
       standardId: null, standardName: null, lastStudied: null, subjectProgress: {},
       testHistory: [], chatHistory: [], savedQuestions: [], isLoaded: true,
+      plans: state.plans, activePlanId: null,
     });
   };
 
@@ -236,7 +265,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider value={{
       ...state, setStudent, setBoard, setStandard, setLastStudied,
       setSubjectTotal, incrementExplored, addTestResult, addChatSession,
-      saveQuestion, unsaveQuestion, clearAll,
+      saveQuestion, unsaveQuestion, clearAll, isPremium, setActivePlan,
     }}>
       {children}
     </AppContext.Provider>

@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useApp } from '@/context/AppContext';
 
 export default function PricingScreen() {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
@@ -29,8 +30,15 @@ export default function PricingScreen() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleSelectPlan = (planId: string | number) => {
-    router.push({ pathname: '/register', params: { planId } });
+  const { setActivePlan, activePlanId } = useApp();
+
+  const handleSelectPlan = async (planId: string | number) => {
+    await setActivePlan(String(planId));
+    if (planId === 'free') {
+      router.replace('/onboarding');
+    } else {
+      router.push({ pathname: '/register', params: { planId } });
+    }
   };
 
   return (
@@ -71,10 +79,12 @@ export default function PricingScreen() {
                 onPress={() => handleSelectPlan(plan.id)}
               >
                 <LinearGradient
-                  colors={['#4F46E5', '#7C3AED']}
+                  colors={String(plan.id) === activePlanId ? ['#10B981', '#059669'] : ['#4F46E5', '#7C3AED']}
                   style={styles.selectButtonGrad}
                 >
-                  <Text style={styles.selectButtonText}>Select Plan</Text>
+                  <Text style={styles.selectButtonText}>
+                    {String(plan.id) === activePlanId ? 'Current Plan' : 'Select Plan'}
+                  </Text>
                 </LinearGradient>
               </Pressable>
             </View>

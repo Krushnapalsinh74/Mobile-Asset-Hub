@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -66,7 +66,7 @@ export default function OnboardingScreen() {
   const [step, setStep] = useState<Step>('board');
   const [selectedBoard, setSelectedBoard] = useState<{ id: string; name: string } | null>(null);
   const [selectedStandard, setSelectedStandard] = useState<{ id: string; name: string } | null>(null);
-  const { setBoard, setStandard } = useApp();
+  const { setBoard, setStandard, activePlanId, isPremium } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
@@ -76,6 +76,12 @@ export default function OnboardingScreen() {
     queryFn: () => eduApi.getStandards(selectedBoard!.id),
     enabled: !!selectedBoard,
   });
+
+  useEffect(() => {
+    if (!activePlanId) {
+      router.replace('/pricing');
+    }
+  }, [activePlanId]);
 
   const handleBoardSelect = (board: Board) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -131,13 +137,38 @@ export default function OnboardingScreen() {
             Select the education board you study under. This lets us personalise all quizzes and tests for you.
           </Text>
 
-          {/* Board count pill */}
-          {boardsQuery.data && (
-            <View style={styles.countPill}>
-              <Ionicons name="list-outline" size={13} color="rgba(255,255,255,0.8)" />
-              <Text style={styles.countPillText}>{boardsQuery.data.length} boards available</Text>
-            </View>
-          )}
+          {/* Board count pill & plan nudge */}
+          <View style={{ alignItems: 'center', marginTop: 8 }}>
+            {boardsQuery.data && (
+              <View style={styles.countPill}>
+                <Ionicons name="list-outline" size={13} color="rgba(255,255,255,0.8)" />
+                <Text style={styles.countPillText}>{boardsQuery.data.length} boards available</Text>
+              </View>
+            )}
+
+            {!isPremium && activePlanId && (
+              <Pressable
+                onPress={() => router.push('/pricing')}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginTop: 12,
+                  backgroundColor: 'rgba(255,255,255,0.15)',
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.3)',
+                }}
+              >
+                <Ionicons name="lock-closed" size={14} color="#FFF" />
+                <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '600' }}>
+                  Free Plan · Upgrade for AI features
+                </Text>
+              </Pressable>
+            )}
+          </View>
         </LinearGradient>
 
         {/* Board list */}

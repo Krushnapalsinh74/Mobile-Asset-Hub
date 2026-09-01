@@ -66,7 +66,7 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  const { setStudent, setBoard, setStandard, boardId, standardId } = useApp();
+  const { setStudent, setBoard, setStandard, boardId, standardId, activePlanId } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const otpInputRef = useRef<TextInput>(null);
@@ -109,7 +109,11 @@ export default function LoginScreen() {
       if (profile?.boardId && profile?.boardName && !boardId) await setBoard(profile.boardId, profile.boardName);
       if (profile?.standardId && profile?.standardName && !standardId) await setStandard(profile.standardId, profile.standardName);
       const hasBoardStd = (profile?.boardId && profile?.standardId) || (boardId && standardId);
-      router.replace(hasBoardStd ? '/subjects' : '/onboarding');
+      if (!activePlanId) {
+        router.replace('/pricing');
+      } else {
+        router.replace(hasBoardStd ? '/subjects' : '/onboarding');
+      }
     } else {
       setStep('name');
     }
