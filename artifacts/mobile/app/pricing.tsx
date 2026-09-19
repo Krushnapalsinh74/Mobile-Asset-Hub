@@ -23,21 +23,55 @@ export default function PricingScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
+  const DEFAULT_PLANS: SubscriptionPlan[] = [
+    { id: 'free', name: 'Free Plan', price: 0, questionLimit: 20 },
+    { id: 'pro', name: 'Pro Plan', price: 299, questionLimit: 500 },
+    { id: 'unlimited', name: 'Unlimited Plan', price: 499, questionLimit: 9999 },
+  ];
+
   useEffect(() => {
     subscriptionApi.getPlans()
-      .then(setPlans)
-      .catch((e) => setError(e.message || 'Failed to load plans'))
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setPlans(data);
+        } else {
+          setPlans(DEFAULT_PLANS);
+        }
+      })
+      .catch(() => {
+        setPlans(DEFAULT_PLANS);
+      })
       .finally(() => setLoading(false));
   }, []);
 
-  const { setActivePlan, activePlanId } = useApp();
+  const { setActivePlan, activePlanId, boardId, standardId, studentName } = useApp();
 
   const handleSelectPlan = async (planId: string | number) => {
     await setActivePlan(String(planId));
     if (planId === 'free') {
+      if (boardId && standardId) {
+        router.replace('/subjects');
+      } else {
+        router.replace('/onboarding');
+      }
+    } else {
+      if (studentName) {
+        router.push({ pathname: '/checkout', params: { planId: String(planId) } });
+      } else {
+        router.push({ pathname: '/register', params: { planId } });
+      }
+    }
+  };
+
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else if (boardId && standardId) {
+      router.replace('/subjects');
+    } else if (studentName) {
       router.replace('/onboarding');
     } else {
-      router.push({ pathname: '/register', params: { planId } });
+      router.replace('/login');
     }
   };
 
@@ -47,7 +81,7 @@ export default function PricingScreen() {
         colors={['#3730A3', '#4F46E5', '#7C3AED']}
         style={[styles.header, { paddingTop: insets.top + 20 }]}
       >
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </Pressable>
         <Text style={styles.title}>Choose a Plan</Text>

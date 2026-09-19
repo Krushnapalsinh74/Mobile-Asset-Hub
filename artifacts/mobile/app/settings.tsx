@@ -1,3 +1,4 @@
+import { BottomTabBar, BOTTOM_TAB_INNER_HEIGHT } from '@/components/BottomTabBar';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { useAppSettings } from '@/hooks/useAppSettings';
@@ -107,7 +108,7 @@ export default function SettingsScreen() {
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </head>
 <body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#f8f7ff;">
-  <p style="font-family:sans-serif;color:#4F46E5">Opening payment...</p>
+  <p style="font-family:sans-serif;color:#5B4AF0">Opening payment...</p>
   <script>
     var options = {
       key: "${razorpayKey}",
@@ -119,7 +120,7 @@ export default function SettingsScreen() {
         email: "${studentEmail ?? ''}",
         name: "${studentName ?? ''}"
       },
-      theme: { color: "#4F46E5" },
+      theme: { color: "#5B4AF0" },
       handler: function(response) {
         window.location.href = "eduapp://payment-success?payment_id=" + response.razorpay_payment_id;
       },
@@ -139,457 +140,291 @@ export default function SettingsScreen() {
     const dataUrl = `data:text/html;charset=utf-8,${blob}`;
 
     await WebBrowser.openBrowserAsync(dataUrl, {
-      toolbarColor: '#4F46E5',
+      toolbarColor: '#5B4AF0',
       controlsColor: '#FFFFFF',
     });
   };
 
+  const topPad = insets.top + (Platform.OS === 'web' ? 24 : 0);
+  const tabBarHeight = BOTTOM_TAB_INNER_HEIGHT + insets.bottom + (Platform.OS === 'web' ? 8 : 0);
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
+    <View style={styles.root}>
+      {/* ── GRADIENT HEADER ── */}
       <LinearGradient
-        colors={['#3730A3', '#4F46E5', '#7C3AED']}
+        colors={['#1E1B4B', '#3B27ED', '#5B4AF0']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 16 }]}
+        style={[styles.header, { paddingTop: topPad + 20 }]}
       >
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <View style={styles.backCircle}>
-            <Ionicons name="arrow-back" size={20} color="#FFF" />
-          </View>
+        <Pressable onPress={() => { if (router.canGoBack()) { router.back(); } else { router.replace('/(tabs)'); } }} style={styles.backCircle}>
+          <Ionicons name="arrow-back" size={18} color="#FFF" />
         </Pressable>
         <Text style={styles.headerTitle}>Settings</Text>
-        <View style={{ width: 38 }} />
+        <View style={{ width: 36 }} />
       </LinearGradient>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 32 },
-        ]}
+        contentContainerStyle={{
+          paddingHorizontal: 20,
+          paddingTop: 20,
+          paddingBottom: tabBarHeight + 24,
+          gap: 24,
+        }}
       >
-        {/* ── PROFILE CARD ── */}
-        {profileLoading ? (
-          <View style={[styles.profileLoadingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <ActivityIndicator size="small" color={colors.primary} />
-            <Text style={[styles.profileLoadingText, { color: colors.mutedForeground }]}>Loading profile…</Text>
-          </View>
-        ) : (
-          <View style={styles.profileCardWrapper}>
-            <LinearGradient
-              colors={['#3730A3', '#4F46E5', '#7C3AED']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.profileCard}
-            >
-              {/* decorative blob */}
-              <View style={styles.profileBlob} />
-
-              {/* Avatar + name row */}
-              <View style={styles.profileTopRow}>
-                <View style={styles.avatarCircle}>
-                  <Text style={styles.avatarText}>{initials}</Text>
-                </View>
-
-                <View style={styles.profileInfo}>
-                  <View style={styles.profileNameRow}>
-                    <Text style={styles.profileName} numberOfLines={1}>{displayName}</Text>
-                  </View>
-                  {displayEmail ? (
-                    <Text style={styles.profileEmail} numberOfLines={1}>{displayEmail}</Text>
-                  ) : null}
-                </View>
+        {/* ── PROFILE SECTION ── */}
+        <View style={styles.profileSection}>
+          <View style={styles.profileCard}>
+            {/* Header info */}
+            <View style={styles.profileRow}>
+              <View style={styles.avatarCircle}>
+                <Text style={styles.avatarText}>{initials}</Text>
               </View>
-
-              {/* Details row — standard + boards */}
-              {(profile?.standardName || profile?.boardName || standardName || boardName) && (
-                <View style={styles.profileDetails}>
-                  {(profile?.standardName || standardName) ? (
-                    <View style={styles.profileDetailChip}>
-                      <Ionicons name="layers-outline" size={12} color="rgba(255,255,255,0.9)" />
-                      <Text style={styles.profileDetailText}>{profile?.standardName ?? standardName}</Text>
-                    </View>
-                  ) : null}
-                  {(profile?.boardName || boardName) ? (
-                    <View style={styles.profileDetailChip}>
-                      <Ionicons name="school-outline" size={12} color="rgba(255,255,255,0.9)" />
-                      <Text style={styles.profileDetailText}>{profile?.boardName ?? boardName}</Text>
-                    </View>
-                  ) : null}
-                </View>
-              )}
-
-              {profileError && !profile && (
-                <Text style={styles.profileErrorNote}>Could not load profile details</Text>
-              )}
-            </LinearGradient>
-
-            {/* Upgrade button for free users — rendered below the card */}
-            {razorpayKey ? (
-              <Pressable
-                style={styles.upgradeBtn}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handlePayment(); }}
-              >
-                <LinearGradient
-                  colors={['#F59E0B', '#F97316']}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                  style={styles.upgradeBtnGrad}
-                >
-                  <Text style={styles.upgradeBtnIcon}>⚡</Text>
-                  <Text style={styles.upgradeBtnText}>Upgrade to Premium</Text>
-                  <Ionicons name="arrow-forward" size={14} color="#FFF" />
-                </LinearGradient>
-              </Pressable>
-            ) : null}
-          </View>
-        )}
-
-        {/* ── APP SETTINGS FROM /settings API ── */}
-        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>App Configuration</Text>
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {settingsLoading ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
-                Loading configuration…
-              </Text>
-            </View>
-          ) : settingsError ? (
-            <View style={styles.errorRow}>
-              <Ionicons name="cloud-offline-outline" size={20} color="#EF4444" />
-              <Text style={[styles.errorText, { color: '#EF4444' }]}>
-                Could not load settings
-              </Text>
-              <Pressable onPress={() => refetchSettings()} style={styles.retryLink}>
-                <Text style={[styles.retryLinkText, { color: colors.primary }]}>Retry</Text>
+              <View style={styles.profileInfo}>
+                <Text style={styles.profileName} numberOfLines={1}>{displayName}</Text>
+                {displayEmail ? (
+                  <Text style={styles.profileEmail} numberOfLines={1}>{displayEmail}</Text>
+                ) : null}
+              </View>
+              <Pressable style={styles.editBtn}>
+                <Ionicons name="create-outline" size={16} color="#64748B" />
               </Pressable>
             </View>
-          ) : (
-            <>
-              {/* AI API Key */}
-              <View style={styles.configRow}>
-                <View style={[styles.configIcon, { backgroundColor: aiApiKey ? '#D1FAE5' : '#FEE2E2' }]}>
-                  <Ionicons
-                    name={aiApiKey ? 'sparkles' : 'sparkles-outline'}
-                    size={16}
-                    color={aiApiKey ? '#10B981' : '#EF4444'}
-                  />
-                </View>
-                <View style={styles.configInfo}>
-                  <Text style={[styles.configLabel, { color: colors.text }]}>AI Engine</Text>
-                  <Text style={[styles.configValue, { color: colors.mutedForeground }]}>
-                    {aiApiKey ? `Configured (${aiApiKey.slice(0, 8)}…)` : 'Not configured'}
-                  </Text>
-                </View>
-                <View style={[styles.statusDot, { backgroundColor: aiApiKey ? '#10B981' : '#EF4444' }]} />
+
+            {/* Pills */}
+            <View style={styles.pillsRow}>
+              <View style={styles.infoPill}>
+                <Ionicons name="book-outline" size={12} color="#64748B" />
+                <Text style={styles.infoPillText} numberOfLines={1}>{profile?.standardName ?? standardName ?? 'Class 11'}</Text>
               </View>
-
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-              {/* Payment Gateway */}
-              <View style={styles.configRow}>
-                <View style={[styles.configIcon, { backgroundColor: razorpayKey ? '#EDE9FE' : '#FEE2E2' }]}>
-                  <Ionicons
-                    name="card-outline"
-                    size={16}
-                    color={razorpayKey ? '#8B5CF6' : '#EF4444'}
-                  />
-                </View>
-                <View style={styles.configInfo}>
-                  <Text style={[styles.configLabel, { color: colors.text }]}>Payment Gateway</Text>
-                  <Text style={[styles.configValue, { color: colors.mutedForeground }]}>
-                    {razorpayKey
-                      ? `${paymentGateway ?? 'Razorpay'} · ${razorpayKey.slice(0, 12)}…`
-                      : 'Not configured'}
-                  </Text>
-                </View>
-                <View style={[styles.statusDot, { backgroundColor: razorpayKey ? '#8B5CF6' : '#EF4444' }]} />
+              <View style={styles.infoPill}>
+                <Ionicons name="school-outline" size={12} color="#64748B" />
+                <Text style={styles.infoPillText} numberOfLines={1}>{profile?.boardName ?? boardName ?? 'Central Board of Secondary Education'}</Text>
               </View>
+            </View>
+          </View>
 
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-              {/* App Name */}
-              <View style={styles.configRow}>
-                <View style={[styles.configIcon, { backgroundColor: '#EEF2FF' }]}>
-                  <Ionicons name="information-circle-outline" size={16} color="#4F46E5" />
-                </View>
-                <View style={styles.configInfo}>
-                  <Text style={[styles.configLabel, { color: colors.text }]}>App Name</Text>
-                  <Text style={[styles.configValue, { color: colors.mutedForeground }]}>
-                    {appName || 'Knowledge Park'}
-                  </Text>
-                </View>
-              </View>
-            </>
-          )}
+          {/* Quote Banner */}
+          <View style={styles.quoteBanner}>
+            <View style={{ flex: 1, paddingRight: 60 }}>
+              <Text style={styles.quoteText}>
+                "Consistent learning today leads to brighter tomorrows."
+              </Text>
+            </View>
+            <View style={styles.quoteIconWrap}>
+              <Ionicons name="leaf" size={40} color="#10B981" style={{ position: 'absolute', top: 5, right: 15 }} />
+              <Ionicons name="library" size={50} color="#3B82F6" style={{ position: 'absolute', bottom: -5, right: -5 }} />
+            </View>
+          </View>
         </View>
 
-        {/* ── PREMIUM / RAZORPAY ── */}
-        {razorpayKey ? (
-          <>
-            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Subscription</Text>
-            <Pressable onPress={handlePayment} style={{ marginBottom: 20 }}>
-              <LinearGradient colors={['#F59E0B', '#EF4444']} style={styles.premiumCard}>
-                <View style={styles.premiumLeft}>
-                  <View style={styles.premiumIconWrap}>
-                    <Ionicons name="star" size={22} color="#FFF" />
-                  </View>
-                  <View>
-                    <Text style={styles.premiumTitle}>Go Premium ✨</Text>
-                    <Text style={styles.premiumSub}>
-                      Unlimited tests, AI Tutor & more
-                    </Text>
-                    {premiumPrice && (
-                      <Text style={styles.premiumPrice}>
-                        {premiumCurrency ?? '₹'} {premiumPrice}/month
-                      </Text>
-                    )}
-                  </View>
-                </View>
-                <View style={styles.premiumChevron}>
-                  <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
-                </View>
-              </LinearGradient>
-            </Pressable>
-          </>
-        ) : null}
 
-        {/* ── EDUCATION INFO ── */}
-        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Education</Text>
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.infoRow}>
-            <View style={[styles.infoIcon, { backgroundColor: '#EEF2FF' }]}>
-              <Ionicons name="school-outline" size={16} color="#4F46E5" />
+        {/* ── QUICK ACTIONS ── */}
+        <View>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.grid2x2}>
+            {/* Go Premium */}
+            <Pressable style={[styles.actionCard, { backgroundColor: '#FFF7ED' }]} onPress={handlePayment}>
+              <View style={styles.actionTop}>
+                <View style={[styles.actionIconBg, { backgroundColor: '#FFEDD5' }]}>
+                  <Ionicons name="star" size={18} color="#F59E0B" />
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+              </View>
+              <Text style={styles.actionCardTitle}>Go Premium</Text>
+              <Text style={styles.actionCardSub}>Unlock all features</Text>
+            </Pressable>
+
+            {/* View Progress */}
+            <Pressable style={[styles.actionCard, { backgroundColor: '#EFF6FF' }]} onPress={() => router.push('/history' as any)}>
+              <View style={styles.actionTop}>
+                <View style={[styles.actionIconBg, { backgroundColor: '#DBEAFE' }]}>
+                  <Ionicons name="bar-chart" size={18} color="#3B82F6" />
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+              </View>
+              <Text style={styles.actionCardTitle}>View Progress</Text>
+              <Text style={styles.actionCardSub}>See your stats</Text>
+            </Pressable>
+
+            {/* Download Data */}
+            <Pressable style={[styles.actionCard, { backgroundColor: '#F0FDF4' }]}>
+              <View style={styles.actionTop}>
+                <View style={[styles.actionIconBg, { backgroundColor: '#DCFCE7' }]}>
+                  <Ionicons name="cloud-download" size={18} color="#10B981" />
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+              </View>
+              <Text style={styles.actionCardTitle}>Download Data</Text>
+              <Text style={styles.actionCardSub}>Keep a backup</Text>
+            </Pressable>
+
+            {/* Edit Profile */}
+            <Pressable style={[styles.actionCard, { backgroundColor: '#F5F3FF' }]}>
+              <View style={styles.actionTop}>
+                <View style={[styles.actionIconBg, { backgroundColor: '#EDE9FE' }]}>
+                  <Ionicons name="person" size={18} color="#8B5CF6" />
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+              </View>
+              <Text style={styles.actionCardTitle}>Edit Profile</Text>
+              <Text style={styles.actionCardSub}>Update details</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* ── APP CONFIGURATION ── */}
+        <View>
+          <Text style={styles.sectionTitle}>App Configuration</Text>
+          <View style={styles.listCard}>
+            {/* AI Engine */}
+            <View style={styles.listItem}>
+              <View style={[styles.listIconBg, { backgroundColor: '#FFEDD5' }]}>
+                <Ionicons name="git-network-outline" size={18} color="#F97316" />
+              </View>
+              <View style={styles.listInfo}>
+                <Text style={styles.listTitle}>AI Engine</Text>
+                <Text style={styles.listSub}>{aiApiKey ? 'Configured' : 'Not configured'}</Text>
+              </View>
+              {!aiApiKey && <Ionicons name="remove-circle" size={16} color="#EF4444" style={{ marginRight: 8 }} />}
+              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
             </View>
-            <View style={styles.infoText}>
-              <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Board</Text>
-              <Text style={[styles.infoValue, { color: colors.text }]}>{boardName ?? '—'}</Text>
+            <View style={styles.divider} />
+            {/* Payment Gateway */}
+            <View style={styles.listItem}>
+              <View style={[styles.listIconBg, { backgroundColor: '#FFEDD5' }]}>
+                <Ionicons name="card-outline" size={18} color="#F97316" />
+              </View>
+              <View style={styles.listInfo}>
+                <Text style={styles.listTitle}>Payment Gateway</Text>
+                <Text style={styles.listSub}>{razorpayKey ? 'Configured' : 'Not configured'}</Text>
+              </View>
+              {!razorpayKey && <Ionicons name="remove-circle" size={16} color="#EF4444" style={{ marginRight: 8 }} />}
+              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+            </View>
+            <View style={styles.divider} />
+            {/* App Name */}
+            <View style={styles.listItem}>
+              <View style={[styles.listIconBg, { backgroundColor: '#EDE9FE' }]}>
+                <Ionicons name="settings-outline" size={18} color="#8B5CF6" />
+              </View>
+              <View style={styles.listInfo}>
+                <Text style={styles.listTitle}>App Name</Text>
+                <Text style={styles.listSub}>{appName || 'Knowledge Park'}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
             </View>
           </View>
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          <View style={styles.infoRow}>
-            <View style={[styles.infoIcon, { backgroundColor: '#EEF2FF' }]}>
-              <Ionicons name="layers-outline" size={16} color="#4F46E5" />
-            </View>
-            <View style={styles.infoText}>
-              <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Class</Text>
-              <Text style={[styles.infoValue, { color: colors.text }]}>{standardName ?? '—'}</Text>
-            </View>
+        </View>
+
+        {/* ── EDUCATION ── */}
+        <View>
+          <Text style={styles.sectionTitle}>Education</Text>
+          <View style={styles.listCard}>
+            <Pressable style={styles.listItem} onPress={handleChangeBoard}>
+              <View style={[styles.listIconBg, { backgroundColor: '#EFF6FF' }]}>
+                <Ionicons name="school" size={18} color="#3B82F6" />
+              </View>
+              <View style={styles.listInfo}>
+                <Text style={styles.listTitle}>Board</Text>
+                <Text style={styles.listSub}>{boardName ?? 'Central Board of Secondary Education'}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+            </Pressable>
+            <View style={styles.divider} />
+            <Pressable style={styles.listItem} onPress={handleChangeBoard}>
+              <View style={[styles.listIconBg, { backgroundColor: '#EFF6FF' }]}>
+                <Ionicons name="layers" size={18} color="#3B82F6" />
+              </View>
+              <View style={styles.listInfo}>
+                <Text style={styles.listTitle}>Class</Text>
+                <Text style={styles.listSub}>{standardName ?? 'Class 11'}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+            </Pressable>
           </View>
         </View>
 
         {/* ── ACCOUNT ACTIONS ── */}
-        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Account</Text>
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Pressable
-            style={styles.actionRow}
-            onPress={() => { Haptics.selectionAsync(); handleChangeBoard(); }}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: '#EEF2FF' }]}>
-              <Ionicons name="swap-horizontal-outline" size={18} color="#6366F1" />
-            </View>
-            <View style={styles.actionText}>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>Change Board / Class</Text>
-              <Text style={[styles.actionDesc, { color: colors.mutedForeground }]}>
-                Switch to a different board or standard
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
-          </Pressable>
-
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-          <Pressable
-            style={styles.actionRow}
-            onPress={() => { Haptics.selectionAsync(); handleClearData(); }}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: '#FEE2E2' }]}>
-              <Ionicons name="trash-outline" size={18} color="#EF4444" />
-            </View>
-            <View style={styles.actionText}>
-              <Text style={[styles.actionLabel, { color: '#EF4444' }]}>Sign Out & Clear Data</Text>
-              <Text style={[styles.actionDesc, { color: colors.mutedForeground }]}>
-                Remove all saved data from this device
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
-          </Pressable>
+        <View>
+          <Text style={styles.sectionTitle}>Account</Text>
+          <View style={styles.listCard}>
+            <Pressable style={styles.listItem} onPress={handleClearData}>
+              <View style={[styles.listIconBg, { backgroundColor: '#FEE2E2' }]}>
+                <Ionicons name="log-out-outline" size={18} color="#EF4444" />
+              </View>
+              <View style={styles.listInfo}>
+                <Text style={[styles.listTitle, { color: '#EF4444' }]}>Sign Out</Text>
+                <Text style={styles.listSub}>Log out of your account</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+            </Pressable>
+          </View>
         </View>
 
-        <Text style={[styles.version, { color: colors.mutedForeground }]}>
-          {appName || 'Knowledge Park'} · v1.0.0
-        </Text>
       </ScrollView>
+      <BottomTabBar activeTab="settings" />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  root: { flex: 1, backgroundColor: '#FAFAFA' },
 
+  /* HEADER */
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 20,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingBottom: 24,
+    borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
   },
-  backBtn: {},
   backCircle: {
-    width: 38, height: 38, borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 36, height: 36, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#FFF' },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
 
-  content: { padding: 16, gap: 0 },
+  sectionTitle: { fontSize: 14, fontWeight: '800', color: '#334155', marginBottom: 12, marginLeft: 4 },
 
-  // ── Profile card ──────────────────────────────────────────────────────
-  profileCardWrapper: { marginBottom: 24 },
+  /* PROFILE SECTION */
+  profileSection: { backgroundColor: '#FFF', borderRadius: 24, padding: 16, borderWidth: 1, borderColor: '#F1F5F9', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
+  profileCard: { marginBottom: 16 },
+  profileRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  avatarCircle: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#5B4AF0', alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  avatarText: { color: '#FFF', fontSize: 20, fontWeight: '800' },
+  profileInfo: { flex: 1, paddingTop: 4 },
+  profileName: { fontSize: 18, fontWeight: '800', color: '#0F172A', marginBottom: 2 },
+  profileEmail: { fontSize: 12, color: '#64748B' },
+  editBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
+  
+  pillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
+  infoPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#F8FAFC', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0' },
+  infoPillText: { fontSize: 11, color: '#475569', fontWeight: '600' },
 
-  profileLoadingCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderRadius: 22, borderWidth: 1, padding: 20, marginBottom: 24,
-  },
-  profileLoadingText: { fontSize: 13 },
+  quoteBanner: { flexDirection: 'row', backgroundColor: '#EEF2FF', borderRadius: 16, padding: 16, alignItems: 'center', overflow: 'hidden' },
+  quoteText: { fontSize: 13, fontStyle: 'italic', fontWeight: '700', color: '#3730A3', lineHeight: 20 },
+  quoteIconWrap: { position: 'absolute', right: 0, bottom: 0, width: 60, height: 60 },
 
-  profileCard: {
-    borderRadius: 22, padding: 20, overflow: 'hidden', gap: 14,
+  /* QUICK ACTIONS */
+  grid2x2: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6 },
+  actionCard: {
+    width: '50%', maxWidth: '50%', padding: 16, borderRadius: 20, marginHorizontal: 6, marginBottom: 12,
+    flexShrink: 1,
+    flexBasis: '46%'
   },
-  profileBlob: {
-    position: 'absolute', width: 160, height: 160, borderRadius: 80,
-    backgroundColor: 'rgba(255,255,255,0.07)', top: -50, right: -40,
-  },
-  profileTopRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  avatarCircle: {
-    width: 56, height: 56, borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)',
-  },
-  avatarText: { fontSize: 22, fontWeight: '800', color: '#FFF' },
-  profileInfo: { flex: 1 },
-  profileNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  profileName: { fontSize: 17, fontWeight: '800', color: '#FFF' },
-  profileEmail: { fontSize: 12, color: 'rgba(255,255,255,0.72)', marginTop: 4 },
+  actionTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
+  actionIconBg: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  actionCardTitle: { fontSize: 14, fontWeight: '800', color: '#1E293B', marginBottom: 4 },
+  actionCardSub: { fontSize: 11, color: '#64748B' },
 
-  premiumBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#FCD34D',
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20,
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  premiumBadgeIcon: { fontSize: 11 },
-  premiumBadgeText: { fontSize: 10, fontWeight: '800', color: '#78350F', letterSpacing: 0.4 },
-
-  profileDetails: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  profileDetailChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
-  },
-  profileDetailText: { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.92)' },
-  profileErrorNote: { fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
-
-  upgradeBtn: {
-    marginTop: 10,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  upgradeBtnGrad: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, paddingVertical: 13, paddingHorizontal: 20, borderRadius: 16,
-  },
-  upgradeBtnIcon: { fontSize: 15 },
-  upgradeBtnText: { fontSize: 14, fontWeight: '800', color: '#FFF', letterSpacing: 0.3 },
-
-  sectionLabel: {
-    fontSize: 11, fontWeight: '700',
-    letterSpacing: 0.8, textTransform: 'uppercase',
-    marginBottom: 8, marginTop: 4,
-  },
-
-  card: {
-    borderRadius: 20, borderWidth: 1,
-    marginBottom: 20, overflow: 'hidden',
-  },
-
-  loadingRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    padding: 16,
-  },
-  loadingText: { fontSize: 13 },
-
-  errorRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    padding: 16,
-  },
-  errorText: { flex: 1, fontSize: 13 },
-  retryLink: {},
-  retryLinkText: { fontSize: 13, fontWeight: '600' },
-
-  configRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: 14,
-  },
-  configIcon: {
-    width: 36, height: 36, borderRadius: 11,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  configInfo: { flex: 1 },
-  configLabel: { fontSize: 14, fontWeight: '600' },
-  configValue: { fontSize: 11, marginTop: 2, fontFamily: 'monospace' },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-
-  premiumCard: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 22, padding: 18, gap: 14,
-  },
-  premiumLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14 },
-  premiumIconWrap: {
-    width: 48, height: 48, borderRadius: 15,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  premiumTitle: { fontSize: 16, fontWeight: '800', color: '#FFF' },
-  premiumSub: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
-  premiumPrice: { fontSize: 13, fontWeight: '700', color: '#FFF', marginTop: 4 },
-  premiumChevron: {},
-
-  infoRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: 14,
-  },
-  infoIcon: {
-    width: 36, height: 36, borderRadius: 11,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  infoText: { flex: 1 },
-  infoLabel: { fontSize: 11 },
-  infoValue: { fontSize: 14, fontWeight: '600', marginTop: 1 },
-  divider: { height: 1, marginLeft: 62 },
-
-  actionRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: 14,
-  },
-  actionIcon: {
-    width: 38, height: 38, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  actionText: { flex: 1 },
-  actionLabel: { fontSize: 14, fontWeight: '600' },
-  actionDesc: { fontSize: 12, marginTop: 1 },
-
-  version: { fontSize: 12, textAlign: 'center', marginTop: 8 },
+  /* LIST ITEMS */
+  listCard: { backgroundColor: '#FFF', borderRadius: 24, borderWidth: 1, borderColor: '#F1F5F9', overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 6, elevation: 1 },
+  listItem: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 14 },
+  listIconBg: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  listInfo: { flex: 1 },
+  listTitle: { fontSize: 14, fontWeight: '700', color: '#0F172A', marginBottom: 2 },
+  listSub: { fontSize: 11, color: '#64748B' },
+  divider: { height: 1, backgroundColor: '#F1F5F9', marginLeft: 70 },
 });

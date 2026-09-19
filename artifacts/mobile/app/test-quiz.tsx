@@ -251,6 +251,14 @@ export default function TestQuizScreen() {
     }
   };
 
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/test-config');
+    }
+  };
+
   if (questions.length === 0) {
     return (
       <View style={[styles.center, { flex: 1, backgroundColor: colors.background }]}>
@@ -261,7 +269,7 @@ export default function TestQuizScreen() {
         <Text style={[styles.errorSub, { color: colors.mutedForeground }]}>
           Try selecting a different chapter or question type
         </Text>
-        <Pressable onPress={() => router.back()} style={styles.actionBtn}>
+        <Pressable onPress={handleBack} style={styles.actionBtn}>
           <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.actionBtnGrad}>
             <Text style={styles.actionBtnText}>Go Back</Text>
           </LinearGradient>
@@ -487,7 +495,7 @@ export default function TestQuizScreen() {
                 <Ionicons name="home-outline" size={15} color="#4F46E5" />
                 <Text style={[styles.resultBtnOutlineText, { color: '#4F46E5' }]}>Home</Text>
               </Pressable>
-              <Pressable style={styles.resultBtnFill} onPress={() => router.back()}>
+              <Pressable style={styles.resultBtnFill} onPress={handleBack}>
                 <LinearGradient colors={['#4F46E5', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.resultBtnGrad}>
                   <Ionicons name="refresh" size={15} color="#FFF" />
                   <Text style={styles.resultBtnFillText}>Try Again</Text>
@@ -655,7 +663,7 @@ export default function TestQuizScreen() {
         <View style={styles.quizHeaderRow}>
           <Pressable
             style={styles.qCloseBtn}
-            onPress={() => router.back()}
+            onPress={handleBack}
           >
             <Ionicons name="close" size={18} color="#FFFFFF" />
           </Pressable>

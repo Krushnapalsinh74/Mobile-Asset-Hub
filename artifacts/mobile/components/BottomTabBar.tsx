@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export const BOTTOM_TAB_INNER_HEIGHT = 58;
+export const BOTTOM_TAB_INNER_HEIGHT = 65;
 
 type TabDef = {
   key: string;
@@ -17,14 +17,14 @@ const TABS: TabDef[] = [
   { key: 'home',    label: 'Home',    icon: 'home-outline',     activeIcon: 'home'     },
   { key: 'history', label: 'History', icon: 'time-outline',     activeIcon: 'time'     },
   { key: 'saved',   label: 'Saved',   icon: 'bookmark-outline', activeIcon: 'bookmark' },
-  { key: 'settings',label: 'Settings',icon: 'settings-outline', activeIcon: 'settings' },
+  { key: 'profile', label: 'Profile', icon: 'person-outline',   activeIcon: 'person'   },
 ];
 
 function handleTabPress(key: string) {
-  if (key === 'home')     router.replace('/subjects' as any);
-  else if (key === 'history') router.replace('/history' as any);
-  else if (key === 'saved')   router.replace('/saved' as any);
-  else if (key === 'settings') router.push('/settings' as any);
+  if (key === 'home') router.replace('/subjects' as any);
+  if (key === 'history') router.replace('/history' as any);
+  if (key === 'saved') router.replace('/saved' as any);
+  if (key === 'profile') router.replace('/settings' as any);
 }
 
 export function BottomTabBar({ activeTab = 'home' }: { activeTab?: string }) {
@@ -42,29 +42,30 @@ export function BottomTabBar({ activeTab = 'home' }: { activeTab?: string }) {
     ]}>
       {TABS.map(tab => {
         const isActive = tab.key === activeTab;
+        const color = isActive ? '#2563EB' : '#94A3B8';
+        
         return (
           <Pressable
             key={tab.key}
             style={styles.tabItem}
             onPress={() => handleTabPress(tab.key)}
           >
-            <View style={[
-              styles.iconWrap,
-              { backgroundColor: isActive ? colors.primary + '18' : 'transparent' },
-            ]}>
+            <View style={styles.iconContainer}>
               <Ionicons
                 name={isActive ? tab.activeIcon : tab.icon}
                 size={22}
-                color={isActive ? colors.primary : colors.mutedForeground}
+                color={color}
               />
+              {/* Notification badge mock for specific icons */}
+              {tab.key === 'notifications' && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>3</Text>
+                </View>
+              )}
             </View>
-            <Text style={[
-              styles.label,
-              { color: isActive ? colors.primary : colors.mutedForeground },
-            ]}>
+            <Text style={[styles.label, { color }]}>
               {tab.label}
             </Text>
-            {isActive && <View style={[styles.activeDot, { backgroundColor: colors.primary }]} />}
           </Pressable>
         );
       })}
@@ -76,35 +77,44 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
     borderTopWidth: 1,
-    paddingTop: 8,
+    paddingTop: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 10,
+    backgroundColor: '#FFF'
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
-    gap: 2,
-    paddingBottom: 2,
-  },
-  iconWrap: {
-    width: 46,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
     justifyContent: 'center',
+    paddingBottom: 4,
+  },
+  iconContainer: {
+    position: 'relative',
+    marginBottom: 4,
   },
   label: {
     fontSize: 10,
-    fontFamily: 'Inter_600SemiBold',
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  activeDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    marginTop: 1,
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -6,
+    backgroundColor: '#EF4444',
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFF',
   },
+  badgeText: {
+    color: '#FFF',
+    fontSize: 8,
+    fontWeight: 'bold',
+  }
 });

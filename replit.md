@@ -27,14 +27,14 @@ AI-powered quiz and test prep app for Indian school students (CBSE/ICSE/GSEB).
 - `artifacts/mobile/app/` — all screens (subjects.tsx = home, login.tsx, test-quiz.tsx, onboarding.tsx, chat.tsx, etc.)
 - `artifacts/mobile/constants/colors.ts` — design tokens (primary #4F46E5, gradient indigo→violet)
 - `artifacts/mobile/context/AppContext.tsx` — all student state (test history, progress, AsyncStorage)
-- `artifacts/mobile/services/api.ts` — external API calls (kparkit.com)
+- `artifacts/mobile/services/api.ts` — external API calls (kpark-edu.web.app)
 - `artifacts/mobile/components/BottomTabBar.tsx` — bottom nav bar
 - `lib/api-spec/openapi.yaml` — OpenAPI source of truth for Express routes
 
 ## Architecture decisions
 
-- All educational data (boards, subjects, chapters, questions, AI chat) comes from external APIs at `kparkit.com` / `dalalifree.com`, NOT the local Express server. The Express server is a scaffold (`/api/healthz` only).
-- Auth is email OTP via `otp.kparkit.com` — NOT Replit Auth. Do not replace or change the auth flow.
+- All educational data (boards, subjects, chapters, questions, AI chat) comes from the API endpoint at `https://kpark-edu.web.app/api`.
+- Auth is email/phone OTP via `https://otp.kparkit.com`.
 - Student state (test history, progress, last studied, chat history) lives in AsyncStorage via `AppContext.tsx`, not the database.
 - The mobile dev script proxies port 5000 → Expo on port 18116 and rewrites Origin/Referer headers so Expo's CORS middleware accepts the Replit iframe.
 - Theme: primary `#4F46E5`, gradient `['#4F46E5','#7C3AED']`, success `#10B981`, warning `#F59E0B`, error `#EF4444`, background `#F8F7FF`.

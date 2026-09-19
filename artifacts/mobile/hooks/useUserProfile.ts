@@ -3,10 +3,10 @@ import { localApi } from '@/services/api';
 import type { UserProfile } from '@/services/api';
 
 export function useUserProfile(email?: string | null) {
-  const query = useQuery<UserProfile>({
+  const query = useQuery<UserProfile | null>({
     queryKey: ['user-profile', email ?? ''],
     queryFn: () => {
-      if (!email) return Promise.reject(new Error('no email'));
+      if (!email) return Promise.resolve(null);
       return localApi.getProfile(email);
     },
     enabled: !!email,

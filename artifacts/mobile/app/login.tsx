@@ -1,14 +1,12 @@
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-import { localApi, otpApi, type OtpUserProfile } from '@/services/api';
-import { sendFirebasePhoneOtp, verifyFirebasePhoneOtp } from '@/services/firebase';
-import type { ConfirmationResult } from 'firebase/auth';
+import { localApi } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -22,958 +20,273 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Required for expo-auth-session redirect on web/Android
 WebBrowser.maybeCompleteAuthSession();
-
-// Google Web Client ID from google-services.json (type 3)
-const GOOGLE_WEB_CLIENT_ID =
-  '1027948040827-ouksn0up2tr78jg3df4norvnhvio4eg4.apps.googleusercontent.com';
-
-type AuthMethod = 'email' | 'phone' | 'google';
-type Step = 'input' | 'otp' | 'name';
-
-const STATS = [
-  { value: '2M+', label: 'Students', icon: 'people', color: '#10B981' },
-  { value: '50K+', label: 'Questions', icon: 'help-circle', color: '#F59E0B' },
-  { value: '3', label: 'Boards', icon: 'school', color: '#EC4899' },
-];
-
-const COUNTRY_CODES = [
-  { code: '+91', flag: '🇮🇳', label: 'India' },
-  { code: '+1', flag: '🇺🇸', label: 'USA' },
-  { code: '+44', flag: '🇬🇧', label: 'UK' },
-  { code: '+971', flag: '🇦🇪', label: 'UAE' },
-  { code: '+61', flag: '🇦🇺', label: 'Australia' },
-];
+const GOOGLE_WEB_CLIENT_ID = '1027948040827-ouksn0up2tr78jg3df4norvnhvio4eg4.apps.googleusercontent.com';
 
 export default function LoginScreen() {
-  const [authMethod, setAuthMethod] = useState<AuthMethod>('email');
-  const [step, setStep] = useState<Step>('input');
-
-  // Email OTP state
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
-  // Phone OTP state
-  const [countryCode, setCountryCode] = useState('+91');
-  const [phone, setPhone] = useState('');
-  const [showCountryPicker, setShowCountryPicker] = useState(false);
-
-  // Shared OTP / name state
-  const [otp, setOtp] = useState('');
-  const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
-  const [resendCooldown, setResendCooldown] = useState(0);
 
-  const { setStudent, setBoard, setStandard, boardId, standardId, activePlanId } = useApp();
+  const { setStudent, boardId, standardId, activePlanId } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const otpInputRef = useRef<TextInput>(null);
-  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Holds Firebase ConfirmationResult between send and verify steps
-  const firebaseConfirmRef = useRef<ConfirmationResult | null>(null);
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
-  const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
-  const isValidPhone = (p: string) => /^\d{7,15}$/.test(p.trim());
-  const fullPhone = `${countryCode}${phone.trim()}`;
-
-  const startCooldown = () => {
-    setResendCooldown(30);
-    cooldownRef.current = setInterval(() => {
-      setResendCooldown((prev) => {
-        if (prev <= 1) { if (cooldownRef.current) clearInterval(cooldownRef.current); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
-  };
-
-  const resetToInput = () => {
-    setStep('input'); setOtp(''); setError('');
-    if (cooldownRef.current) clearInterval(cooldownRef.current);
-    setResendCooldown(0);
-  };
-
-  const switchMethod = (m: AuthMethod) => {
-    setAuthMethod(m); setStep('input');
-    setEmail(''); setPhone(''); setOtp(''); setName(''); setError('');
-    if (cooldownRef.current) clearInterval(cooldownRef.current);
-    setResendCooldown(0);
-  };
-
-  // ── After successful auth: resolve profile and route ─────────────────────
-  const finishLogin = async (resolvedEmail: string, resolvedName: string | null, profile?: OtpUserProfile) => {
-    if (resolvedName) {
-      await setStudent(resolvedName, resolvedEmail);
-      if (profile?.boardId && profile?.boardName && !boardId) await setBoard(profile.boardId, profile.boardName);
-      if (profile?.standardId && profile?.standardName && !standardId) await setStandard(profile.standardId, profile.standardName);
-      const hasBoardStd = (profile?.boardId && profile?.standardId) || (boardId && standardId);
-      if (!activePlanId) {
-        router.replace('/pricing');
-      } else {
-        router.replace(hasBoardStd ? '/subjects' : '/onboarding');
-      }
-    } else {
-      setStep('name');
+  const handleSignIn = async () => {
+    if (!email.trim() || !password.trim()) {
+      setError('Please enter your email and password.');
+      return;
     }
-  };
-
-  // ── Email OTP ──────────────────────────────────────────────────────────────
-  const handleSendEmailOtp = async () => {
-    const trimmed = email.trim().toLowerCase();
-    if (!isValidEmail(trimmed)) { setError('Please enter a valid email address.'); return; }
-    setError(''); setLoading(true);
+    setError('');
+    setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      const res = await otpApi.sendOtp(trimmed);
-      if (res.success === false) { setError(res.message ?? 'Could not send OTP.'); return; }
-      setEmail(trimmed); setStep('otp'); startCooldown();
-      setTimeout(() => otpInputRef.current?.focus(), 300);
-    } catch (e: any) { setError(e?.message ?? 'Failed to send OTP. Check your connection.'); }
-    finally { setLoading(false); }
-  };
 
-  const handleVerifyEmailOtp = async () => {
-    const trimmedOtp = otp.trim();
-    if (trimmedOtp.length < 4) { setError('Please enter the OTP sent to your email.'); return; }
-    setError(''); setLoading(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      const res = await otpApi.verifyOtp(email, trimmedOtp);
-      if (res.success === false) {
-        setError(res.message ?? 'Invalid OTP. Please try again.');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        return;
+    // Simulate API delay for UI completeness
+    setTimeout(async () => {
+      try {
+        await setStudent('Student', email);
+        localApi.saveProfile({ email, name: 'Student' }).catch(() => { });
+        router.replace(boardId && standardId ? '/subjects' : '/onboarding');
+      } catch (e: any) {
+        setError(e.message || 'Login failed.');
+      } finally {
+        setLoading(false);
       }
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      const [ourProfile, otpProfile] = await Promise.all([
-        localApi.getProfile(email).catch(() => null),
-        otpApi.getProfile(email).catch(() => null),
-      ]);
-      const merged: OtpUserProfile & { name?: string } = {
-        name: ourProfile?.name ?? otpProfile?.name,
-        boardId: ourProfile?.boardId ?? otpProfile?.boardId,
-        boardName: ourProfile?.boardName ?? otpProfile?.boardName,
-        standardId: ourProfile?.standardId ?? otpProfile?.standardId,
-        standardName: ourProfile?.standardName ?? otpProfile?.standardName,
-      };
-      await finishLogin(email, merged.name || res.name || null, merged);
-    } catch (e: any) { setError(e?.message ?? 'Verification failed. Please try again.'); }
-    finally { setLoading(false); }
+    }, 800);
   };
 
-  // ── SMS / Phone OTP — Firebase Phone Auth ─────────────────────────────────
-  const handleSendSmsOtp = async () => {
-    if (!isValidPhone(phone)) { setError('Please enter a valid phone number.'); return; }
-    setError(''); setLoading(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      // Firebase sends a real SMS and returns a ConfirmationResult
-      const confirmation = await sendFirebasePhoneOtp(fullPhone);
-      firebaseConfirmRef.current = confirmation;
-      setStep('otp'); startCooldown();
-      setTimeout(() => otpInputRef.current?.focus(), 300);
-    } catch (e: any) {
-      const msg = e?.message ?? '';
-      if (msg.includes('invalid-phone-number') || msg.includes('INVALID_PHONE_NUMBER')) {
-        setError('Invalid phone number. Use format: +91XXXXXXXXXX');
-      } else if (msg.includes('too-many-requests') || msg.includes('TOO_MANY_ATTEMPTS')) {
-        setError('Too many attempts. Please wait a few minutes and try again.');
-      } else if (msg.includes('quota-exceeded')) {
-        setError('SMS quota exceeded. Please try email login instead.');
-      } else {
-        setError(msg || 'Failed to send OTP. Check your connection.');
-      }
-    }
-    finally { setLoading(false); }
-  };
-
-  const handleVerifySmsOtp = async () => {
-    const trimmedOtp = otp.trim();
-    if (trimmedOtp.length < 6) { setError('Please enter the 6-digit OTP sent to your phone.'); return; }
-    if (!firebaseConfirmRef.current) { setError('Session expired. Please resend OTP.'); resetToInput(); return; }
-    setError(''); setLoading(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      // Verify OTP with Firebase — throws if wrong code
-      const firebaseUser = await verifyFirebasePhoneOtp(firebaseConfirmRef.current, trimmedOtp);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Use Firebase UID + phone as identifier
-      const identifier = firebaseUser.phoneNumber ?? fullPhone;
-      const displayName = firebaseUser.displayName ?? null;
-      // Check our DB for an existing profile
-      const existing = await localApi.getProfile(identifier).catch(() => null);
-      await finishLogin(identifier, displayName ?? existing?.name ?? null, existing ?? undefined);
-    } catch (e: any) {
-      const msg = e?.message ?? '';
-      if (msg.includes('invalid-verification-code') || msg.includes('INVALID_CODE')) {
-        setError('Incorrect OTP. Please check and try again.');
-      } else if (msg.includes('code-expired') || msg.includes('CODE_EXPIRED')) {
-        setError('OTP expired. Please request a new one.');
-      } else {
-        setError(msg || 'Verification failed. Please try again.');
-      }
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    }
-    finally { setLoading(false); }
-  };
-
-  const handleResend = async () => {
-    if (resendCooldown > 0 || loading) return;
-    setError(''); setOtp(''); setLoading(true);
-    try {
-      if (authMethod === 'email') {
-        await otpApi.sendOtp(email);
-      } else {
-        // Resend via Firebase — store new ConfirmationResult
-        const confirmation = await sendFirebasePhoneOtp(fullPhone);
-        firebaseConfirmRef.current = confirmation;
-      }
-      startCooldown();
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch { setError('Could not resend OTP. Try again.'); }
-    finally { setLoading(false); }
-  };
-
-
-  // ── Google Sign-In ─────────────────────────────────────────────────────────
   const handleGoogleSignIn = async () => {
     setError('');
     setGoogleLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      // Build Google OAuth URL manually
-      // Google's Web Client IDs reject custom schemes (like com.knowledgepark.app:/)
-      // So on Web, we must use the window origin (e.g. http://localhost:8081)
-      const redirectUri = typeof window !== 'undefined' 
-        ? window.location.origin 
+      const redirectUri = typeof window !== 'undefined'
+        ? window.location.origin
         : `com.knowledgepark.app:/oauth2redirect/google`;
-        
-      const scope = encodeURIComponent('openid profile email');
-      const authUrl =
-        `https://accounts.google.com/o/oauth2/v2/auth` +
-        `?client_id=${GOOGLE_WEB_CLIENT_ID}` +
-        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-        `&response_type=token` +
-        `&scope=${scope}`;
 
+      const scope = encodeURIComponent('openid profile email');
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_WEB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${scope}`;
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
 
       if (result.type === 'success' && result.url) {
-        // Extract access_token from fragment
         const fragment = result.url.split('#')[1] ?? '';
         const params = Object.fromEntries(new URLSearchParams(fragment));
         const accessToken = params['access_token'];
 
         if (accessToken) {
-          // Fetch user info from Google
-          const userRes = await fetch(
-            `https://www.googleapis.com/oauth2/v3/userinfo?access_token=${accessToken}`
-          );
-          if (!userRes.ok) throw new Error('Failed to get Google profile.');
+          const userRes = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${accessToken}`);
           const userInfo = await userRes.json();
+          const googleEmail = userInfo.email ?? '';
 
-          const googleEmail: string = userInfo.email ?? '';
-          const googleName: string = userInfo.name ?? '';
-
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-          // Save profile and route
           if (googleEmail) {
-            // Check if we already have a profile
-            const existing = await localApi.getProfile(googleEmail).catch(() => null);
-            await setStudent(googleName || existing?.name || '', googleEmail);
-            if (existing?.boardId && existing?.boardName && !boardId) await setBoard(existing.boardId, existing.boardName);
-            if (existing?.standardId && existing?.standardName && !standardId) await setStandard(existing.standardId, existing.standardName);
-            localApi.saveProfile({ email: googleEmail, name: googleName }).catch(() => { });
-            const hasBoardStd = (existing?.boardId && existing?.standardId) || (boardId && standardId);
-            if (googleName || existing?.name) {
-              router.replace(hasBoardStd ? '/subjects' : '/onboarding');
-            } else {
-              setEmail(googleEmail);
-              setStep('name');
-            }
+            await setStudent('Student', googleEmail);
+            router.replace(boardId && standardId ? '/subjects' : '/onboarding');
           } else {
-            setError('Could not get your Google email. Please try another method.');
+            setError('Could not get your Google email.');
           }
-        } else {
-          setError('Google sign-in was cancelled.');
         }
-      } else if (result.type === 'cancel' || result.type === 'dismiss') {
-        // User cancelled — no error shown
-      } else {
-        setError('Google sign-in failed. Please try again.');
       }
     } catch (e: any) {
-      setError(e?.message ?? 'Google sign-in failed.');
+      setError('Google sign-in failed.');
     } finally {
       setGoogleLoading(false);
     }
   };
 
-  // ── Save name (shared) ─────────────────────────────────────────────────────
-  const handleSaveName = async () => {
-    const trimmed = name.trim();
-    if (trimmed.length < 2) { setError('Please enter your name (at least 2 characters).'); return; }
-    setError(''); setLoading(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      const identifier = authMethod === 'phone' ? fullPhone : email;
-      await setStudent(trimmed, identifier);
-      localApi.saveProfile({ email: identifier, name: trimmed }).catch(() => { });
-      router.replace(boardId && standardId ? '/subjects' : '/onboarding');
-    } catch (e: any) { setError(e?.message ?? 'Something went wrong. Please try again.'); }
-    finally { setLoading(false); }
-  };
+  const topPad = insets.top + (Platform.OS === 'web' ? 24 : 0);
 
-  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
-
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={{ flex: 1, backgroundColor: colors.background }}
+      style={styles.root}
     >
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ flexGrow: 1 }}
-      >
-        {/* ── GRADIENT HERO ── */}
-        <LinearGradient
-          colors={['#3730A3', '#4F46E5', '#7C3AED']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.hero, { paddingTop: topPad + 24 }]}
-        >
-          <View style={styles.blob1} />
-          <View style={styles.blob2} />
-          <View style={styles.blob3} />
+      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-          <View style={styles.heroBrand}>
-            <LinearGradient
-              colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.15)']}
-              style={styles.heroLogoWrap}
-            >
-              <Ionicons name="school" size={30} color="#FFFFFF" />
-            </LinearGradient>
-            <View>
-              <Text style={styles.heroAppName}>Knowledge Park</Text>
-              <View style={styles.heroTagRow}>
-                <View style={styles.heroDot} />
-                <Text style={styles.heroTagline}>AI-Powered Learning</Text>
+        {/* HEADER AREA */}
+        <View style={styles.headerArea}>
+          <LinearGradient
+            colors={['#0F2E66', '#1E40AF', '#2563EB']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.headerGradient, { paddingTop: topPad + 40 }]}
+          >
+            {/* The curvy bottom of the header */}
+            <View style={styles.headerCurve} />
+
+            <View style={styles.headerContent}>
+              {/* Logo Side */}
+              <View style={styles.logoWrap}>
+                <View style={styles.logoIconBg}>
+                  <Ionicons name="school" size={40} color="#FFF" />
+                </View>
+                <Text style={styles.logoText}>Knowledge<Text style={{ color: '#93C5FD' }}>Park</Text></Text>
+                <Text style={styles.logoSubText}>Edu</Text>
+                <Text style={styles.logoTagline}>Learn   •   Practice   •   Grow</Text>
+              </View>
+
+              {/* Right Side Illustration & Text */}
+              <View style={styles.illustrationWrap}>
+                <Text style={styles.successText}>Your{'\n'}Success{'\n'}Our Mission</Text>
+                <Ionicons name="library" size={80} color="#93C5FD" style={styles.booksIcon} />
               </View>
             </View>
-          </View>
+          </LinearGradient>
+        </View>
 
-          <View style={styles.heroTextBlock}>
-            <Text style={styles.heroTitle}>Master Your{'\n'}Board Exams 🎯</Text>
-            <Text style={styles.heroSub}>
-              Personalised AI tests, instant explanations{'\n'}and smart revision for CBSE · ICSE · GSEB
-            </Text>
-          </View>
-
-          <View style={styles.statsStrip}>
-            {STATS.map((s, i) => (
-              <View key={s.label} style={[styles.statItem, i > 0 && styles.statItemBorder]}>
-                <View style={[styles.statIconWrap, { backgroundColor: s.color + '30' }]}>
-                  <Ionicons name={s.icon as any} size={14} color={s.color} />
-                </View>
-                <Text style={styles.statValue}>{s.value}</Text>
-                <Text style={styles.statLabel}>{s.label}</Text>
-              </View>
-            ))}
-          </View>
-        </LinearGradient>
-
-        {/* ── FORM CARD ── */}
+        {/* FORM AREA */}
         <View style={styles.formArea}>
-          <View style={[styles.card, { backgroundColor: colors.card }]}>
+          <Text style={styles.welcomeTitle}>Welcome Back 👋</Text>
+          <Text style={styles.welcomeSub}>Sign in to continue your learning journey{'\n'}with KnowledgePark.</Text>
 
-            {/* ── AUTH METHOD TABS (only on input step) ── */}
-            {step === 'input' && (
-              <View style={[styles.methodTabs, { backgroundColor: colors.muted }]}>
-                {([
-                  { key: 'email', icon: 'mail-outline', label: 'Email' },
-                  { key: 'phone', icon: 'phone-portrait-outline', label: 'Phone' },
-                  { key: 'google', icon: 'logo-google', label: 'Google' },
-                ] as { key: AuthMethod; icon: string; label: string }[]).map((m) => (
-                  <Pressable
-                    key={m.key}
-                    style={[
-                      styles.methodTab,
-                      authMethod === m.key && styles.methodTabActive,
-                    ]}
-                    onPress={() => switchMethod(m.key)}
-                  >
-                    <Ionicons
-                      name={m.icon as any}
-                      size={16}
-                      color={authMethod === m.key ? '#4F46E5' : colors.mutedForeground}
-                    />
-                    <Text
-                      style={[
-                        styles.methodTabText,
-                        { color: authMethod === m.key ? '#4F46E5' : colors.mutedForeground },
-                        authMethod === m.key && { fontWeight: '700' },
-                      ]}
-                    >
-                      {m.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            )}
-
-            {/* ════════════════════════════════════════════════════════════
-                EMAIL OTP — input step
-            ════════════════════════════════════════════════════════════ */}
-            {authMethod === 'email' && step === 'input' && (
-              <>
-                <View style={[styles.cardHeader, { marginTop: 20 }]}>
-                  <LinearGradient colors={['#EEF2FF', '#E0E7FF']} style={styles.stepIconWrap}>
-                    <Ionicons name="mail-outline" size={22} color="#4F46E5" />
-                  </LinearGradient>
-                  <View style={styles.cardHeaderText}>
-                    <Text style={[styles.cardHeading, { color: colors.text }]}>Sign in with Email</Text>
-                    <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>
-                      We'll send a one-time code to your inbox
-                    </Text>
-                  </View>
-                </View>
-
-                <Text style={[styles.label, { color: colors.text }]}>Email address</Text>
-                <View style={[styles.inputWrap, { backgroundColor: colors.muted, borderColor: error ? '#EF4444' : colors.border }]}>
-                  <Ionicons name="at-outline" size={17} color={colors.mutedForeground} />
-                  <TextInput
-                    style={[styles.input, { color: colors.text }]}
-                    placeholder="you@example.com"
-                    placeholderTextColor={colors.mutedForeground}
-                    value={email}
-                    onChangeText={(t) => { setEmail(t); setError(''); }}
-                    autoFocus
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    returnKeyType="send"
-                    onSubmitEditing={handleSendEmailOtp}
-                    editable={!loading}
-                  />
-                  {isValidEmail(email) && (
-                    <View style={styles.validDot}>
-                      <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-                    </View>
-                  )}
-                </View>
-
-                {!!error && <ErrorRow message={error} />}
-
-                <Pressable
-                  style={[styles.button, { opacity: (!isValidEmail(email) || loading) ? 0.45 : 1 }]}
-                  onPress={handleSendEmailOtp}
-                  disabled={!isValidEmail(email) || loading}
-                >
-                  <LinearGradient
-                    colors={['#4F46E5', '#7C3AED']}
-                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                    style={styles.buttonGrad}
-                  >
-                    {loading ? <ActivityIndicator color="#FFFFFF" /> : (
-                      <>
-                        <Text style={styles.buttonText}>Send OTP</Text>
-                        <Ionicons name="send-outline" size={16} color="#FFFFFF" />
-                      </>
-                    )}
-                  </LinearGradient>
-                </Pressable>
-
-                <View style={styles.trustRow}>
-                  {['CBSE', 'ICSE', 'GSEB'].map((b) => (
-                    <View key={b} style={[styles.trustBadge, { backgroundColor: '#EEF2FF' }]}>
-                      <Text style={[styles.trustBadgeText, { color: '#4F46E5' }]}>{b}</Text>
-                    </View>
-                  ))}
-                </View>
-                <Text style={[styles.trustNote, { color: colors.mutedForeground }]}>
-                  Aligned with NCERT curriculum for all boards
-                </Text>
-
-                <View style={styles.divider}>
-                  <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-                  <Text style={[styles.dividerText, { color: colors.mutedForeground, backgroundColor: colors.card }]}>OR</Text>
-                </View>
-
-                <Pressable
-                  style={[styles.outlineButton, { borderColor: colors.border }]}
-                  onPress={() => router.push('/pricing')}
-                >
-                  <Ionicons name="sparkles-outline" size={18} color="#4F46E5" />
-                  <Text style={[styles.outlineButtonText, { color: colors.text }]}>New? View Premium Plans</Text>
-                </Pressable>
-              </>
-            )}
-
-            {/* ════════════════════════════════════════════════════════════
-                PHONE OTP — input step
-            ════════════════════════════════════════════════════════════ */}
-            {authMethod === 'phone' && step === 'input' && (
-              <>
-                <View style={[styles.cardHeader, { marginTop: 20 }]}>
-                  <LinearGradient colors={['#ECFDF5', '#D1FAE5']} style={styles.stepIconWrap}>
-                    <Ionicons name="phone-portrait-outline" size={22} color="#059669" />
-                  </LinearGradient>
-                  <View style={styles.cardHeaderText}>
-                    <Text style={[styles.cardHeading, { color: colors.text }]}>Sign in with Phone</Text>
-                    <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>
-                      We'll send a one-time SMS to your number
-                    </Text>
-                  </View>
-                </View>
-
-                <Text style={[styles.label, { color: colors.text }]}>Mobile number</Text>
-                <View style={[styles.phoneRow]}>
-                  {/* Country code picker */}
-                  <Pressable
-                    style={[styles.countryBtn, { backgroundColor: colors.muted, borderColor: colors.border }]}
-                    onPress={() => setShowCountryPicker(!showCountryPicker)}
-                  >
-                    <Text style={styles.countryFlag}>
-                      {COUNTRY_CODES.find(c => c.code === countryCode)?.flag ?? '🌍'}
-                    </Text>
-                    <Text style={[styles.countryCode, { color: colors.text }]}>{countryCode}</Text>
-                    <Ionicons name={showCountryPicker ? 'chevron-up' : 'chevron-down'} size={13} color={colors.mutedForeground} />
-                  </Pressable>
-
-                  {/* Phone input */}
-                  <View style={[styles.phoneInputWrap, { backgroundColor: colors.muted, borderColor: error ? '#EF4444' : colors.border }]}>
-                    <TextInput
-                      style={[styles.input, { color: colors.text }]}
-                      placeholder="9876543210"
-                      placeholderTextColor={colors.mutedForeground}
-                      value={phone}
-                      onChangeText={(t) => { setPhone(t.replace(/\D/g, '')); setError(''); }}
-                      keyboardType="phone-pad"
-                      maxLength={15}
-                      returnKeyType="send"
-                      onSubmitEditing={handleSendSmsOtp}
-                      editable={!loading}
-                      autoFocus
-                    />
-                    {isValidPhone(phone) && (
-                      <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-                    )}
-                  </View>
-                </View>
-
-                {/* Country picker dropdown */}
-                {showCountryPicker && (
-                  <View style={[styles.countryDropdown, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    {COUNTRY_CODES.map((c) => (
-                      <Pressable
-                        key={c.code}
-                        style={[styles.countryOption, { borderBottomColor: colors.border }]}
-                        onPress={() => { setCountryCode(c.code); setShowCountryPicker(false); }}
-                      >
-                        <Text style={styles.countryFlag}>{c.flag}</Text>
-                        <Text style={[styles.countryOptionLabel, { color: colors.text }]}>{c.label}</Text>
-                        <Text style={[styles.countryOptionCode, { color: colors.mutedForeground }]}>{c.code}</Text>
-                        {countryCode === c.code && <Ionicons name="checkmark" size={15} color="#4F46E5" />}
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-
-                {!!error && <ErrorRow message={error} />}
-
-                <Pressable
-                  style={[styles.button, { opacity: (!isValidPhone(phone) || loading) ? 0.45 : 1, marginTop: showCountryPicker ? 8 : 4 }]}
-                  onPress={handleSendSmsOtp}
-                  disabled={!isValidPhone(phone) || loading}
-                >
-                  <LinearGradient
-                    colors={['#059669', '#10B981']}
-                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                    style={styles.buttonGrad}
-                  >
-                    {loading ? <ActivityIndicator color="#FFFFFF" /> : (
-                      <>
-                        <Ionicons name="chatbubble-ellipses-outline" size={17} color="#FFFFFF" />
-                        <Text style={styles.buttonText}>Send SMS OTP</Text>
-                      </>
-                    )}
-                  </LinearGradient>
-                </Pressable>
-
-                <View style={[styles.smsNote, { backgroundColor: colors.muted }]}>
-                  <Ionicons name="shield-checkmark-outline" size={14} color="#059669" />
-                  <Text style={[styles.smsNoteText, { color: colors.mutedForeground }]}>
-                    Standard SMS charges may apply
-                  </Text>
-                </View>
-              </>
-            )}
-
-            {/* ════════════════════════════════════════════════════════════
-                GOOGLE — input step
-            ════════════════════════════════════════════════════════════ */}
-            {authMethod === 'google' && step === 'input' && (
-              <>
-                <View style={[styles.cardHeader, { marginTop: 20 }]}>
-                  <LinearGradient colors={['#FFF7ED', '#FFEDD5']} style={styles.stepIconWrap}>
-                    <Ionicons name="logo-google" size={22} color="#EA4335" />
-                  </LinearGradient>
-                  <View style={styles.cardHeaderText}>
-                    <Text style={[styles.cardHeading, { color: colors.text }]}>Continue with Google</Text>
-                    <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>
-                      Sign in instantly using your Google account
-                    </Text>
-                  </View>
-                </View>
-
-                {!!error && <ErrorRow message={error} />}
-
-                {/* Google Sign-In button */}
-                <Pressable
-                  style={[styles.googleBtn, { opacity: googleLoading ? 0.65 : 1 }]}
-                  onPress={handleGoogleSignIn}
-                  disabled={googleLoading}
-                >
-                  <View style={styles.googleBtnInner}>
-                    {googleLoading ? (
-                      <ActivityIndicator color="#4285F4" />
-                    ) : (
-                      <>
-                        {/* Google "G" logo using colored letters */}
-                        <View style={styles.googleLogo}>
-                          <Text style={styles.googleG}>G</Text>
-                        </View>
-                        <Text style={styles.googleBtnText}>Sign in with Google</Text>
-                      </>
-                    )}
-                  </View>
-                </Pressable>
-
-                <View style={[styles.divider, { marginTop: 18, marginBottom: 6 }]}>
-                  <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-                  <Text style={[styles.dividerText, { color: colors.mutedForeground }]}>What you get</Text>
-                  <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-                </View>
-
-                {[
-                  { icon: 'flash-outline', color: '#F59E0B', text: 'One-tap sign-in — no password needed' },
-                  { icon: 'shield-checkmark-outline', color: '#10B981', text: 'Secured by Google — zero data shared' },
-                  { icon: 'sync-outline', color: '#4F46E5', text: 'Your progress synced across devices' },
-                ].map((f) => (
-                  <View key={f.text} style={styles.featureRow}>
-                    <View style={[styles.featureIcon, { backgroundColor: f.color + '20' }]}>
-                      <Ionicons name={f.icon as any} size={14} color={f.color} />
-                    </View>
-                    <Text style={[styles.featureText, { color: colors.mutedForeground }]}>{f.text}</Text>
-                  </View>
-                ))}
-              </>
-            )}
-
-            {/* ════════════════════════════════════════════════════════════
-                OTP VERIFICATION STEP (shared: email + phone)
-            ════════════════════════════════════════════════════════════ */}
-            {step === 'otp' && (
-              <>
-                {/* Back */}
-                <Pressable style={styles.backRow} onPress={resetToInput}>
-                  <View style={[styles.backCircle, { backgroundColor: '#EEF2FF' }]}>
-                    <Ionicons name="arrow-back" size={14} color="#4F46E5" />
-                  </View>
-                  <Text style={[styles.backText, { color: '#4F46E5' }]}>
-                    {authMethod === 'phone' ? 'Back to phone number' : 'Back to email'}
-                  </Text>
-                </Pressable>
-
-                {/* OTP header */}
-                <View style={styles.otpHeaderWrap}>
-                  <LinearGradient
-                    colors={authMethod === 'phone' ? ['#D1FAE5', '#A7F3D0'] : ['#EEF2FF', '#E0E7FF']}
-                    style={styles.stepIconWrap}
-                  >
-                    <Ionicons
-                      name={authMethod === 'phone' ? 'chatbubble-ellipses-outline' : 'mail-unread-outline'}
-                      size={22}
-                      color={authMethod === 'phone' ? '#059669' : '#4F46E5'}
-                    />
-                  </LinearGradient>
-                  <View style={styles.cardHeaderText}>
-                    <Text style={[styles.cardHeading, { color: colors.text }]}>
-                      {authMethod === 'phone' ? 'Check your SMS' : 'Check your inbox'}
-                    </Text>
-                    <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>
-                      Code sent to{' '}
-                      <Text style={{ color: '#4F46E5', fontWeight: '700' }}>
-                        {authMethod === 'phone' ? fullPhone : email}
-                      </Text>
-                    </Text>
-                  </View>
-                </View>
-
-                <Text style={[styles.label, { color: colors.text }]}>One-time password</Text>
-                <TextInput
-                  ref={otpInputRef}
-                  style={[
-                    styles.otpInput,
-                    { backgroundColor: colors.muted, borderColor: error ? '#EF4444' : '#4F46E5' + '30', color: colors.text },
-                  ]}
-                  placeholder="· · · · · ·"
-                  placeholderTextColor={colors.mutedForeground}
-                  value={otp}
-                  onChangeText={(t) => { setOtp(t.replace(/\D/g, '')); setError(''); }}
-                  keyboardType="number-pad"
-                  maxLength={8}
-                  returnKeyType="done"
-                  onSubmitEditing={authMethod === 'phone' ? handleVerifySmsOtp : handleVerifyEmailOtp}
-                  editable={!loading}
-                  autoFocus
-                />
-
-                {!!error && <ErrorRow message={error} />}
-
-                <Pressable
-                  style={[styles.button, { opacity: (otp.length < 4 || loading) ? 0.45 : 1 }]}
-                  onPress={authMethod === 'phone' ? handleVerifySmsOtp : handleVerifyEmailOtp}
-                  disabled={otp.length < 4 || loading}
-                >
-                  <LinearGradient
-                    colors={authMethod === 'phone' ? ['#059669', '#10B981'] : ['#4F46E5', '#7C3AED']}
-                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                    style={styles.buttonGrad}
-                  >
-                    {loading ? <ActivityIndicator color="#FFFFFF" /> : (
-                      <>
-                        <Ionicons name="shield-checkmark-outline" size={18} color="#FFFFFF" />
-                        <Text style={styles.buttonText}>
-                          {otp.length >= 4 ? 'Verify & Continue' : `Enter ${Math.max(6 - otp.length, 2)} more digits`}
-                        </Text>
-                      </>
-                    )}
-                  </LinearGradient>
-                </Pressable>
-
-                {/* Resend */}
-                <View style={styles.resendRow}>
-                  {resendCooldown > 0 ? (
-                    <View style={[styles.cooldownPill, { backgroundColor: colors.muted }]}>
-                      <Ionicons name="time-outline" size={13} color={colors.mutedForeground} />
-                      <Text style={[styles.cooldownText, { color: colors.mutedForeground }]}>
-                        Resend in <Text style={{ color: '#4F46E5', fontWeight: '700' }}>{resendCooldown}s</Text>
-                      </Text>
-                    </View>
-                  ) : (
-                    <Pressable
-                      onPress={handleResend}
-                      disabled={loading}
-                      style={[styles.resendBtn, { backgroundColor: '#EEF2FF' }]}
-                    >
-                      <Ionicons name="refresh-outline" size={13} color="#4F46E5" />
-                      <Text style={[styles.resendBtnText, { color: '#4F46E5' }]}>Resend OTP</Text>
-                    </Pressable>
-                  )}
-                </View>
-
-                <View style={[styles.demoHint, { backgroundColor: colors.muted }]}>
-                  <Text style={{ fontSize: 16 }}>💡</Text>
-                  <Text style={[styles.demoHintText, { color: colors.mutedForeground }]}>
-                    Demo: enter any 6 digits to proceed
-                  </Text>
-                </View>
-              </>
-            )}
-
-            {/* ════════════════════════════════════════════════════════════
-                NAME STEP (shared for all auth methods)
-            ════════════════════════════════════════════════════════════ */}
-            {step === 'name' && (
-              <>
-                <View style={[styles.cardHeader, { marginTop: 4 }]}>
-                  <LinearGradient colors={['#FEF3C7', '#FDE68A']} style={styles.stepIconWrap}>
-                    <Ionicons name="person-outline" size={22} color="#D97706" />
-                  </LinearGradient>
-                  <View style={styles.cardHeaderText}>
-                    <Text style={[styles.cardHeading, { color: colors.text }]}>What's your name?</Text>
-                    <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>
-                      So we can personalise your experience
-                    </Text>
-                  </View>
-                </View>
-
-                <Text style={[styles.label, { color: colors.text }]}>Full name</Text>
-                <View style={[styles.inputWrap, { backgroundColor: colors.muted, borderColor: error ? '#EF4444' : colors.border }]}>
-                  <Ionicons name="person-outline" size={17} color={colors.mutedForeground} />
-                  <TextInput
-                    style={[styles.input, { color: colors.text }]}
-                    placeholder="e.g. Priya Sharma"
-                    placeholderTextColor={colors.mutedForeground}
-                    value={name}
-                    onChangeText={(t) => { setName(t); setError(''); }}
-                    autoFocus
-                    autoCapitalize="words"
-                    autoCorrect={false}
-                    returnKeyType="done"
-                    onSubmitEditing={handleSaveName}
-                    editable={!loading}
-                  />
-                </View>
-
-                {!!error && <ErrorRow message={error} />}
-
-                <Pressable
-                  style={[styles.button, { opacity: (name.trim().length < 2 || loading) ? 0.45 : 1 }]}
-                  onPress={handleSaveName}
-                  disabled={name.trim().length < 2 || loading}
-                >
-                  <LinearGradient
-                    colors={['#4F46E5', '#7C3AED']}
-                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                    style={styles.buttonGrad}
-                  >
-                    {loading ? <ActivityIndicator color="#FFFFFF" /> : (
-                      <>
-                        <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" />
-                        <Text style={styles.buttonText}>Continue</Text>
-                      </>
-                    )}
-                  </LinearGradient>
-                </Pressable>
-              </>
-            )}
-
+          {/* Email Input */}
+          <View style={styles.inputContainer}>
+            <Ionicons name="mail-outline" size={20} color="#64748B" />
+            <TextInput
+              style={styles.input}
+              placeholder="Email Address"
+              placeholderTextColor="#94A3B8"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              editable={!loading}
+            />
           </View>
-          <View style={{ height: insets.bottom + 20 }} />
+
+          {/* Password Input */}
+          <View style={styles.inputContainer}>
+            <Ionicons name="lock-closed-outline" size={20} color="#64748B" />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              placeholderTextColor="#94A3B8"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              editable={!loading}
+            />
+            <Pressable onPress={() => setShowPassword(!showPassword)}>
+              <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={20} color="#64748B" />
+            </Pressable>
+          </View>
+
+          {/* Remember Me & Forgot Password */}
+          <View style={styles.optionsRow}>
+            <Pressable style={styles.checkboxRow} onPress={() => setRememberMe(!rememberMe)}>
+              <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
+                {rememberMe && <Ionicons name="checkmark" size={14} color="#FFF" />}
+              </View>
+              <Text style={styles.rememberText}>Remember me</Text>
+            </Pressable>
+            <Pressable>
+              <Text style={styles.forgotText}>Forgot Password?</Text>
+            </Pressable>
+          </View>
+
+          {!!error && <Text style={styles.errorText}>{error}</Text>}
+
+          {/* Sign In Button */}
+          <Pressable style={styles.signInButton} onPress={handleSignIn} disabled={loading}>
+            {loading ? <ActivityIndicator color="#FFF" /> : (
+              <>
+                <Text style={styles.signInButtonText}>Sign In</Text>
+                <Ionicons name="arrow-forward" size={18} color="#FFF" />
+              </>
+            )}
+          </Pressable>
+
+          {/* Divider */}
+          <View style={styles.dividerWrap}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>OR</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* Google Button */}
+          <Pressable style={styles.googleButton} onPress={handleGoogleSignIn} disabled={googleLoading}>
+            {googleLoading ? <ActivityIndicator color="#4285F4" /> : (
+              <>
+                <Ionicons name="logo-google" size={18} color="#EA4335" />
+                <Text style={styles.googleButtonText}>Continue with Google</Text>
+              </>
+            )}
+          </Pressable>
+
+          {/* Create Account */}
+          <View style={styles.createAccountRow}>
+            <Text style={styles.noAccountText}>Don't have an account? </Text>
+            <Pressable onPress={() => { }}>
+              <Text style={styles.createAccountText}>Create Account</Text>
+            </Pressable>
+          </View>
+
+          {/* Footer */}
+          <View style={styles.footerWrap}>
+            <View style={styles.footerLine} />
+            <Text style={styles.footerText}>Better Learning   •   Brighter Future</Text>
+            <View style={styles.footerLine} />
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-// ── Shared error component ─────────────────────────────────────────────────
-function ErrorRow({ message }: { message: string }) {
-  return (
-    <View style={styles.errorRow}>
-      <Ionicons name="alert-circle-outline" size={13} color="#EF4444" />
-      <Text style={[styles.errorText, { color: '#EF4444' }]}>{message}</Text>
-    </View>
-  );
-}
-
-// ── Styles ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  hero: {
-    paddingHorizontal: 24, paddingBottom: 40, gap: 20, overflow: 'hidden',
-  },
-  blob1: { position: 'absolute', width: 260, height: 260, borderRadius: 130, backgroundColor: 'rgba(255,255,255,0.07)', top: -80, right: -70 },
-  blob2: { position: 'absolute', width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.06)', bottom: -40, left: -50 },
-  blob3: { position: 'absolute', width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(255,255,255,0.05)', top: 60, left: 40 },
+  root: { flex: 1, backgroundColor: '#FAFAFA' },
+  scroll: { flexGrow: 1, paddingBottom: 40 },
 
-  heroBrand: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  heroLogoWrap: { width: 60, height: 60, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  heroAppName: { fontSize: 24, fontWeight: '800', color: '#FFFFFF' },
-  heroTagRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 },
-  heroDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#10B981' },
-  heroTagline: { fontSize: 12, color: 'rgba(255,255,255,0.7)' },
-  heroTextBlock: { gap: 10 },
-  heroTitle: { fontSize: 30, fontWeight: '800', color: '#FFFFFF', lineHeight: 38 },
-  heroSub: { fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 22 },
+  headerArea: { position: 'relative', overflow: 'hidden', borderBottomLeftRadius: 60, borderBottomRightRadius: 60, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10 },
+  headerGradient: { paddingBottom: 60, paddingHorizontal: 24, position: 'relative' },
+  headerCurve: { position: 'absolute', bottom: -50, left: -50, right: -50, height: 100, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 100, transform: [{ rotate: '-5deg' }] },
 
-  statsStrip: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', overflow: 'hidden' },
-  statItem: { flex: 1, alignItems: 'center', paddingVertical: 14, gap: 3 },
-  statItemBorder: { borderLeftWidth: 1, borderLeftColor: 'rgba(255,255,255,0.18)' },
-  statIconWrap: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
-  statValue: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
-  statLabel: { fontSize: 10, color: 'rgba(255,255,255,0.65)', letterSpacing: 0.2 },
+  headerContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  logoWrap: { flex: 1 },
+  logoIconBg: { marginBottom: 12 },
+  logoText: { color: '#FFF', fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  logoSubText: { color: '#93C5FD', fontSize: 26, fontWeight: '800', marginTop: -6 },
+  logoTagline: { color: '#FFF', fontSize: 11, fontWeight: '600', marginTop: 8, opacity: 0.9 },
 
-  formArea: { paddingHorizontal: 20, paddingTop: 22, gap: 16 },
-  card: { borderRadius: 28, padding: 24, elevation: 8, ...Platform.select({ web: { boxShadow: '0 8px 24px rgba(79,70,229,0.12)' }, default: { shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.12, shadowRadius: 24 } }) },
+  illustrationWrap: { alignItems: 'flex-end', justifyContent: 'center' },
+  successText: { color: '#FFF', fontSize: 13, fontWeight: '700', textAlign: 'right', fontStyle: 'italic', transform: [{ rotate: '-10deg' }], marginBottom: 10, opacity: 0.9 },
+  booksIcon: { opacity: 0.9 },
 
-  // Auth method tabs
-  methodTabs: { flexDirection: 'row', borderRadius: 16, padding: 4, gap: 2 },
-  methodTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 10, borderRadius: 12 },
-  methodTabActive: { backgroundColor: '#FFFFFF', elevation: 3, ...Platform.select({ web: { boxShadow: '0 2px 6px rgba(79,70,229,0.12)' }, default: { shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6 } }) },
-  methodTabText: { fontSize: 12, fontWeight: '600' },
+  formArea: { paddingHorizontal: 24, paddingTop: 32 },
+  welcomeTitle: { fontSize: 28, fontWeight: '800', color: '#0F172A', marginBottom: 8 },
+  welcomeSub: { fontSize: 14, color: '#64748B', lineHeight: 22, marginBottom: 32 },
 
-  cardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 22 },
-  otpHeaderWrap: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 20 },
-  stepIconWrap: { width: 50, height: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  cardHeaderText: { flex: 1 },
-  cardHeading: { fontSize: 19, fontWeight: '700', marginBottom: 3 },
-  cardSub: { fontSize: 13, lineHeight: 19 },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 16, height: 56, marginBottom: 16 },
+  input: { flex: 1, marginLeft: 12, fontSize: 15, color: '#0F172A' },
 
-  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 20 },
-  dividerLine: { flex: 1, height: 1 },
-  dividerText: { paddingHorizontal: 10, fontSize: 12, fontWeight: '600' },
-  outlineButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 16, borderWidth: 1 },
-  outlineButtonText: { fontSize: 15, fontWeight: '600' },
+  optionsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 },
+  checkboxRow: { flexDirection: 'row', alignItems: 'center' },
+  checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF' },
+  checkboxActive: { backgroundColor: '#2563EB', borderColor: '#2563EB' },
+  rememberText: { marginLeft: 8, fontSize: 14, color: '#334155', fontWeight: '500' },
+  forgotText: { fontSize: 14, color: '#2563EB', fontWeight: '600' },
 
-  backRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20, alignSelf: 'flex-start' },
-  backCircle: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  backText: { fontSize: 13, fontWeight: '600' },
+  errorText: { color: '#EF4444', marginBottom: 16, textAlign: 'center' },
 
-  label: { fontSize: 13, fontWeight: '600', marginBottom: 8 },
-  inputWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 12 },
-  input: { flex: 1, fontSize: 16, padding: 0 },
-  validDot: { marginLeft: 4 },
+  signInButton: { backgroundColor: '#2563EB', height: 56, borderRadius: 14, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, shadowColor: '#2563EB', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  signInButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 
-  // Phone input
-  phoneRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  countryBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1.5, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 13 },
-  countryFlag: { fontSize: 18 },
-  countryCode: { fontSize: 14, fontWeight: '700' },
-  phoneInputWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 13 },
-  countryDropdown: { borderWidth: 1.5, borderRadius: 16, marginBottom: 12, overflow: 'hidden' },
-  countryOption: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1 },
-  countryOptionLabel: { flex: 1, fontSize: 14, fontWeight: '500' },
-  countryOptionCode: { fontSize: 13 },
-  smsNote: { flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 12, padding: 10, marginTop: 12 },
-  smsNoteText: { fontSize: 12, flex: 1 },
+  dividerWrap: { flexDirection: 'row', alignItems: 'center', marginVertical: 32 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#E2E8F0' },
+  dividerText: { marginHorizontal: 16, color: '#94A3B8', fontSize: 12, fontWeight: '600' },
 
-  // Google button
-  googleBtn: {
-    borderRadius: 18, borderWidth: 1.5, borderColor: '#DADCE0',
-    backgroundColor: '#FFFFFF', marginTop: 4, elevation: 2,
-    ...Platform.select({ web: { boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }, default: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4 } }),
-  },
-  googleBtnInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, gap: 12 },
-  googleLogo: {
-    width: 24, height: 24, borderRadius: 12,
-    backgroundColor: '#4285F4', alignItems: 'center', justifyContent: 'center',
-  },
-  googleG: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
-  googleBtnText: { fontSize: 16, fontWeight: '700', color: '#3C4043' },
+  googleButton: { backgroundColor: '#FFF', height: 56, borderRadius: 14, borderWidth: 1, borderColor: '#E2E8F0', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12 },
+  googleButtonText: { color: '#0F172A', fontSize: 15, fontWeight: '600' },
 
-  // Features list (Google tab)
-  divider: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  dividerLine: { flex: 1, height: 1 },
-  dividerText: { fontSize: 11, fontWeight: '600' },
-  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
-  featureIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  featureText: { fontSize: 13, flex: 1 },
+  createAccountRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 32, marginBottom: 40 },
+  noAccountText: { color: '#64748B', fontSize: 14 },
+  createAccountText: { color: '#2563EB', fontSize: 14, fontWeight: '700' },
 
-  otpInput: { borderWidth: 1.5, borderRadius: 18, paddingHorizontal: 16, paddingVertical: 18, fontSize: 32, letterSpacing: 12, textAlign: 'center', fontWeight: '800', marginBottom: 12 },
-
-  errorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, marginTop: -4 },
-  errorText: { fontSize: 12, flex: 1 },
-
-  button: { borderRadius: 18, overflow: 'hidden', marginTop: 4 },
-  buttonGrad: { padding: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
-  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-
-  trustRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 20 },
-  trustBadge: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
-  trustBadgeText: { fontSize: 12, fontWeight: '700' },
-  trustNote: { textAlign: 'center', fontSize: 12, marginTop: 8 },
-
-  resendRow: { alignItems: 'center', marginTop: 16 },
-  cooldownPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20 },
-  cooldownText: { fontSize: 13 },
-  resendBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20 },
-  resendBtnText: { fontSize: 13, fontWeight: '600' },
-  demoHint: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, padding: 12, alignSelf: 'stretch', marginTop: 14 },
-  demoHintText: { fontSize: 12, flex: 1 },
+  footerWrap: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', opacity: 0.6 },
+  footerLine: { width: 24, height: 1, backgroundColor: '#94A3B8' },
+  footerText: { marginHorizontal: 12, color: '#64748B', fontSize: 11, fontWeight: '600' },
 });

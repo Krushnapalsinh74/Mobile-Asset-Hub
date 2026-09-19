@@ -82,9 +82,17 @@ export default function TopicDashboardScreen() {
     }
   }, [topicId]);
 
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace({ pathname: '/topics', params: { subjectId, subjectName, chapterId, chapterName } });
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* ── HERO HEADER ── */}
+      {/* ── GRADIENT HERO ── */}
       <LinearGradient
         colors={['#3730A3', '#4F46E5', '#7C3AED']}
         start={{ x: 0, y: 0 }}
@@ -94,7 +102,7 @@ export default function TopicDashboardScreen() {
         <View style={styles.blob1} />
         <View style={styles.blob2} />
 
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+        <Pressable style={styles.backBtn} onPress={handleBack}>
           <View style={styles.backCircle}>
             <Ionicons name="arrow-back" size={20} color="#FFF" />
           </View>
@@ -148,7 +156,7 @@ export default function TopicDashboardScreen() {
               style={styles.gridCard}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                if (action.action === 'back') { router.back(); return; }
+                if (action.action === 'back') { handleBack(); return; }
                 router.push({
                   pathname: action.route as any,
                   params: { subjectId, subjectName, chapterId, chapterName, topicId, topicName },
@@ -174,7 +182,7 @@ export default function TopicDashboardScreen() {
         {/* ── BACK TO TOPICS ── */}
         <Pressable
           style={[styles.backToTopics, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => { Haptics.selectionAsync(); router.back(); }}
+          onPress={() => { Haptics.selectionAsync(); handleBack(); }}
         >
           <View style={[styles.backToTopicsIcon, { backgroundColor: colors.secondary }]}>
             <Ionicons name="list-outline" size={16} color={colors.mutedForeground} />

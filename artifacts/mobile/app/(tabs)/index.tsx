@@ -13,7 +13,7 @@ export default function Index() {
     );
   }
 
-  if (!studentName) return <Redirect href="/login" />;
+  if (!studentName) return <Redirect href="/welcome" />;
   if (!boardId || !standardId) return <Redirect href="/onboarding" />;
   return <Redirect href="/subjects" />;
 }

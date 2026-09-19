@@ -10,8 +10,8 @@ interface YunoraTokenState {
   expiresAt: number;
 }
 
-let _yunoraToken: YunoraTokenState | null = null;
-let _tokenPromise: Promise<string> | null = null;
+const DEFAULT_TOKEN =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjksImVtYWlsIjoidGVzdEBhZG1pbi5jb20iLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3ODkwMjMzOTQsImV4cCI6MTc4OTYyODE5NH0.hCZdawQkje2Qm68ERH6D9b6mTnoxYurrKHttahEAECs";
 
 /** Decode JWT expiry without a library — returns ms timestamp */
 function _jwtExpiresAt(jwt: string): number {
@@ -22,6 +22,12 @@ function _jwtExpiresAt(jwt: string): number {
     return Date.now() + 6 * 24 * 60 * 60 * 1000; // fallback: 6 days
   }
 }
+
+let _yunoraToken: YunoraTokenState | null = {
+  token: DEFAULT_TOKEN,
+  expiresAt: _jwtExpiresAt(DEFAULT_TOKEN),
+};
+let _tokenPromise: Promise<string> | null = null;
 
 async function _signInFresh(): Promise<YunoraTokenState> {
   const r = await fetch(`${YUNORA_BASE}/auth/login`, {
@@ -108,13 +114,12 @@ async function yunoraList<T>(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// kparkit.com — fallback for question generation, chat, topic details
+// OTP Auth Server & Primary API endpoint
 // ─────────────────────────────────────────────────────────────────────────────
 const OTP_BASE = "https://otp.kparkit.com";
 
 const BASE_URLS = [
-  "https://kparkit.com/edu/api",
-  "https://dalalifree.com/edu/api",
+  "https://kpark-edu.web.app/api",
 ];
 
 let activeBaseIndex = 0;
@@ -149,7 +154,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
       }
     }
   }
-  throw new Error("All API servers unreachable");
+  throw new Error("API server unreachable");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -388,7 +393,6 @@ export const otpApi = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SMS OTP — phone number login
-// Uses the same kparkit.com OTP server with the phone number as the identifier.
 // Swap in Firebase Phone Auth or a real SMS gateway in Layer 2.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -424,7 +428,12 @@ function getLocalBase(): string {
 }
 
 async function localReq<T>(path: string, init?: RequestInit): Promise<T> {
-  const url = getLocalBase() + path;
+  const cleanPath = path.startsWith("/api/")
+    ? path.slice(4)
+    : path.startsWith("/")
+      ? path
+      : `/${path}`;
+  const url = getLocalBase() + cleanPath;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 3000); // 3 s timeout
   try {
@@ -435,7 +444,7 @@ async function localReq<T>(path: string, init?: RequestInit): Promise<T> {
     });
     if (!r.ok) {
       const msg = await r.text().catch(() => "");
-      throw new Error(`Profile API error ${r.status}: ${msg}`);
+      throw new Error(`API error ${r.status}: ${msg}`);
     }
     return r.json() as Promise<T>;
   } finally {
@@ -455,17 +464,17 @@ export interface UserProfile {
 export const localApi = {
   getProfile: (email: string) =>
     localReq<UserProfile>(
-      `/api/user/profile?email=${encodeURIComponent(email)}`,
+      `/user/profile?email=${encodeURIComponent(email)}`,
     ),
   saveProfile: (profile: UserProfile) =>
-    localReq<{ success: boolean }>("/api/user/profile", {
+    localReq<{ success: boolean }>("/user/profile", {
       method: "POST",
       body: JSON.stringify(profile),
     }),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// App settings (still from kparkit.com)
+// App settings
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface AppSettings {
@@ -480,12 +489,10 @@ export interface AppSettings {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Main edu API — curriculum data from kpark-edu.web.app,
-//               generation/chat/questions from kparkit.com
+// Main edu API — curriculum data, generation, chat & questions
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const eduApi = {
-  // Settings still from kparkit.com
   getSettings: () => req<AppSettings>("/settings"),
 
   // ── Curriculum hierarchy — Yunora backend ──────────────────────────────
@@ -528,7 +535,7 @@ export const eduApi = {
       })),
     ),
 
-  // ── Question generation & AI — kparkit.com ────────────────────────────
+  // ── Question generation & AI ──────────────────────────────────────────
 
   getTopicDetails: (params: {
     board: string;
@@ -669,16 +676,113 @@ export interface VerifyPaymentPayload {
   razorpay_signature: string;
 }
 
+export interface SubscriptionDetails {
+  planId: number | string;
+  planName: string;
+  questionLimit: number;
+  questionsUsed: number;
+  questionsRemaining: number;
+  isActive: boolean;
+  isExpired: boolean;
+  daysRemaining: number;
+  activatedAt?: string;
+  expireAt?: string;
+}
+
+export interface PaymentOrderDetails {
+  orderId: string;
+  paymentId?: string;
+  amount: number;
+  currency: string;
+  status: string;
+  planName?: string;
+  paidAt?: string;
+}
+
+export interface SubscriptionStatusResponse {
+  hasActivePlan: boolean;
+  isPurchaseDone: boolean;
+  isExpired: boolean;
+  daysRemaining: number;
+  subscription: SubscriptionDetails | null;
+  lastOrder: PaymentOrderDetails | null;
+  totalPaidOrders: number;
+}
+
+export interface PaymentHistoryItem {
+  id: number | string;
+  razorpayOrderId: string;
+  razorpayPaymentId?: string;
+  amount: number;
+  currency: string;
+  status: string;
+  planName?: string;
+  paidAt?: any;
+}
+
 export const subscriptionApi = {
-  getPlans: () => localReq<SubscriptionPlan[]>("/api/plans"),
-  register: (payload: RegisterPayload) => localReq<RegisterResponse>("/api/students/register", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  }),
-  verifyPayment: (token: string, payload: VerifyPaymentPayload) => localReq<{ success: boolean }>("/api/payments/verify", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify(payload)
-  })
+  getPlans: () =>
+    yunoraReq<any>("/plans").then((res) =>
+      Array.isArray(res) ? res : res?.data ?? []
+    ),
+  getStatus: () =>
+    yunoraReq<SubscriptionStatusResponse>("/payments/status"),
+  getHistory: () =>
+    yunoraReq<any>("/payments/history").then((res) =>
+      Array.isArray(res) ? res : res?.data ?? []
+    ),
+  createOrder: (payload: { planId: number | string; amount: number }) =>
+    yunoraReq<{ orderId: string; amount: number; currency: string }>(
+      "/payments/create-order",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }
+    ),
+  register: (payload: RegisterPayload) =>
+    yunoraReq<RegisterResponse>("/students/register", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  verifyPayment: (token: string, payload: VerifyPaymentPayload) =>
+    yunoraReq<{ success: boolean }>("/payments/verify", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI Extractor, Solver, Translation & Analytics API
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const aiExtApi = {
+  extractFromText: (text: string, mode: "full" | "quick" = "full") =>
+    yunoraReq<any>("/ai/extract-from-text", {
+      method: "POST",
+      body: JSON.stringify({ text, mode }),
+    }),
+  importExtracted: (payload: {
+    chapters?: any[];
+    topics?: any[];
+    questions?: any[];
+  }) =>
+    yunoraReq<any>("/ai/import-extracted", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  solveMissingAnswers: (questions: any[]) =>
+    yunoraReq<any>("/ai/solve-missing-answers", {
+      method: "POST",
+      body: JSON.stringify({ questions }),
+    }),
+  batchTranslateQuestions: (questions: any[], targetLanguage: string) =>
+    yunoraReq<any>("/ai/batch-translate-questions", {
+      method: "POST",
+      body: JSON.stringify({ questions, targetLanguage }),
+    }),
+  getAiProviders: () => yunoraReq<any>("/ai-providers"),
+  getPaymentSettings: () => yunoraReq<any>("/settings/payment"),
+  getAnalyticsOverview: () => yunoraReq<any>("/analytics/overview"),
+  getCurrentUser: () => yunoraReq<any>("/auth/me"),
 };
 

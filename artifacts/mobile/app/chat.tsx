@@ -263,7 +263,7 @@ export default function ChatScreen() {
         <View style={styles.blob1} />
         <View style={styles.blob2} />
 
-        <Pressable onPress={() => router.back()} style={styles.backCircle}>
+        <Pressable onPress={() => { if (router.canGoBack()) { router.back(); } else { router.replace('/(tabs)'); } }} style={styles.backCircle}>
           <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
         </Pressable>
 

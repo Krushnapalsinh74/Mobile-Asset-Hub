@@ -216,7 +216,11 @@ export default function ExplanationScreen() {
         <View style={styles.headerRow}>
           <Pressable
             style={[styles.backBtn, { backgroundColor: colors.secondary }]}
-            onPress={() => { Haptics.selectionAsync(); router.back(); }}
+            onPress={() => {
+              Haptics.selectionAsync();
+              if (router.canGoBack()) router.back();
+              else router.replace('/topics');
+            }}
           >
             <Ionicons name="chevron-back" size={20} color={colors.text} />
           </Pressable>

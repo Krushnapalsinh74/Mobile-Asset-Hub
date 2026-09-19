@@ -22,8 +22,8 @@ const ACTIONS: ActionConfig[] = [
     key: 'chapters',
     label: 'Chapters & Topics',
     desc: 'Browse all chapters and explore topics',
-    icon: 'list-outline',
-    color: '#6366F1',
+    icon: 'list',
+    color: '#5B4AF0',
     route: '/chapters',
   },
   {
@@ -47,8 +47,8 @@ const ACTIONS: ActionConfig[] = [
     key: 'chat',
     label: 'AI Tutor',
     desc: 'Ask anything, get instant AI help',
-    icon: 'chatbubbles-outline',
-    color: '#8B5CF6',
+    icon: 'chatbubble-ellipses-outline',
+    color: '#5B4AF0',
     route: '/chat',
   },
 ];
@@ -59,7 +59,6 @@ export default function SubjectScreen() {
     subjectName: string;
   }>();
   const { boardName, standardName, setLastStudied } = useApp();
-  const colors = useColors();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -72,59 +71,47 @@ export default function SubjectScreen() {
     }
   }, [subjectId]);
 
-  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0) + 12;
+  const topPad = insets.top + (Platform.OS === 'web' ? 24 : 0);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: topPad,
-            backgroundColor: colors.card,
-            borderBottomColor: colors.border,
-          },
-        ]}
-      >
-        {/* Row: back + title */}
+    <View style={styles.root}>
+      {/* ── TOP HEADER CARD ── */}
+      <View style={[styles.headerCard, { paddingTop: topPad + 16 }]}>
         <View style={styles.headerRow}>
           <Pressable
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
-            style={[styles.backCircle, { backgroundColor: colors.secondary }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              if (router.canGoBack()) router.back();
+              else router.replace('/subjects');
+            }}
+            style={styles.backBtn}
           >
-            <Ionicons name="arrow-back" size={20} color={colors.text} />
+            <Ionicons name="arrow-back" size={20} color="#334155" />
           </Pressable>
-          <View style={[styles.subjectIconWrap, { backgroundColor: colors.primaryLight }]}>
-            <Ionicons name="reader-outline" size={22} color={colors.primary} />
+          
+          <View style={styles.subjectIconWrap}>
+            <Ionicons name="document-text" size={20} color="#5B4AF0" />
           </View>
+          
           <View style={styles.titleBlock}>
-            <Text style={[styles.subjectName, { color: colors.text }]} numberOfLines={1}>
-              {subjectName}
-            </Text>
-            <Text style={[styles.breadcrumb, { color: colors.mutedForeground }]}>
-              {boardName} · {standardName}
+            <Text style={styles.subjectName} numberOfLines={1}>{subjectName || 'Subject'}</Text>
+            <Text style={styles.breadcrumb} numberOfLines={1}>
+              {boardName || 'Central Board of Secondary Education'} • {standardName || 'Class 11'}
             </Text>
           </View>
         </View>
       </View>
 
       <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 24 },
-        ]}
+        contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40, gap: 12 }}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-          Choose what to do
-        </Text>
+        <Text style={styles.sectionLabel}>Choose what to do</Text>
+        
         {ACTIONS.map((action) => (
           <Pressable
             key={action.key}
-            style={[
-              styles.actionRow,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
+            style={styles.actionCard}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push({
@@ -137,17 +124,17 @@ export default function SubjectScreen() {
               });
             }}
           >
-            <View style={[styles.actionIcon, { backgroundColor: action.color + '18' }]}>
+            <View style={[styles.actionIcon, { backgroundColor: action.color + '1A' }]}>
               <Ionicons name={action.icon} size={22} color={action.color} />
             </View>
+            
             <View style={styles.actionText}>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>{action.label}</Text>
-              <Text style={[styles.actionDesc, { color: colors.mutedForeground }]}>
-                {action.desc}
-              </Text>
+              <Text style={styles.actionLabel}>{action.label}</Text>
+              <Text style={styles.actionDesc}>{action.desc}</Text>
             </View>
-            <View style={[styles.actionChevron, { backgroundColor: colors.secondary }]}>
-              <Ionicons name="chevron-forward" size={15} color={colors.mutedForeground} />
+            
+            <View style={styles.actionChevron}>
+              <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
             </View>
           </Pressable>
         ))}
@@ -157,74 +144,56 @@ export default function SubjectScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
+  root: { flex: 1, backgroundColor: '#F8FAFC' },
+
+  /* HEADER */
+  headerCard: {
+    backgroundColor: '#FFF',
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  backCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  backBtn: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center', justifyContent: 'center',
   },
   subjectIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 44, height: 44, borderRadius: 14,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center', justifyContent: 'center',
   },
   titleBlock: { flex: 1 },
-  subjectName: {
-    fontSize: 17,
-    fontWeight: '700',
-    fontFamily: 'Inter_700Bold',
-  },
-  breadcrumb: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
-  content: { padding: 20, gap: 10 },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    fontFamily: 'Inter_600SemiBold',
-    marginBottom: 4,
-    letterSpacing: 0.3,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    gap: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 1,
+  subjectName: { fontSize: 18, fontWeight: '800', color: '#0F172A', marginBottom: 2 },
+  breadcrumb: { fontSize: 11, fontWeight: '500', color: '#64748B' },
+
+  /* CONTENT */
+  sectionLabel: { fontSize: 13, fontWeight: '700', color: '#475569', marginBottom: 4, marginTop: 8 },
+  
+  actionCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: '#FFF', borderRadius: 20, padding: 16,
+    borderWidth: 1, borderColor: '#F1F5F9',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02, shadowRadius: 6, elevation: 1,
   },
   actionIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 48, height: 48, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center',
   },
   actionText: { flex: 1 },
-  actionLabel: { fontSize: 15, fontWeight: '700', fontFamily: 'Inter_700Bold', marginBottom: 3 },
-  actionDesc: { fontSize: 12, fontFamily: 'Inter_400Regular', lineHeight: 17 },
+  actionLabel: { fontSize: 15, fontWeight: '800', color: '#1E293B', marginBottom: 3 },
+  actionDesc: { fontSize: 12, color: '#64748B', lineHeight: 17 },
   actionChevron: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 32, height: 32, borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center', justifyContent: 'center',
   },
 });

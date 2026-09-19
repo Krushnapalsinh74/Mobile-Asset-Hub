@@ -8,10 +8,13 @@ import {
   initializeAuth,
   getAuth,
   signInWithPhoneNumber,
-  getReactNativePersistence,
+  browserLocalPersistence,
   type ConfirmationResult,
   type Auth,
 } from 'firebase/auth';
+import * as FirebaseAuth from 'firebase/auth';
+
+const getRNPersistence = (FirebaseAuth as any).getReactNativePersistence;
 
 // Firebase config from google-services.json
 const FIREBASE_CONFIG = {
@@ -33,7 +36,7 @@ const app = getApps().length === 0
 let _auth: Auth;
 try {
   _auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
+    persistence: getRNPersistence ? getRNPersistence(AsyncStorage) : browserLocalPersistence,
   });
 } catch {
   // Already initialised (hot reload)

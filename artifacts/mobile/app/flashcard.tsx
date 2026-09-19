@@ -148,6 +148,14 @@ export default function FlashcardScreen() {
     );
   }
 
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/topics');
+    }
+  };
+
   if (error || questions.length === 0) {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: colors.background }]}>
@@ -156,7 +164,7 @@ export default function FlashcardScreen() {
         </View>
         <Text style={[styles.loadTitle, { color: colors.text }]}>Couldn't load flashcards</Text>
         <Text style={[styles.loadSub, { color: colors.mutedForeground }]}>Check your connection and try again</Text>
-        <Pressable onPress={() => router.back()} style={[styles.actionBtn, { backgroundColor: colors.primary }]}>
+        <Pressable onPress={handleBack} style={[styles.actionBtn, { backgroundColor: colors.primary }]}>
           <Text style={styles.actionBtnText}>Go Back</Text>
         </Pressable>
       </View>
@@ -214,7 +222,7 @@ export default function FlashcardScreen() {
             </Pressable>
             <Pressable
               style={[styles.doneBtn, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
-              onPress={() => router.back()}
+              onPress={handleBack}
             >
               <Ionicons name="arrow-back" size={18} color={colors.text} />
               <Text style={[styles.doneBtnText, { color: colors.text }]}>Back to Topic</Text>
@@ -236,7 +244,7 @@ export default function FlashcardScreen() {
         backgroundColor: colors.card,
         borderBottomColor: colors.border,
       }]}>
-        <Pressable onPress={() => router.back()}>
+        <Pressable onPress={handleBack}>
           <View style={[styles.backCircle, { backgroundColor: colors.secondary }]}>
             <Ionicons name="close" size={20} color={colors.text} />
           </View>

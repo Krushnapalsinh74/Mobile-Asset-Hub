@@ -76,7 +76,7 @@ export default function RegisterScreen() {
           colors={['#3730A3', '#4F46E5', '#7C3AED']}
           style={[styles.header, { paddingTop: insets.top + 20 }]}
         >
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Pressable onPress={() => { if (router.canGoBack()) { router.back(); } else { router.replace('/login'); } }} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </Pressable>
           <Text style={styles.title}>Create Account</Text>

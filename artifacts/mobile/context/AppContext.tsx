@@ -78,6 +78,9 @@ interface AppContextValue extends AppState {
   unsaveQuestion: (id: string) => Promise<void>;
   clearAll: () => Promise<void>;
   isPremium: boolean;
+  activePlanId: string | null;
+  subscriptionStatus: import('@/services/api').SubscriptionStatusResponse | null;
+  refreshSubscription: () => Promise<void>;
   setActivePlan: (planId: string) => Promise<void>;
 }
 
@@ -120,6 +123,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     activePlanId: null,
   });
 
+  const [subscriptionStatus, setSubscriptionStatus] = useState<import('@/services/api').SubscriptionStatusResponse | null>(null);
+
+  const refreshSubscription = async () => {
+    try {
+      const status = await subscriptionApi.getStatus();
+      if (status) {
+        setSubscriptionStatus(status);
+        if (status.hasActivePlan && status.subscription?.planId) {
+          await AsyncStorage.setItem(KEYS.activePlanId, String(status.subscription.planId));
+          setState(s => ({ ...s, activePlanId: String(status.subscription?.planId) }));
+        }
+      }
+    } catch {
+      // offline / not signed in
+    }
+  };
+
   useEffect(() => {
     AsyncStorage.multiGet(Object.values(KEYS)).then((pairs) => {
       const map: Record<string, string | null> = {};
@@ -150,6 +170,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Fallback: show a free plan so app doesn't break when offline
         setState(s => ({ ...s, plans: [{ id: 'free', name: 'Free', price: 0, questionLimit: 20 }] as SubscriptionPlan[] }));
       });
+
+    refreshSubscription();
   }, []);
 
   const setStudent = async (name: string, email: string) => {
@@ -158,6 +180,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Sync to both backends (fire-and-forget — never block the UI)
     localApi.saveProfile({ email, name }).catch(() => {});
     otpApi.saveProfile(email, { name }).catch(() => {});
+    refreshSubscription();
   };
 
   const setBoard = async (id: string, name: string) => {
@@ -198,10 +221,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const incrementExplored = async (subjectId: string) => {
     setState(s => {
-      const cur = s.subjectProgress[subjectId] ?? { explored: 0, total: 0 };
+      const current = s.subjectProgress[subjectId] ?? { explored: 0, total: 1 };
       const next = {
         ...s.subjectProgress,
-        [subjectId]: { explored: cur.explored + 1, total: cur.total },
+        [subjectId]: { ...current, explored: Math.min(current.explored + 1, current.total) },
       };
       AsyncStorage.setItem(KEYS.subjectProgress, JSON.stringify(next));
       return { ...s, subjectProgress: next };
@@ -247,12 +270,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const isPremium = 
-    !!state.activePlanId && 
+    !!subscriptionStatus?.hasActivePlan || 
+    (!!state.activePlanId && 
     state.activePlanId !== 'free' && 
-    state.plans.some(p => String(p.id) === state.activePlanId);
+    state.plans.some(p => String(p.id) === state.activePlanId));
 
   const clearAll = async () => {
     await AsyncStorage.multiRemove(Object.values(KEYS));
+    setSubscriptionStatus(null);
     setState({
       studentName: null, studentEmail: null, boardId: null, boardName: null,
       standardId: null, standardName: null, lastStudied: null, subjectProgress: {},
@@ -266,6 +291,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...state, setStudent, setBoard, setStandard, setLastStudied,
       setSubjectTotal, incrementExplored, addTestResult, addChatSession,
       saveQuestion, unsaveQuestion, clearAll, isPremium, setActivePlan,
+      subscriptionStatus, refreshSubscription,
     }}>
       {children}
     </AppContext.Provider>

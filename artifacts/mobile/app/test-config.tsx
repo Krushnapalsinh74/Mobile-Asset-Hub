@@ -556,12 +556,20 @@ export default function TestConfigScreen() {
     }
   };
 
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/chapters');
+    }
+  };
+
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0) + 14;
 
   if (chapterIds.length === 0) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-        <Ionicons name="layers-outline" size={48} color={colors.mutedForeground} />
+      <View style={{ flex: 1, backgroundColor: colors.background, padding: 24, alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons name="documents-outline" size={48} color={colors.mutedForeground} />
         <Text style={{ color: colors.text, fontSize: 16, fontFamily: 'Inter_600SemiBold', fontWeight: '600', marginTop: 16, textAlign: 'center' }}>
           No chapters selected
         </Text>
@@ -570,7 +578,7 @@ export default function TestConfigScreen() {
         </Text>
         <Pressable
           style={{ marginTop: 24, backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14 }}
-          onPress={() => router.back()}
+          onPress={handleBack}
         >
           <Text style={{ color: '#FFF', fontWeight: '700', fontFamily: 'Inter_700Bold' }}>Go Back</Text>
         </Pressable>
@@ -590,7 +598,7 @@ export default function TestConfigScreen() {
         <View style={styles.headerBlob1} />
         <View style={styles.headerBlob2} />
         <View style={styles.headerRow}>
-          <Pressable onPress={() => router.back()}>
+          <Pressable onPress={handleBack}>
             <View style={styles.backCircle}>
               <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
             </View>
