@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,6 +20,7 @@ export default function PricingScreen() {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [promoCode, setPromoCode] = useState('');
 
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -56,7 +58,30 @@ export default function PricingScreen() {
       }
     } else {
       if (studentName) {
-        router.push({ pathname: '/checkout', params: { planId: String(planId) } });
+        try {
+          setLoading(true);
+          const plan = plans.find(p => p.id === planId) || DEFAULT_PLANS.find(p => p.id === planId);
+          // Send the planId and promoCode to the backend to calculate the price securely
+          const orderRes = await subscriptionApi.createOrder({ planId, promoCode });
+          
+          router.push({
+            pathname: '/checkout',
+            params: {
+              activePlanId: String(planId),
+              activePlanName: plan ? plan.name : '',
+              orderId: orderRes.orderId,
+              amount: orderRes.amount.toString(),
+              currency: orderRes.currency,
+              token: 'test_token',
+              name: studentName,
+              email: 'test@example.com' // Using a placeholder for now since email might not be in context
+            }
+          });
+        } catch (e: any) {
+          setError(e.message || 'Failed to create order');
+        } finally {
+          setLoading(false);
+        }
       } else {
         router.push({ pathname: '/register', params: { planId } });
       }
@@ -121,6 +146,16 @@ export default function PricingScreen() {
                   </Text>
                 </LinearGradient>
               </Pressable>
+              <View style={styles.promoContainer}>
+                <TextInput
+                  style={[styles.promoInput, { color: colors.text, borderColor: colors.border }]}
+                  placeholder="Have a Promo Code?"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={promoCode}
+                  onChangeText={setPromoCode}
+                  autoCapitalize="characters"
+                />
+              </View>
             </View>
           ))
         )}
@@ -203,5 +238,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 40,
     fontSize: 16,
+  },
+  promoContainer: {
+    marginTop: 16,
+  },
+  promoInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 48,
+    fontSize: 14,
   }
 });

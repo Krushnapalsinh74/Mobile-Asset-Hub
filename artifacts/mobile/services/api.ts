@@ -419,8 +419,8 @@ export const smsOtpApi = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function getLocalBase(): string {
-  // Use production backend since local dev requires Google Application Credentials
-  return YUNORA_BASE;
+  // Use local backend if specified, else fallback to production
+  return process.env.EXPO_PUBLIC_LOCAL_API_URL ?? YUNORA_BASE;
 }
 
 async function localReq<T>(path: string, init?: RequestInit): Promise<T> {
@@ -433,10 +433,15 @@ async function localReq<T>(path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 3000); // 3 s timeout
   try {
+    const token = await getYunoraToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json", ...init?.headers as any };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
     const r = await fetch(url, {
       ...init,
       signal: controller.signal,
-      headers: { "Content-Type": "application/json", ...init?.headers },
+      headers,
     });
     if (!r.ok) {
       const msg = await r.text().catch(() => "");
@@ -455,6 +460,8 @@ export interface UserProfile {
   boardName?: string | null;
   standardId?: string | null;
   standardName?: string | null;
+  activePlanId?: string | null;
+  activePlanName?: string | null;
 }
 
 export const localApi = {
@@ -677,6 +684,9 @@ export interface VerifyPaymentPayload {
   razorpay_order_id: string;
   razorpay_payment_id: string;
   razorpay_signature: string;
+  email?: string;
+  activePlanId?: string;
+  activePlanName?: string;
 }
 
 export interface SubscriptionDetails {
@@ -734,21 +744,18 @@ export const subscriptionApi = {
     yunoraReq<any>("/payments/history").then((res) =>
       Array.isArray(res) ? res : res?.data ?? []
     ),
-  createOrder: (payload: { planId: number | string; amount: number }) =>
-    yunoraReq<{ orderId: string; amount: number; currency: string }>(
-      "/payments/create-order",
-      {
-        method: "POST",
-        body: JSON.stringify(payload),
-      }
-    ),
+  createOrder: (payload: { planId: string | number; promoCode?: string }) =>
+    localReq<{ orderId: string; amount: number; currency: string }>("/payments/create-order", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   register: (payload: RegisterPayload) =>
     yunoraReq<RegisterResponse>("/students/register", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
   verifyPayment: (token: string, payload: VerifyPaymentPayload) =>
-    yunoraReq<{ success: boolean }>("/payments/verify", {
+    localReq<{ success: boolean }>("/payments/verify", {
       method: "POST",
       body: JSON.stringify(payload),
     }),

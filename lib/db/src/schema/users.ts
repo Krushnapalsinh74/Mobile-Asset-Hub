@@ -3,13 +3,15 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const usersTable = pgTable("users", {
-  email:        text("email").primaryKey(),
-  name:         text("name"),
-  boardId:      text("board_id"),
-  boardName:    text("board_name"),
-  standardId:   text("standard_id"),
-  standardName: text("standard_name"),
-  updatedAt:    timestamp("updated_at").defaultNow().notNull(),
+  email:          text("email").primaryKey(),
+  name:           text("name"),
+  boardId:        text("board_id"),
+  boardName:      text("board_name"),
+  standardId:     text("standard_id"),
+  standardName:   text("standard_name"),
+  activePlanId:   text("active_plan_id"),
+  activePlanName: text("active_plan_name"),
+  updatedAt:      timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const insertUserSchema = createInsertSchema(usersTable).omit({ updatedAt: true });

@@ -33,7 +33,7 @@ export default function LoginScreen() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const { setStudent, boardId, standardId, activePlanId } = useApp();
+  const { setStudent, boardId, standardId, activePlanId, setActivePlan } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
@@ -50,6 +50,13 @@ export default function LoginScreen() {
     setTimeout(async () => {
       try {
         await setStudent('Student', email);
+        
+        // Restore subscription plan from backend profile
+        const profile = await localApi.getProfile(email);
+        if (profile?.activePlanId) {
+          await setActivePlan(profile.activePlanId);
+        }
+        
         localApi.saveProfile({ email, name: 'Student' }).catch(() => { });
         router.replace(boardId && standardId ? '/subjects' : '/onboarding');
       } catch (e: any) {
@@ -65,6 +72,24 @@ export default function LoginScreen() {
     setGoogleLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
+      // In local web development, mock the Google sign in to prevent redirect_uri_mismatch
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+        setTimeout(async () => {
+          await setStudent('Google Student', 'google_test@example.com');
+          const profile = await localApi.getProfile('google_test@example.com').catch(() => null);
+          
+          if (profile?.activePlanId) {
+            await setActivePlan(profile.activePlanId);
+            router.replace(boardId && standardId ? '/subjects' : '/onboarding');
+          } else {
+            // New user, no active plan -> redirect to pricing
+            router.replace('/pricing');
+          }
+          setGoogleLoading(false);
+        }, 800);
+        return;
+      }
+
       const redirectUri = typeof window !== 'undefined'
         ? window.location.origin
         : `com.knowledgepark.app:/oauth2redirect/google`;
@@ -85,7 +110,15 @@ export default function LoginScreen() {
 
           if (googleEmail) {
             await setStudent('Student', googleEmail);
-            router.replace(boardId && standardId ? '/subjects' : '/onboarding');
+            const profile = await localApi.getProfile(googleEmail).catch(() => null);
+            
+            if (profile?.activePlanId) {
+              await setActivePlan(profile.activePlanId);
+              router.replace(boardId && standardId ? '/subjects' : '/onboarding');
+            } else {
+              // New user -> redirect to pricing
+              router.replace('/pricing');
+            }
           } else {
             setError('Could not get your Google email.');
           }
@@ -94,7 +127,9 @@ export default function LoginScreen() {
     } catch (e: any) {
       setError('Google sign-in failed.');
     } finally {
-      setGoogleLoading(false);
+      if (Platform.OS !== 'web' || typeof window === 'undefined' || window.location.hostname !== 'localhost') {
+        setGoogleLoading(false);
+      }
     }
   };
 
@@ -220,7 +255,7 @@ export default function LoginScreen() {
           {/* Create Account */}
           <View style={styles.createAccountRow}>
             <Text style={styles.noAccountText}>Don't have an account? </Text>
-            <Pressable onPress={() => { }}>
+            <Pressable onPress={() => router.push('/register')}>
               <Text style={styles.createAccountText}>Create Account</Text>
             </Pressable>
           </View>

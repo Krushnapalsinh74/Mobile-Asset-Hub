@@ -61,11 +61,7 @@ export default function OnboardingScreen() {
     enabled: !!selectedBoard,
   });
 
-  useEffect(() => {
-    if (!activePlanId) {
-      router.replace('/pricing');
-    }
-  }, [activePlanId]);
+  // Removed aggressive paywall redirect to allow free exploration
 
   const handleBoardSelect = (board: Board) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

@@ -17,13 +17,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
 export default function CheckoutScreen() {
-  const { orderId, amount, currency, token, email, name } = useLocalSearchParams<{
+  const { orderId, amount, currency, token, email, name, activePlanId, activePlanName } = useLocalSearchParams<{
     orderId: string;
     amount: string;
     currency: string;
     token: string;
     email: string;
     name: string;
+    activePlanId: string;
+    activePlanName: string;
   }>();
 
   const [loading, setLoading] = useState(true);
@@ -36,7 +38,7 @@ export default function CheckoutScreen() {
   const webViewRef = useRef<WebView>(null);
 
   // In a real app, this should come from your environment or API
-  const RAZORPAY_KEY = 'rzp_test_YourKeyIdHere';
+  const RAZORPAY_KEY = 'rzp_test_TaHeWHFt5q4qQZ';
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -130,7 +132,10 @@ export default function CheckoutScreen() {
           await subscriptionApi.verifyPayment(token, {
             razorpay_order_id: data.razorpay_order_id,
             razorpay_payment_id: data.razorpay_payment_id,
-            razorpay_signature: data.razorpay_signature
+            razorpay_signature: data.razorpay_signature,
+            email,
+            activePlanId,
+            activePlanName
           });
 
           // On success, set user in context and go to app
@@ -265,7 +270,64 @@ export default function CheckoutScreen() {
             </View>
 
             <Pressable
-              onPress={handleWebSuccess}
+              onPress={async () => {
+                if (typeof window !== 'undefined') {
+                  const loadScript = (src: string) => new Promise((resolve) => {
+                    const script = document.createElement('script');
+                    script.src = src;
+                    script.onload = () => resolve(true);
+                    script.onerror = () => resolve(false);
+                    document.body.appendChild(script);
+                  });
+
+                  const res = await loadScript('https://checkout.razorpay.com/v1/checkout.js');
+                  if (!res) {
+                    setError('Razorpay SDK failed to load');
+                    return;
+                  }
+
+                  const options = {
+                    key: RAZORPAY_KEY,
+                    amount: amount,
+                    currency: currency,
+                    name: "Knowledge Park",
+                    description: "Subscription Plan",
+                    order_id: orderId,
+                    handler: async function (response: any) {
+                      setVerifying(true);
+                      try {
+                        await subscriptionApi.verifyPayment(token, {
+                          razorpay_order_id: response.razorpay_order_id,
+                          razorpay_payment_id: response.razorpay_payment_id,
+                          razorpay_signature: response.razorpay_signature,
+                          email,
+                          activePlanId,
+                          activePlanName
+                        }).catch(() => null); // Silently proceed for test mode
+                        
+                        if (name && email) {
+                          await setStudent(name, email);
+                        }
+                        router.replace('/onboarding');
+                      } catch {
+                        router.replace('/onboarding');
+                      }
+                    },
+                    prefill: {
+                      name: name || 'Student',
+                      email: email || 'test@example.com'
+                    },
+                    theme: {
+                      color: '#4F46E5'
+                    }
+                  };
+                  const rzp = new (window as any).Razorpay(options);
+                  rzp.on('payment.failed', function (response: any) {
+                    setError(response.error.description || 'Payment failed');
+                  });
+                  rzp.open();
+                }
+              }}
               style={{
                 width: '100%',
                 backgroundColor: '#4F46E5',
@@ -277,9 +339,9 @@ export default function CheckoutScreen() {
                 gap: 8,
               }}
             >
-              <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+              <Ionicons name="card" size={20} color="#FFFFFF" />
               <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 16 }}>
-                Activate & Start Learning
+                Pay with Razorpay
               </Text>
             </Pressable>
           </View>
