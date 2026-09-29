@@ -51,7 +51,6 @@ export default function SubjectsScreen() {
             </View>
             <View>
               <Text style={styles.logoText}>Knowledge<Text style={{color: '#2563EB'}}>Park</Text></Text>
-              <Text style={styles.logoSubtitle}>Edu</Text>
               <Text style={styles.logoTagline}>Learn  •  Practice  •  Grow</Text>
             </View>
           </View>

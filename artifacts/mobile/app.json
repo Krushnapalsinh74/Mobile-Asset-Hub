@@ -2,7 +2,7 @@
   "expo": {
     "name": "Knowledge Park",
     "slug": "knowledge-park",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "knowledgepark",
@@ -16,6 +16,7 @@
       }
     },
     "android": {
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#4F46E5"

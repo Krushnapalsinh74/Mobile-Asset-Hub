@@ -102,7 +102,6 @@ export default function OnboardingScreen() {
               </View>
               <View>
                 <Text style={styles.logoText}>Knowledge<Text style={{color: '#3B82F6'}}>Park</Text></Text>
-                <Text style={styles.logoSubtitle}>Edu</Text>
                 <Text style={styles.logoTagline}>Learn  •  Practice  •  Grow</Text>
               </View>
             </View>

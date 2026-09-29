@@ -160,7 +160,6 @@ export default function LoginScreen() {
                   <Ionicons name="school" size={40} color="#FFF" />
                 </View>
                 <Text style={styles.logoText}>Knowledge<Text style={{ color: '#93C5FD' }}>Park</Text></Text>
-                <Text style={styles.logoSubText}>Edu</Text>
                 <Text style={styles.logoTagline}>Learn   •   Practice   •   Grow</Text>
               </View>
 
