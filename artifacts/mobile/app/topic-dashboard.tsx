@@ -24,7 +24,7 @@ const TOPIC_ACTIONS: ActionItem[] = [
     label: 'Study Guide',
     desc: 'Key concepts & detailed notes',
     icon: 'bulb',
-    gradient: ['#059669', '#10B981'],
+    gradient: ['#4F936C', '#4F936C'],
     route: '/explanation',
   },
   {
@@ -32,7 +32,7 @@ const TOPIC_ACTIONS: ActionItem[] = [
     label: 'AI Tutor',
     desc: 'Ask anything, get instant help',
     icon: 'chatbubbles',
-    gradient: ['#4F46E5', '#6366F1'],
+    gradient: ['#C85C3E', '#6366F1'],
     route: '/chat',
   },
   {
@@ -86,7 +86,7 @@ export default function TopicDashboardScreen() {
     if (router.canGoBack()) {
       router.back();
     } else {
-      router.replace({ pathname: '/topics', params: { subjectId, subjectName, chapterId, chapterName } });
+      router.replace({ pathname: '/chapters', params: { subjectId, subjectName } });
     }
   };
 
@@ -94,7 +94,7 @@ export default function TopicDashboardScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* ── GRADIENT HERO ── */}
       <LinearGradient
-        colors={['#3730A3', '#4F46E5', '#7C3AED']}
+        colors={['#6B382C', '#C85C3E', '#C85C3E']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[styles.hero, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 16 }]}

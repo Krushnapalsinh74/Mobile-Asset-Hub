@@ -13,7 +13,7 @@ router.get("/user/profile", async (req, res) => {
 
   // No database configured — treat as "not found" so the app falls back to AsyncStorage
   if (!db) {
-    res.status(404).json({ error: "not found" });
+    res.json(null);
     return;
   }
 
@@ -24,13 +24,13 @@ router.get("/user/profile", async (req, res) => {
       .where(eq(usersTable.email, email.toLowerCase().trim()))
       .limit(1);
     if (rows.length === 0) {
-      res.status(404).json({ error: "not found" });
+      res.json(null);
       return;
     }
     res.json(rows[0]);
   } catch {
     // DB not reachable or schema not yet pushed — not found is the safe fallback
-    res.status(404).json({ error: "not found" });
+    res.json(null);
   }
 });
 

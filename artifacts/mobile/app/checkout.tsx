@@ -161,14 +161,14 @@ export default function CheckoutScreen() {
     if (router.canGoBack()) {
       router.back();
     } else {
-      router.replace('/pricing');
+      router.replace('/login');
     }
   };
 
   if (verifying) {
     return (
       <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color="#4F46E5" />
+        <ActivityIndicator size="large" color="#C85C3E" />
         <Text style={[styles.loadingText, { color: colors.text }]}>
           Verifying your payment...
         </Text>
@@ -216,7 +216,7 @@ export default function CheckoutScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <LinearGradient
-        colors={['#3730A3', '#4F46E5']}
+        colors={['#6B382C', '#C85C3E']}
         style={{ paddingTop: insets.top, paddingBottom: 16, paddingHorizontal: 20 }}
       >
         <Pressable onPress={handleBack} style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -238,7 +238,7 @@ export default function CheckoutScreen() {
             alignItems: 'center',
           }}>
             <LinearGradient
-              colors={['#4F46E5', '#7C3AED']}
+              colors={['#C85C3E', '#C85C3E']}
               style={{ width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}
             >
               <Ionicons name="shield-checkmark" size={32} color="#FFFFFF" />
@@ -263,7 +263,7 @@ export default function CheckoutScreen() {
               <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={{ color: colors.text, fontWeight: '700', fontSize: 15 }}>Total Amount</Text>
-                <Text style={{ color: '#4F46E5', fontWeight: '800', fontSize: 18 }}>
+                <Text style={{ color: '#C85C3E', fontWeight: '800', fontSize: 18 }}>
                   {currency || 'INR'} {amount ? (Number(amount) / 100).toFixed(0) : '299'}
                 </Text>
               </View>
@@ -318,7 +318,7 @@ export default function CheckoutScreen() {
                       email: email || 'test@example.com'
                     },
                     theme: {
-                      color: '#4F46E5'
+                      color: '#C85C3E'
                     }
                   };
                   const rzp = new (window as any).Razorpay(options);
@@ -330,7 +330,7 @@ export default function CheckoutScreen() {
               }}
               style={{
                 width: '100%',
-                backgroundColor: '#4F46E5',
+                backgroundColor: '#C85C3E',
                 borderRadius: 16,
                 paddingVertical: 14,
                 alignItems: 'center',
@@ -382,12 +382,12 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
-    color: '#64748B',
+    color: '#76645B',
     textAlign: 'center',
     marginBottom: 24,
   },
   retryBtn: {
-    backgroundColor: '#4F46E5',
+    backgroundColor: '#C85C3E',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,

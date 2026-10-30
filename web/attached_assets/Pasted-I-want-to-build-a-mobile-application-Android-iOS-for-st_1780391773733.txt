@@ -1,0 +1,43 @@
+I want to build a mobile application (Android/iOS) for students. I have a working Node.js backend API hosted at `https://kparkit.com/edu/api`. Please build the mobile frontend focusing on the "Student" role. Use Flutter (Dart) and create a highly responsive, premium, and modern UI.
+
+**Core User Flow & Onboarding:**
+1. **Login Screen:** Create a simple login/welcome screen for the student (mock auth for now, just capturing the student's name).
+2. **Initial Setup (One-time):** After logging in, the student must select their "Board" and "Standard" (Class). Fetch the options using my API (detailed below). Save this preference locally (using `shared_preferences` or similar) so they are not asked again on subsequent app launches.
+
+**Main Dashboard & Navigation:**
+1. **Subjects View:** Once onboarded, display a beautiful grid of "Subjects" available for their chosen Board and Standard.
+2. **Subject Dashboard:** Tapping a subject opens a detailed screen with 4 main action cards:
+   - **AI Chat**
+   - **Chapters**
+   - **Live Test**
+   - **Explanation**
+
+**Feature Specifications:**
+1. **Chapters & Topics:**
+   - Display a scrollable list of chapters for the subject.
+   - When a chapter is tapped, fetch and display its topics.
+   - When a topic is selected, show the 4 main options again (AI Chat, Topics, Live Test, Explanation) contextualized to this topic.
+2. **AI Chat:**
+   - A modern chat interface (similar to WhatsApp/ChatGPT) to discuss the subject/topic. Send messages to my chat API endpoint and display the AI's response.
+3. **Live Test:**
+   - A configuration screen (Questions count, Marks, Chapters/Topics). Use my `generate-questions` API to get the test paper, then present a clean Quiz UI for the student to take the test.
+4. **Explanation:**
+   - Call my `topic-details` API to show a detailed, beautifully formatted explanation (handling markdown text if possible).
+
+**My Existing Backend REST APIs:**
+Please create an `api_service.dart` (or similar service) that connects to these exact endpoints. Assume the base URL is `https://kparkit.com/edu/api` (or your actual domain):
+
+- **GET `/api/boards`** -> Returns list of boards.
+- **GET `/api/boards/:boardId/standards`** -> Returns standards for a board.
+- **GET `/api/boards/:boardId/standards/:stdId/subjects`** -> Returns subjects.
+- **GET `/api/boards/:boardId/standards/:stdId/subjects/:subId/chapters`** -> Returns chapters.
+- **GET `/api/boards/:boardId/standards/:stdId/subjects/:subId/chapters/:chapId/topics`** -> Returns topics for a chapter.
+- **POST `/api/curriculum/topic-details`** -> Request body: `{ board, standard, subject, chapter, topic }`. Returns detailed explanation of the topic.
+- **POST `/api/chat`** -> Request body: `{ message, history, context: { board, standard, subject, chapter } }`. Returns the AI's response text.
+- **POST `/api/generate-questions`** -> Request body: `{ board, standard, subject, chapter, options: { mode: "mcq"|"short"|"long"|"test", count: 5 } }`. Returns an array of questions.
+- **POST `/api/test/submit`** -> Request body: `{ studentName, board, standard, subject, score, totalQuestions, timestamp }`. Saves test results.
+
+**Technical Requirements:**
+- Use state management (like Provider, Riverpod, or GetX) if necessary to handle the selected board/standard/subject across screens.
+- Make the design feel alive with Hero animations, subtle page transitions, and a modern color palette.
+- Ensure all API fetching handles loading states (CircularProgressIndicator or Shimmer effects) and errors gracefully.

@@ -219,7 +219,7 @@ export default function ExplanationScreen() {
             onPress={() => {
               Haptics.selectionAsync();
               if (router.canGoBack()) router.back();
-              else router.replace('/topics');
+              else router.replace({ pathname: '/chapters', params: { subjectId, subjectName } });
             }}
           >
             <Ionicons name="chevron-back" size={20} color={colors.text} />

@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "1027948040827",
+    "firebase_url": "https://kpark-edu-default-rtdb.firebaseio.com",
+    "project_id": "kpark-edu",
+    "storage_bucket": "kpark-edu.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1027948040827:android:a1300754e4ccb17e8c48de",
+        "android_client_info": {
+          "package_name": "com.knowledgepark.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB3E4906IcuIMYW5zwkoq--XsA-rBkgcDo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

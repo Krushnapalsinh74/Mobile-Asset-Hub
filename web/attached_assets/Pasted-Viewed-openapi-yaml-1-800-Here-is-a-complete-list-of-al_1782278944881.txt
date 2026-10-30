@@ -1,0 +1,56 @@
+Viewed openapi.yaml:1-800
+
+Here is a complete list of all the APIs in the system. I have categorized them into the **Existing APIs** (which are currently running) and the **New APIs** (which are part of the implementation plan we just discussed).
+
+### Existing APIs
+
+**Auth**
+- `POST /api/auth/login` - Admin login
+- `GET /api/auth/me` - Get current user info
+
+**Curriculum Hierarchy**
+- **Boards:** `GET`, `POST`, `GET /:id`, `PATCH /:id`, `DELETE /:id` at `/api/boards`
+- **Standards:** `GET`, `POST`, `PATCH /:id`, `DELETE /:id` at `/api/standards`
+- **Subjects:** `GET`, `POST`, `PATCH /:id`, `DELETE /:id` at `/api/subjects`
+- **Chapters:** `GET`, `POST`, `PATCH /:id`, `DELETE /:id` at `/api/chapters`
+- **Topics:** `GET`, `POST`, `PATCH /:id`, `DELETE /:id` at `/api/topics`
+
+**Questions & Question Types**
+- `GET /api/question-types` - List available question formats
+- `GET /api/questions` - List questions (with advanced filtering)
+- `GET`, `PATCH`, `DELETE` at `/api/questions/:id` - Manage individual questions
+
+**AI Generation**
+- `POST /api/generation/start` - Start an AI question generation job
+- `GET /api/generation/jobs` - List background generation jobs
+- `GET /api/generation/jobs/:jobId` - Check the status/results of a generation job
+
+**AI Providers**
+- `GET`, `POST`, `PATCH /:id` at `/api/ai-providers` - Manage OpenAI/Gemini API keys and models
+
+**Papers (PDF Generation)**
+- `GET`, `POST` at `/api/papers` - Create and list test papers
+- `POST /api/papers/:id/export` - Export a paper to PDF
+
+**Analytics**
+- Various `GET` endpoints at `/api/analytics` - Fetch statistics for the admin dashboard
+
+---
+
+### New APIs to be created (From our plan)
+
+**1. Unified Curriculum API**
+- `GET /api/curriculum` - Returns the full tree of boards -> standards -> subjects -> chapters -> topics in one single request.
+
+**2. Share API (Public)**
+- `POST /api/shares` - Create a shareable link (passcode optional) for questions.
+- `GET /api/shares/:id` - Fetch the share configuration.
+- `GET /api/shares/:id/questions` - Fetch the questions for the shared link without needing to log in.
+
+**3. Student Management API**
+- `GET`, `POST`, `GET /:id`, `PATCH /:id`, `DELETE /:id` at `/api/students` - Full CRUD functionality to store and manage student data.
+
+**4. Chat API**
+- `POST /api/chat` - Interact with the AI conversationally.
+
+If you are satisfied with the [implementation plan](file:///C:/Users/Admin/.gemini/antigravity-ide/brain/736076c8-577d-44de-aade-cfd42deccb7e/implementation_plan.md) and this list, just say **"go ahead"** or **"start"** and I will begin writing the code for the new APIs!

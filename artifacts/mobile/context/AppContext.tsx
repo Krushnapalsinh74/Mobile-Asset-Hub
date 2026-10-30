@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { localApi, otpApi, subscriptionApi, type SubscriptionPlan } from '@/services/api';
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 
 export interface LastStudied {
   subjectId: string;
@@ -27,11 +28,23 @@ export interface TestResult {
   timestamp: number;
 }
 
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp?: number;
+  imageUri?: string;
+}
+
 export interface ChatSession {
+  id?: string;
   subjectName: string;
   topicName?: string;
   chapterName?: string;
   timestamp: number;
+  messages?: ChatMessage[];
+  lastMessage?: string;
+  language?: string;
 }
 
 export interface SavedQuestion {
@@ -48,6 +61,19 @@ export interface SavedQuestion {
   savedAt: number;
 }
 
+export interface MistakeQuestion {
+  id: string;
+  question: string;
+  options?: string[];
+  answer?: string;
+  solution?: string;
+  explanation?: string;
+  userAnswer?: string;
+  subjectName?: string;
+  chapterName?: string;
+  timestamp: number;
+}
+
 interface AppState {
   studentName: string | null;
   studentEmail: string | null;
@@ -60,6 +86,7 @@ interface AppState {
   testHistory: TestResult[];
   chatHistory: ChatSession[];
   savedQuestions: SavedQuestion[];
+  mistakeQuestions: MistakeQuestion[];
   isLoaded: boolean;
   plans: SubscriptionPlan[];
   activePlanId: string | null;
@@ -74,8 +101,12 @@ interface AppContextValue extends AppState {
   incrementExplored: (subjectId: string) => Promise<void>;
   addTestResult: (result: TestResult) => Promise<void>;
   addChatSession: (session: ChatSession) => Promise<void>;
+  deleteChatSession: (idOrTimestamp: string | number) => Promise<void>;
   saveQuestion: (q: SavedQuestion) => Promise<void>;
   unsaveQuestion: (id: string) => Promise<void>;
+  recordMistakes: (mistakes: MistakeQuestion[]) => Promise<void>;
+  removeMistake: (id: string) => Promise<void>;
+  clearMistakes: () => Promise<void>;
   clearAll: () => Promise<void>;
   isPremium: boolean;
   activePlanId: string | null;
@@ -98,6 +129,7 @@ const KEYS = {
   testHistory: '@edu:testHistory',
   chatHistory: '@edu:chatHistory',
   savedQuestions: '@edu:savedQuestions',
+  mistakeQuestions: '@edu:mistakeQuestions',
   activePlanId: '@edu:activePlanId',
 };
 
@@ -105,22 +137,50 @@ function parse<T>(s: string | null, fallback: T): T {
   try { return s ? JSON.parse(s) : fallback; } catch { return fallback; }
 }
 
+function getInitialSyncString(key: string, fallback: string | null = null): string | null {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const val = window.localStorage.getItem(key);
+      if (val !== null) return val;
+    } catch {}
+  }
+  return fallback;
+}
+
+function getInitialSync<T>(key: string, fallback: T): T {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const val = window.localStorage.getItem(key);
+      if (val !== null) return parse(val, fallback);
+    } catch {}
+  }
+  return fallback;
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<AppState>({
-    studentName: null,
-    studentEmail: null,
-    boardId: null,
-    boardName: null,
-    standardId: null,
-    standardName: null,
-    lastStudied: null,
-    subjectProgress: {},
-    testHistory: [],
-    chatHistory: [],
-    savedQuestions: [],
-    isLoaded: false,
-    plans: [],
-    activePlanId: null,
+  const [state, setState] = useState<AppState>(() => {
+    const defaultBoardId = getInitialSyncString(KEYS.boardId, null);
+    const defaultBoardName = getInitialSyncString(KEYS.boardName, null);
+    const defaultStdId = getInitialSyncString(KEYS.standardId, null);
+    const defaultStdName = getInitialSyncString(KEYS.standardName, null);
+
+    return {
+      studentName: getInitialSyncString(KEYS.studentName, null),
+      studentEmail: getInitialSyncString(KEYS.studentEmail, null),
+      boardId: defaultBoardId,
+      boardName: defaultBoardName,
+      standardId: defaultStdId,
+      standardName: defaultStdName,
+      lastStudied: getInitialSync(KEYS.lastStudied, null),
+      subjectProgress: getInitialSync(KEYS.subjectProgress, {}),
+      testHistory: getInitialSync(KEYS.testHistory, []),
+      chatHistory: getInitialSync(KEYS.chatHistory, []),
+      savedQuestions: getInitialSync(KEYS.savedQuestions, []),
+      mistakeQuestions: getInitialSync(KEYS.mistakeQuestions, []),
+      isLoaded: Platform.OS === 'web',
+      plans: [],
+      activePlanId: getInitialSyncString(KEYS.activePlanId, null),
+    };
   });
 
   const [subscriptionStatus, setSubscriptionStatus] = useState<import('@/services/api').SubscriptionStatusResponse | null>(null);
@@ -144,22 +204,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.multiGet(Object.values(KEYS)).then((pairs) => {
       const map: Record<string, string | null> = {};
       pairs.forEach(([k, v]) => { map[k] = v; });
-      setState({
-        studentName: map[KEYS.studentName],
-        studentEmail: map[KEYS.studentEmail],
-        boardId: map[KEYS.boardId],
-        boardName: map[KEYS.boardName],
-        standardId: map[KEYS.standardId],
-        standardName: map[KEYS.standardName],
-        lastStudied: parse(map[KEYS.lastStudied], null),
-        subjectProgress: parse(map[KEYS.subjectProgress], {}),
-        testHistory: parse(map[KEYS.testHistory], []),
-        chatHistory: parse(map[KEYS.chatHistory], []),
-        savedQuestions: parse(map[KEYS.savedQuestions], []),
-        activePlanId: map[KEYS.activePlanId],
+      setState((prev) => ({
+        studentName: map[KEYS.studentName] ?? prev.studentName,
+        studentEmail: map[KEYS.studentEmail] ?? prev.studentEmail,
+        boardId: map[KEYS.boardId] ?? prev.boardId,
+        boardName: map[KEYS.boardName] ?? prev.boardName,
+        standardId: map[KEYS.standardId] ?? prev.standardId,
+        standardName: map[KEYS.standardName] ?? prev.standardName,
+        lastStudied: parse(map[KEYS.lastStudied], prev.lastStudied),
+        subjectProgress: parse(map[KEYS.subjectProgress], prev.subjectProgress),
+        testHistory: parse(map[KEYS.testHistory], prev.testHistory),
+        chatHistory: parse(map[KEYS.chatHistory], prev.chatHistory),
+        savedQuestions: parse(map[KEYS.savedQuestions], prev.savedQuestions),
+        mistakeQuestions: parse(map[KEYS.mistakeQuestions], prev.mistakeQuestions),
+        activePlanId: map[KEYS.activePlanId] ?? prev.activePlanId,
         isLoaded: true,
-        plans: [],
-      });
+        plans: prev.plans,
+      }));
     });
 
     subscriptionApi.getPlans()
@@ -167,8 +228,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setState(s => ({ ...s, plans: fetchedPlans }));
       })
       .catch(() => {
-        // Fallback: show a free plan so app doesn't break when offline
-        setState(s => ({ ...s, plans: [{ id: 'free', name: 'Free', price: 0, questionLimit: 20 }] as SubscriptionPlan[] }));
+        setState(s => ({ ...s, plans: [] }));
       });
 
     refreshSubscription();
@@ -241,7 +301,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addChatSession = async (session: ChatSession) => {
     setState(s => {
-      const next = [session, ...s.chatHistory].slice(0, 50);
+      const idx = s.chatHistory.findIndex(
+        cs => (session.id && cs.id && cs.id === session.id) || cs.timestamp === session.timestamp
+      );
+      let next: ChatSession[];
+      if (idx >= 0) {
+        next = [...s.chatHistory];
+        next[idx] = { ...next[idx], ...session };
+      } else {
+        next = [session, ...s.chatHistory].slice(0, 50);
+      }
+      AsyncStorage.setItem(KEYS.chatHistory, JSON.stringify(next));
+      return { ...s, chatHistory: next };
+    });
+  };
+
+  const deleteChatSession = async (idOrTimestamp: string | number) => {
+    setState(s => {
+      const next = s.chatHistory.filter(
+        cs => cs.id !== String(idOrTimestamp) && cs.timestamp !== idOrTimestamp
+      );
       AsyncStorage.setItem(KEYS.chatHistory, JSON.stringify(next));
       return { ...s, chatHistory: next };
     });
@@ -264,6 +343,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const recordMistakes = async (mistakes: MistakeQuestion[]) => {
+    setState(s => {
+      const existingIds = new Set(s.mistakeQuestions.map(m => m.id));
+      const newItems = mistakes.filter(m => !existingIds.has(m.id));
+      const next = [...newItems, ...s.mistakeQuestions].slice(0, 500);
+      AsyncStorage.setItem(KEYS.mistakeQuestions, JSON.stringify(next));
+      return { ...s, mistakeQuestions: next };
+    });
+  };
+
+  const removeMistake = async (id: string) => {
+    setState(s => {
+      const next = s.mistakeQuestions.filter(m => m.id !== id);
+      AsyncStorage.setItem(KEYS.mistakeQuestions, JSON.stringify(next));
+      return { ...s, mistakeQuestions: next };
+    });
+  };
+
+  const clearMistakes = async () => {
+    await AsyncStorage.removeItem(KEYS.mistakeQuestions);
+    setState(s => ({ ...s, mistakeQuestions: [] }));
+  };
+
   const setActivePlan = async (planId: string) => {
     await AsyncStorage.setItem(KEYS.activePlanId, planId);
     setState(s => ({ ...s, activePlanId: planId }));
@@ -276,13 +378,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     state.plans.some(p => String(p.id) === state.activePlanId));
 
   const clearAll = async () => {
+    try {
+      const { signOut } = await import('firebase/auth');
+      const { firebaseAuth } = await import('@/services/firebase');
+      await signOut(firebaseAuth).catch(() => {});
+    } catch {}
     await AsyncStorage.multiRemove(Object.values(KEYS));
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+      try {
+        Object.values(KEYS).forEach((k) => window.localStorage.removeItem(k));
+      } catch {}
+    }
     setSubscriptionStatus(null);
     setState({
       studentName: null, studentEmail: null, boardId: null, boardName: null,
       standardId: null, standardName: null, lastStudied: null, subjectProgress: {},
-      testHistory: [], chatHistory: [], savedQuestions: [], isLoaded: true,
-      plans: state.plans, activePlanId: null,
+      testHistory: [], chatHistory: [], savedQuestions: [], mistakeQuestions: [],
+      isLoaded: true, plans: state.plans, activePlanId: null,
     });
   };
 
@@ -290,7 +402,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider value={{
       ...state, setStudent, setBoard, setStandard, setLastStudied,
       setSubjectTotal, incrementExplored, addTestResult, addChatSession,
-      saveQuestion, unsaveQuestion, clearAll, isPremium, setActivePlan,
+      deleteChatSession,
+      saveQuestion, unsaveQuestion, recordMistakes, removeMistake, clearMistakes,
+      clearAll, isPremium, setActivePlan,
       subscriptionStatus, refreshSubscription,
     }}>
       {children}

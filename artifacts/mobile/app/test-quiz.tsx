@@ -1,11 +1,11 @@
 import { useApp } from '@/context/AppContext';
-import type { SavedQuestion } from '@/context/AppContext';
+import type { MistakeQuestion, SavedQuestion } from '@/context/AppContext';
 import DiagramView from '@/components/DiagramView';
 import MathText from '@/components/MathText';
 import { useColors } from '@/hooks/useColors';
 import { eduApi } from '@/services/api';
 import type { Question } from '@/services/api';
-import { clearQuestions, loadQuestions } from '@/store/questionStore';
+import { clearQuestions, loadQuestions, saveQuestions } from '@/store/questionStore';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -74,9 +74,9 @@ function formatTime(s: number) {
 
 function getGrade(pct: number): { grade: string; gpa: string; color: string; bg: string } {
   if (pct >= 90) return { grade: 'A+', gpa: '10.0', color: '#065F46', bg: '#D1FAE5' };
-  if (pct >= 80) return { grade: 'A',  gpa: '9.0',  color: '#059669', bg: '#ECFDF5' };
-  if (pct >= 70) return { grade: 'B+', gpa: '8.0',  color: '#2563EB', bg: '#EFF6FF' };
-  if (pct >= 60) return { grade: 'B',  gpa: '7.0',  color: '#3B82F6', bg: '#EFF6FF' };
+  if (pct >= 80) return { grade: 'A',  gpa: '9.0',  color: '#4F936C', bg: '#ECFDF5' };
+  if (pct >= 70) return { grade: 'B+', gpa: '8.0',  color: '#C85C3E', bg: '#EFF6FF' };
+  if (pct >= 60) return { grade: 'B',  gpa: '7.0',  color: '#D97855', bg: '#EFF6FF' };
   if (pct >= 50) return { grade: 'C',  gpa: '6.0',  color: '#D97706', bg: '#FEF3C7' };
   if (pct >= 40) return { grade: 'D',  gpa: '5.0',  color: '#EA580C', bg: '#FFF7ED' };
   return              { grade: 'F',  gpa: '0.0',  color: '#DC2626', bg: '#FEE2E2' };
@@ -87,27 +87,28 @@ function getDateString() {
 }
 
 export default function TestQuizScreen() {
-  const { sessionId, questionsJson, subjectName, chapterName } = useLocalSearchParams<{
+  const { sessionId, questionsJson, subjectId, subjectName, chapterId, chapterName, markingScheme: paramScheme } = useLocalSearchParams<{
     sessionId?: string;
     questionsJson?: string;
-    subjectId: string;
-    subjectName: string;
-    chapterId: string;
-    chapterName: string;
+    subjectId?: string;
+    subjectName?: string;
+    chapterId?: string;
+    chapterName?: string;
+    markingScheme?: 'board' | 'neet' | 'jee';
   }>();
   const {
     studentName, boardId, boardName, standardId, standardName,
     addTestResult, saveQuestion, unsaveQuestion, savedQuestions,
+    recordMistakes,
   } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
-  const questions: Question[] = useMemo(() => {
+  const [questions] = useState<Question[]>(() => {
     // Primary: load from in-memory store via sessionId (avoids URL length limits)
     if (sessionId) {
       const stored = loadQuestions(sessionId);
       if (stored && stored.length > 0) {
-        clearQuestions(sessionId);
         return stored;
       }
     }
@@ -116,7 +117,15 @@ export default function TestQuizScreen() {
       const parsed = JSON.parse(questionsJson ?? '[]');
       return Array.isArray(parsed) ? parsed : [];
     } catch { return []; }
-  }, [sessionId, questionsJson]);
+  });
+
+  useEffect(() => {
+    return () => {
+      if (sessionId) {
+        setTimeout(() => clearQuestions(sessionId), 60000);
+      }
+    };
+  }, [sessionId]);
 
   const totalTime = questions.length * 90;
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -128,6 +137,86 @@ export default function TestQuizScreen() {
   const [elapsed, setElapsed] = useState(0);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [expandedReview, setExpandedReview] = useState<Set<number>>(new Set());
+
+  // Exam Marking Scheme State: Board (+1/0), NEET (+4/-1), JEE (+4/-1)
+  const [markingScheme, setMarkingScheme] = useState<'board' | 'neet' | 'jee'>(
+    paramScheme === 'neet' || paramScheme === 'jee' ? paramScheme : 'board'
+  );
+
+  // 1-Tap "Ask AI Tutor" about a single question
+  const handleAskAiTutor = useCallback((q: Question, index: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const userAns = answers[index];
+    const correctIdx = getCorrectOptionIndex(q);
+    const correctOpt =
+      correctIdx >= 0 && q.options?.[correctIdx]
+        ? q.options[correctIdx]
+        : q.answer || 'Correct Option';
+
+    const prompt = `I am practicing ${subjectName || 'Science'}${chapterName ? ` (${chapterName.split('|||')[0]})` : ''} and need help diagnosing this question from my test:
+
+Question: ${q.question}
+${q.options?.map((opt, i) => `${OPTION_LABELS[i]}) ${opt}`).join('\n') || ''}
+
+My Choice: ${userAns ? userAns : 'Skipped / Left Unattempted'}
+Correct Answer: ${correctOpt}
+${q.solution ? `\nSolution Provided: ${q.solution}` : ''}
+
+Please help me with:
+1. Step-by-step breakdown of why "${correctOpt}" is the correct answer.
+2. ${userAns ? `Why choosing "${userAns}" is incorrect and what conceptual misconception led to this choice.` : 'The fundamental theory/formula required to crack this problem.'}
+3. A quick mnemonic, formula trick, or shortcut to never miss this in future exams.`;
+
+    router.push({
+      pathname: '/chat',
+      params: {
+        subjectId: subjectId ?? '',
+        subjectName: subjectName ?? '',
+        chapterId: chapterId ?? '',
+        chapterName: (chapterName || '').split('|||')[0],
+        initialPrompt: prompt,
+        autoSend: '1',
+      },
+    });
+  }, [answers, subjectId, subjectName, chapterId, chapterName]);
+
+  // 1-Tap "Diagnose All Mistakes with AI Tutor"
+  const handleDiagnoseMistakesWithAi = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const incorrectList = questions
+      .map((q, idx) => ({ q, ans: answers[idx], idx }))
+      .filter(({ q, ans }) => !ans || !isAnswerCorrect(q, ans));
+
+    if (!incorrectList.length) return;
+
+    const summaryText = incorrectList.slice(0, 5).map(({ q, ans, idx }) => {
+      const correctIdx = getCorrectOptionIndex(q);
+      const correctOpt =
+        correctIdx >= 0 && q.options?.[correctIdx]
+          ? q.options[correctIdx]
+          : q.answer;
+      return `[Q${idx + 1}] ${q.question}\nMy Choice: ${ans || 'Skipped'} | Correct: ${correctOpt}`;
+    }).join('\n\n');
+
+    const prompt = `I just completed a practice assessment on ${subjectName || 'Science'} (${(chapterName || '').split('|||')[0]}). I scored ${score}/${questions.length}, making mistakes or skipping ${incorrectList.length} questions.
+
+Here is a sample of questions I struggled with:
+${summaryText}
+
+Please give me an overarching diagnostic of my weak areas in this chapter, explain the core principles behind these questions, and suggest a 10-minute revision plan to master them.`;
+
+    router.push({
+      pathname: '/chat',
+      params: {
+        subjectId: subjectId ?? '',
+        subjectName: subjectName ?? '',
+        chapterId: chapterId ?? '',
+        chapterName: (chapterName || '').split('|||')[0],
+        initialPrompt: prompt,
+        autoSend: '1',
+      },
+    });
+  }, [questions, answers, score, subjectId, subjectName, chapterId, chapterName]);
 
   // NTA Style State
   const [visited, setVisited] = useState<Set<number>>(new Set([0]));
@@ -185,11 +274,31 @@ export default function TestQuizScreen() {
 
     const currentAnswers = answersRef.current;
     let correct = 0;
+    const mistakes: MistakeQuestion[] = [];
     questions.forEach((q, i) => {
       const userAns = currentAnswers[i];
-      if (userAns && isAnswerCorrect(q, userAns)) correct++;
+      if (userAns && isAnswerCorrect(q, userAns)) {
+        correct++;
+      } else {
+        mistakes.push({
+          id: makeQId(q.question),
+          question: q.question,
+          options: q.options,
+          answer: q.answer,
+          solution: q.solution,
+          explanation: q.explanation,
+          userAnswer: userAns,
+          subjectName: subjectName ?? '',
+          chapterName: chapterName,
+          timestamp: Date.now(),
+        });
+      }
     });
     setScore(correct);
+
+    if (mistakes.length > 0) {
+      recordMistakes(mistakes).catch(() => {});
+    }
 
     const pct = Math.round((correct / questions.length) * 100);
 
@@ -198,7 +307,7 @@ export default function TestQuizScreen() {
         studentName: studentName ?? 'Student',
         board: boardId ?? boardName ?? '',
         standard: standardId ?? standardName ?? '',
-        subject: subjectName,
+        subject: subjectName ?? '',
         score: correct,
         totalQuestions: questions.length,
         timestamp: new Date().toISOString(),
@@ -206,7 +315,7 @@ export default function TestQuizScreen() {
     } catch {}
 
     addTestResult({
-      subjectName,
+      subjectName: subjectName ?? '',
       chapterName,
       mode: 'mcq',
       score: correct,
@@ -218,7 +327,7 @@ export default function TestQuizScreen() {
     setSubmitted(true);
     setSubmitting(false);
     // answersRef intentionally not in deps — use ref to avoid timer restart on every answer
-  }, [submitting, submitted, questions, studentName, boardId, boardName, standardId, standardName, subjectName, chapterName, addTestResult]);
+  }, [submitting, submitted, questions, studentName, boardId, boardName, standardId, standardName, subjectName, chapterName, addTestResult, recordMistakes]);
 
   // Countdown timer — stable dep on doSubmit (no longer changes per answer)
   useEffect(() => {
@@ -270,7 +379,7 @@ export default function TestQuizScreen() {
           Try selecting a different chapter or question type
         </Text>
         <Pressable onPress={handleBack} style={styles.actionBtn}>
-          <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.actionBtnGrad}>
+          <LinearGradient colors={['#C85C3E', '#C85C3E']} style={styles.actionBtnGrad}>
             <Text style={styles.actionBtnText}>Go Back</Text>
           </LinearGradient>
         </Pressable>
@@ -284,16 +393,25 @@ export default function TestQuizScreen() {
      RESULT SCREEN — Knowledge Park Official
   ════════════════════════════════════ */
   if (submitted) {
-    const gradeInfo = getGrade(percentage);
     const wrong = Math.max(0, questions.length - score - (questions.length - answeredCount));
     const skipped = questions.length - answeredCount;
-    const isPassing = percentage >= 40;
 
-    const passGrad: [string, string, string] = ['#064E3B', '#047857', '#059669'];
+    // Exam Marking Scheme Calculations (Board: +1/0, NEET: +4/-1, JEE: +4/-1)
+    const isNegativeScheme = markingScheme === 'neet' || markingScheme === 'jee';
+    const maxMarks = isNegativeScheme ? questions.length * 4 : questions.length;
+    const grossPositiveMarks = isNegativeScheme ? score * 4 : score;
+    const penaltyMarks = isNegativeScheme ? wrong * 1 : 0;
+    const netMarks = grossPositiveMarks - penaltyMarks;
+    const effectivePercentage = Math.max(0, Math.round((netMarks / maxMarks) * 100));
+
+    const gradeInfo = getGrade(effectivePercentage);
+    const isPassing = effectivePercentage >= 40;
+
+    const passGrad: [string, string, string] = ['#064E3B', '#047857', '#4F936C'];
     const warnGrad: [string, string, string] = ['#78350F', '#92400E', '#B45309'];
-    const failGrad: [string, string, string] = ['#3730A3', '#4F46E5', '#6366F1'];
-    const headerGrad = percentage >= 70 ? passGrad : percentage >= 40 ? warnGrad : failGrad;
-    const accentColor = percentage >= 70 ? '#059669' : percentage >= 40 ? '#D97706' : '#4F46E5';
+    const failGrad: [string, string, string] = ['#6B382C', '#C85C3E', '#6366F1'];
+    const headerGrad = effectivePercentage >= 70 ? passGrad : effectivePercentage >= 40 ? warnGrad : failGrad;
+    const accentColor = effectivePercentage >= 70 ? '#4F936C' : effectivePercentage >= 40 ? '#D97706' : '#C85C3E';
 
     return (
       <View style={[styles.container, { backgroundColor: '#EDEEFF' }]}>
@@ -344,7 +462,7 @@ export default function TestQuizScreen() {
               <View style={styles.certRingWrap}>
                 <View style={styles.certRingOuter}>
                   <View style={styles.certRingInner}>
-                    <Text style={styles.certPct}>{percentage}</Text>
+                    <Text style={styles.certPct}>{effectivePercentage}</Text>
                     <Text style={styles.certPctSym}>%</Text>
                   </View>
                 </View>
@@ -353,13 +471,15 @@ export default function TestQuizScreen() {
               {/* right info */}
               <View style={styles.certScoreRight}>
                 <Text style={styles.certScoreLabel}>
-                  {score} / {questions.length} correct
+                  {isNegativeScheme ? `${netMarks} / ${maxMarks} marks` : `${score} / ${questions.length} correct`}
                 </Text>
                 <View style={styles.certProgressBar}>
-                  <View style={[styles.certProgressFill, { width: `${percentage}%` as any, backgroundColor: isPassing ? '#6EE7B7' : '#FCA5A5' }]} />
+                  <View style={[styles.certProgressFill, { width: `${effectivePercentage}%` as any, backgroundColor: isPassing ? '#6EE7B7' : '#FCA5A5' }]} />
                 </View>
                 <Text style={styles.certScoreSub}>
-                  {answeredCount} attempted · {skipped} skipped · {wrong} wrong
+                  {isNegativeScheme
+                    ? `+${grossPositiveMarks} earned · -${penaltyMarks} penalty · ${skipped} skipped`
+                    : `${answeredCount} attempted · ${skipped} skipped · ${wrong} wrong`}
                 </Text>
 
                 {/* grade pill */}
@@ -419,7 +539,7 @@ export default function TestQuizScreen() {
                 { label: 'Chapter', value: (chapterName || '—').split('|||')[0] || '—' },
                 { label: 'Date', value: getDateString() },
                 { label: 'Duration', value: formatTime(elapsed) },
-                { label: 'Test Type', value: 'MCQ — Multiple Choice' },
+                { label: 'Marking Preset', value: markingScheme === 'neet' ? 'NEET (+4 / -1)' : markingScheme === 'jee' ? 'JEE (+4 / -1)' : 'Board (+1 / 0)' },
               ].map((row, i) => (
                 <View key={i} style={[styles.tableRow, { backgroundColor: i % 2 === 0 ? '#FAFAFA' : '#FFFFFF' }]}>
                   <Text style={styles.tableRowLabel}>{row.label}</Text>
@@ -431,7 +551,36 @@ export default function TestQuizScreen() {
 
             {/* ── MARKS TABLE ── */}
             <View style={styles.marksSection}>
-              <Text style={styles.tableSectionTitle}>MARKS SUMMARY</Text>
+              <View style={styles.marksHeaderRow}>
+                <Text style={styles.tableSectionTitle}>MARKS SUMMARY</Text>
+                <View style={styles.schemeBadge}>
+                  <Text style={styles.schemeBadgeText}>
+                    {markingScheme === 'neet' ? 'NEET Scheme' : markingScheme === 'jee' ? 'JEE Scheme' : 'Board Scheme'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Segmented Scheme Preset Tabs */}
+              <View style={styles.schemeTabsRow}>
+                {[
+                  { id: 'board', label: 'Board (+1 / 0)' },
+                  { id: 'neet', label: 'NEET (+4 / -1)' },
+                  { id: 'jee', label: 'JEE (+4 / -1)' },
+                ].map((s) => (
+                  <Pressable
+                    key={s.id}
+                    style={[styles.schemeTab, markingScheme === s.id && styles.schemeTabActive]}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setMarkingScheme(s.id as any);
+                    }}
+                  >
+                    <Text style={[styles.schemeTabText, markingScheme === s.id && styles.schemeTabTextActive]}>
+                      {s.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
 
               {/* column headers */}
               <View style={styles.marksTableHead}>
@@ -441,11 +590,29 @@ export default function TestQuizScreen() {
               </View>
 
               {[
-                { label: 'Total Questions', marks: questions.length, icon: 'help-circle-outline', color: '#4F46E5' },
-                { label: 'Attempted', marks: answeredCount, icon: 'pencil-outline', color: '#0284C7' },
-                { label: 'Correct Answers', marks: score, icon: 'checkmark-circle-outline', color: '#059669' },
-                { label: 'Wrong Answers', marks: wrong, icon: 'close-circle-outline', color: '#DC2626' },
-                { label: 'Skipped', marks: skipped, icon: 'remove-circle-outline', color: '#D97706' },
+                { label: 'Total Questions', marks: `${questions.length} Qs`, icon: 'help-circle-outline', color: '#C85C3E', barPct: 100 },
+                { label: 'Attempted', marks: `${answeredCount} Qs`, icon: 'pencil-outline', color: '#0284C7', barPct: Math.round((answeredCount / questions.length) * 100) },
+                {
+                  label: isNegativeScheme ? 'Correct (+4 each)' : 'Correct Answers',
+                  marks: isNegativeScheme ? `+${grossPositiveMarks}` : `${score}`,
+                  icon: 'checkmark-circle-outline',
+                  color: '#4F936C',
+                  barPct: Math.round((score / questions.length) * 100),
+                },
+                {
+                  label: isNegativeScheme ? 'Wrong (-1 penalty)' : 'Wrong Answers',
+                  marks: isNegativeScheme ? `-${penaltyMarks}` : `${wrong}`,
+                  icon: 'close-circle-outline',
+                  color: '#DC2626',
+                  barPct: Math.round((wrong / questions.length) * 100),
+                },
+                {
+                  label: 'Skipped (0 marks)',
+                  marks: `${skipped}`,
+                  icon: 'remove-circle-outline',
+                  color: '#D97706',
+                  barPct: Math.round((skipped / questions.length) * 100),
+                },
               ].map((r, i) => (
                 <View key={i} style={[styles.marksRow, { backgroundColor: i % 2 === 0 ? '#F9FAFB' : '#FFFFFF' }]}>
                   <View style={styles.marksRowLeft}>
@@ -457,7 +624,7 @@ export default function TestQuizScreen() {
                   <Text style={[styles.marksRowVal, { color: r.color }]}>{r.marks}</Text>
                   <View style={styles.marksRowBar}>
                     <View style={[styles.marksRowBarFill, {
-                      width: `${Math.round((r.marks / questions.length) * 100)}%` as any,
+                      width: `${r.barPct}%` as any,
                       backgroundColor: r.color,
                       opacity: 0.55,
                     }]} />
@@ -467,8 +634,15 @@ export default function TestQuizScreen() {
 
               {/* score row */}
               <View style={[styles.marksScoreRow, { backgroundColor: gradeInfo.bg, borderColor: gradeInfo.color + '30' }]}>
-                <Text style={[styles.marksScoreLabel, { color: gradeInfo.color }]}>TOTAL SCORE</Text>
-                <Text style={[styles.marksScorePct, { color: gradeInfo.color }]}>{percentage}%</Text>
+                <View>
+                  <Text style={[styles.marksScoreLabel, { color: gradeInfo.color }]}>NET SCORE ({markingScheme.toUpperCase()})</Text>
+                  {isNegativeScheme && penaltyMarks > 0 && (
+                    <Text style={styles.negativeLostSub}>⚠️ -{penaltyMarks} marks lost to wrong guesses</Text>
+                  )}
+                </View>
+                <Text style={[styles.marksScorePct, { color: gradeInfo.color }]}>
+                  {isNegativeScheme ? `${netMarks}/${maxMarks}` : `${score}/${questions.length}`} ({effectivePercentage}%)
+                </Text>
               </View>
             </View>
 
@@ -477,7 +651,7 @@ export default function TestQuizScreen() {
               <View style={styles.gradePanelLeft}>
                 <Text style={[styles.gradePanelTitle, { color: gradeInfo.color }]}>OVERALL GRADE</Text>
                 <Text style={[styles.gradePanelGpa, { color: gradeInfo.color + 'CC' }]}>GPA: {gradeInfo.gpa} / 10.0</Text>
-                <Text style={[styles.gradePanelStatus, { color: isPassing ? '#059669' : '#DC2626' }]}>
+                <Text style={[styles.gradePanelStatus, { color: isPassing ? '#4F936C' : '#DC2626' }]}>
                   {isPassing ? '✓ PASSED' : '✗ NOT PASSED'}
                 </Text>
               </View>
@@ -487,16 +661,84 @@ export default function TestQuizScreen() {
             </View>
 
             {/* ── ACTION BUTTONS ── */}
+            {wrong + skipped > 0 && (
+              <>
+                <Pressable
+                  style={styles.drillMistakesBanner}
+                  onPress={() => {
+                    const incorrectQuestions = questions.filter((q, i) => {
+                      const userAns = answers[i];
+                      return !userAns || !isAnswerCorrect(q, userAns);
+                    });
+                    if (!incorrectQuestions.length) return;
+                    const drillSessionId = saveQuestions(incorrectQuestions);
+                    router.push({
+                      pathname: '/test-quiz',
+                      params: {
+                        sessionId: drillSessionId,
+                        subjectName: subjectName ?? '',
+                        chapterName: `${(chapterName || subjectName || 'Subject').split('|||')[0]} (Mistake Drill)`,
+                      },
+                    });
+                  }}
+                >
+                  <LinearGradient
+                    colors={['#C85C3E', '#A84932']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.drillMistakesGrad}
+                  >
+                    <View style={styles.drillMistakesLeft}>
+                      <Ionicons name="flash" size={18} color="#FFF" />
+                      <View>
+                        <Text style={styles.drillMistakesTitle}>Drill My Mistakes ({wrong + skipped} Qs)</Text>
+                        <Text style={styles.drillMistakesSub}>Practice only incorrect & skipped questions</Text>
+                      </View>
+                    </View>
+                    <Ionicons name="arrow-forward-circle" size={22} color="#FFF" />
+                  </LinearGradient>
+                </Pressable>
+
+                <Pressable
+                  style={styles.diagnoseMistakesBanner}
+                  onPress={handleDiagnoseMistakesWithAi}
+                >
+                  <LinearGradient
+                    colors={['#7C3AED', '#5B21B6']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.drillMistakesGrad}
+                  >
+                    <View style={styles.drillMistakesLeft}>
+                      <Ionicons name="sparkles" size={18} color="#FFF" />
+                      <View>
+                        <Text style={styles.drillMistakesTitle}>AI Tutor Diagnostic ({wrong + skipped} Questions)</Text>
+                        <Text style={styles.drillMistakesSub}>Diagnose mistakes and master weak concepts</Text>
+                      </View>
+                    </View>
+                    <Ionicons name="arrow-forward-circle" size={22} color="#FFF" />
+                  </LinearGradient>
+                </Pressable>
+              </>
+            )}
+
             <View style={styles.resultActions}>
               <Pressable
-                style={[styles.resultBtnOutline, { borderColor: '#4F46E5' }]}
+                style={[styles.resultBtnOutline, { borderColor: '#C85C3E' }]}
                 onPress={() => router.replace('/subjects' as any)}
               >
-                <Ionicons name="home-outline" size={15} color="#4F46E5" />
-                <Text style={[styles.resultBtnOutlineText, { color: '#4F46E5' }]}>Home</Text>
+                <Ionicons name="home-outline" size={15} color="#C85C3E" />
+                <Text style={[styles.resultBtnOutlineText, { color: '#C85C3E' }]}>Home</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.resultBtnOutline, { borderColor: '#7653A4' }]}
+                onPress={() => router.push('/report-card' as any)}
+              >
+                <Ionicons name="document-text-outline" size={15} color="#7653A4" />
+                <Text style={[styles.resultBtnOutlineText, { color: '#7653A4' }]}>Report Card</Text>
               </Pressable>
               <Pressable style={styles.resultBtnFill} onPress={handleBack}>
-                <LinearGradient colors={['#4F46E5', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.resultBtnGrad}>
+                <LinearGradient colors={['#C85C3E', '#C85C3E']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.resultBtnGrad}>
                   <Ionicons name="refresh" size={15} color="#FFF" />
                   <Text style={styles.resultBtnFillText}>Try Again</Text>
                 </LinearGradient>
@@ -507,8 +749,8 @@ export default function TestQuizScreen() {
             <View style={styles.certFooter}>
               <View style={styles.certFooterLine} />
               <View style={styles.certFooterContent}>
-                <View style={[styles.certFooterLogo, { backgroundColor: '#EEF2FF' }]}>
-                  <Ionicons name="school" size={13} color="#4F46E5" />
+                <View style={[styles.certFooterLogo, { backgroundColor: '#F6DFD2' }]}>
+                  <Ionicons name="school" size={13} color="#C85C3E" />
                 </View>
                 <View>
                   <Text style={styles.certFooterTitle}>{APP_NAME} · AI Assessment System</Text>
@@ -526,12 +768,12 @@ export default function TestQuizScreen() {
           ══════════════════════════════════════ */}
           <View style={styles.reviewSection}>
             <View style={styles.reviewSectionHeader}>
-              <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.reviewHeaderIcon}>
+              <LinearGradient colors={['#C85C3E', '#C85C3E']} style={styles.reviewHeaderIcon}>
                 <Ionicons name="list" size={14} color="#FFFFFF" />
               </LinearGradient>
               <Text style={styles.reviewSectionTitle}>Question-wise Review</Text>
-              <View style={[styles.reviewCountBadge, { backgroundColor: '#EEF2FF' }]}>
-                <Text style={[styles.reviewCountText, { color: '#4F46E5' }]}>{questions.length} Qs</Text>
+              <View style={[styles.reviewCountBadge, { backgroundColor: '#F6DFD2' }]}>
+                <Text style={[styles.reviewCountText, { color: '#C85C3E' }]}>{questions.length} Qs</Text>
               </View>
             </View>
 
@@ -541,7 +783,7 @@ export default function TestQuizScreen() {
               const userCorrect = userAns ? isAnswerCorrect(q, userAns) : false;
               const isExpanded = expandedReview.has(index);
               const status = userAns ? (userCorrect ? 'correct' : 'wrong') : 'skipped';
-              const statusColor = status === 'correct' ? '#059669' : status === 'wrong' ? '#DC2626' : '#D97706';
+              const statusColor = status === 'correct' ? '#4F936C' : status === 'wrong' ? '#DC2626' : '#D97706';
               const statusBg = status === 'correct' ? '#D1FAE5' : status === 'wrong' ? '#FEE2E2' : '#FEF3C7';
               const statusIcon = status === 'correct' ? 'checkmark-circle' : status === 'wrong' ? 'close-circle' : 'remove-circle-outline';
 
@@ -583,7 +825,7 @@ export default function TestQuizScreen() {
                       <Ionicons
                         name={savedIds.has(makeQId(q.question)) ? 'bookmark' : 'bookmark-outline'}
                         size={18}
-                        color={savedIds.has(makeQId(q.question)) ? '#4F46E5' : '#9CA3AF'}
+                        color={savedIds.has(makeQId(q.question)) ? '#C85C3E' : '#9CA3AF'}
                       />
                     </Pressable>
                   </View>
@@ -602,10 +844,10 @@ export default function TestQuizScreen() {
                         return (
                           <View key={oi} style={[styles.reviewOption, {
                             backgroundColor: isCorrectOpt ? '#D1FAE5' : isWrong ? '#FEE2E2' : '#F9FAFB',
-                            borderColor: isCorrectOpt ? '#059669' : isWrong ? '#DC2626' : '#E5E7EB',
+                            borderColor: isCorrectOpt ? '#4F936C' : isWrong ? '#DC2626' : '#E5E7EB',
                           }]}>
                             <View style={[styles.optionLetter, {
-                              backgroundColor: isCorrectOpt ? '#059669' : isWrong ? '#DC2626' : '#E5E7EB',
+                              backgroundColor: isCorrectOpt ? '#4F936C' : isWrong ? '#DC2626' : '#E5E7EB',
                             }]}>
                               <Text style={[styles.optionLetterText, { color: (isCorrectOpt || isWrong) ? '#FFFFFF' : '#6B7280' }]}>
                                 {OPTION_LABELS[oi]}
@@ -615,7 +857,7 @@ export default function TestQuizScreen() {
                               text={opt}
                               style={[styles.reviewOptText, { color: isCorrectOpt ? '#065F46' : isWrong ? '#991B1B' : '#374151', flex: 1 }]}
                             />
-                            {isCorrectOpt && <Ionicons name="checkmark-circle" size={14} color="#059669" />}
+                            {isCorrectOpt && <Ionicons name="checkmark-circle" size={14} color="#4F936C" />}
                             {isWrong && <Ionicons name="close-circle" size={14} color="#DC2626" />}
                           </View>
                         );
@@ -623,13 +865,36 @@ export default function TestQuizScreen() {
                       {(q.solution || q.tip) && (
                         <View style={styles.solutionBox}>
                           <View style={styles.solutionHeader}>
-                            <Ionicons name="bulb" size={13} color="#4F46E5" />
+                            <Ionicons name="bulb" size={13} color="#C85C3E" />
                             <Text style={styles.solutionLabel}>Explanation</Text>
                           </View>
                           {q.solution && <MathText text={q.solution} style={styles.solutionText} />}
                           {q.tip && <MathText text={`💡 ${q.tip}`} style={styles.tipText} />}
                         </View>
                       )}
+
+                      {/* 1-Tap Ask AI Tutor Button */}
+                      <Pressable
+                        style={styles.askAiTutorCardBtn}
+                        onPress={() => handleAskAiTutor(q, index)}
+                      >
+                        <LinearGradient
+                          colors={['#7C3AED', '#6D28D9']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={styles.askAiTutorGrad}
+                        >
+                          <Ionicons name="sparkles" size={14} color="#FFF" />
+                          <Text style={styles.askAiTutorText}>
+                            {status === 'wrong'
+                              ? 'Ask AI Tutor to Explain My Mistake'
+                              : status === 'skipped'
+                              ? 'Ask AI Tutor How to Solve This'
+                              : 'Ask AI Tutor for In-Depth Concept'}
+                          </Text>
+                          <Ionicons name="chevron-forward" size={13} color="#FFF" />
+                        </LinearGradient>
+                      </Pressable>
                     </View>
                   )}
                 </View>
@@ -652,7 +917,7 @@ export default function TestQuizScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* ── GRADIENT HEADER ── */}
       <LinearGradient
-        colors={['#3730A3', '#4F46E5', '#7C3AED']}
+        colors={['#6B382C', '#C85C3E', '#C85C3E']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[styles.quizHeader, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 10 }]}
@@ -718,7 +983,7 @@ export default function TestQuizScreen() {
         {/* Question card */}
         <View style={[styles.questionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.questionCardTop}>
-            <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.qNumBadge}>
+            <LinearGradient colors={['#C85C3E', '#C85C3E']} style={styles.qNumBadge}>
               <Text style={styles.qNumBadgeText}>Q {currentIndex + 1}</Text>
             </LinearGradient>
             <View style={[styles.mcqPill, { backgroundColor: colors.muted }]}>
@@ -752,15 +1017,15 @@ export default function TestQuizScreen() {
                 style={[
                   styles.option,
                   {
-                    backgroundColor: isSelected ? '#EEF2FF' : colors.card,
-                    borderColor: isSelected ? '#4F46E5' : colors.border,
+                    backgroundColor: isSelected ? '#F6DFD2' : colors.card,
+                    borderColor: isSelected ? '#C85C3E' : colors.border,
                     borderWidth: isSelected ? 2 : 1,
                   },
                 ]}
                 onPress={() => setAnswer(opt)}
               >
                 {isSelected ? (
-                  <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.optionLetter}>
+                  <LinearGradient colors={['#C85C3E', '#C85C3E']} style={styles.optionLetter}>
                     <Text style={[styles.optionLetterText, { color: '#FFFFFF' }]}>{label}</Text>
                   </LinearGradient>
                 ) : (
@@ -772,7 +1037,7 @@ export default function TestQuizScreen() {
                   text={opt}
                   style={[styles.optionText, { color: colors.text, fontWeight: isSelected ? '700' : '400' }]}
                 />
-                {isSelected && <Ionicons name="checkmark-circle" size={20} color="#4F46E5" />}
+                {isSelected && <Ionicons name="checkmark-circle" size={20} color="#C85C3E" />}
               </Pressable>
             );
           })}
@@ -818,10 +1083,10 @@ export default function TestQuizScreen() {
           </Pressable>
 
           <Pressable
-            style={[styles.gridBtn, { backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' }]}
+            style={[styles.gridBtn, { backgroundColor: '#F6DFD2', borderColor: '#C7D2FE' }]}
             onPress={() => { Haptics.selectionAsync(); setShowGrid(true); }}
           >
-            <Ionicons name="grid" size={14} color="#4F46E5" />
+            <Ionicons name="grid" size={14} color="#C85C3E" />
             <Text style={styles.gridBtnText}>Question Grid</Text>
           </Pressable>
         </View>
@@ -845,7 +1110,7 @@ export default function TestQuizScreen() {
                   disabled={submitting}
                 >
                   <LinearGradient
-                    colors={['#059669', '#10B981']}
+                    colors={['#4F936C', '#4F936C']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={styles.nextBtnGrad}
@@ -860,7 +1125,7 @@ export default function TestQuizScreen() {
                   onPress={goNext}
                 >
                   <LinearGradient
-                    colors={['#4F46E5', '#7C3AED']}
+                    colors={['#C85C3E', '#C85C3E']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={styles.nextBtnGrad}
@@ -890,7 +1155,7 @@ export default function TestQuizScreen() {
 
             {/* KP branding in modal */}
             <View style={styles.modalBrand}>
-              <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.modalBrandIcon}>
+              <LinearGradient colors={['#C85C3E', '#C85C3E']} style={styles.modalBrandIcon}>
                 <Ionicons name="school" size={18} color="#FFFFFF" />
               </LinearGradient>
               <Text style={[styles.modalBrandText, { color: colors.text }]}>{APP_NAME}</Text>
@@ -908,7 +1173,7 @@ export default function TestQuizScreen() {
 
             <View style={styles.modalStats}>
               {[
-                { label: 'Answered', val: answeredCount, color: '#059669', bg: '#D1FAE5' },
+                { label: 'Answered', val: answeredCount, color: '#4F936C', bg: '#D1FAE5' },
                 { label: 'Unanswered', val: questions.length - answeredCount, color: '#DC2626', bg: '#FEE2E2' },
               ].map(({ label, val, color, bg }) => (
                 <View key={label} style={[styles.modalStatBox, { backgroundColor: bg }]}>
@@ -924,7 +1189,7 @@ export default function TestQuizScreen() {
               disabled={submitting}
             >
               <LinearGradient
-                colors={['#059669', '#10B981']}
+                colors={['#4F936C', '#4F936C']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.modalSubmitBtnGrad}
@@ -970,11 +1235,11 @@ export default function TestQuizScreen() {
               {/* Legend */}
               <View style={styles.gridLegend}>
                 {[
-                  { label: 'Answered', color: '#10B981', bg: '#D1FAE5' },
+                  { label: 'Answered', color: '#4F936C', bg: '#D1FAE5' },
                   { label: 'Not Answered', color: '#EF4444', bg: '#FEE2E2' },
                   { label: 'Not Visited', color: colors.mutedForeground, bg: colors.muted, border: colors.border },
                   { label: 'Marked for Review', color: '#9333EA', bg: '#F3E8FF' },
-                  { label: 'Answered & Marked', color: '#FFFFFF', bg: '#9333EA', badge: '#10B981' },
+                  { label: 'Answered & Marked', color: '#FFFFFF', bg: '#9333EA', badge: '#4F936C' },
                 ].map((leg, i) => (
                   <View key={i} style={styles.legendItem}>
                     <View style={[styles.legendBox, { backgroundColor: leg.bg, borderColor: leg.border || leg.bg }]}>
@@ -1001,11 +1266,11 @@ export default function TestQuizScreen() {
                   let badge = null;
 
                   if (isAns && isMarked) {
-                    bg = '#9333EA'; color = '#FFFFFF'; border = '#9333EA'; badge = '#10B981';
+                    bg = '#9333EA'; color = '#FFFFFF'; border = '#9333EA'; badge = '#4F936C';
                   } else if (isMarked) {
                     bg = '#F3E8FF'; color = '#9333EA'; border = '#D8B4FE';
                   } else if (isAns) {
-                    bg = '#D1FAE5'; color = '#059669'; border = '#34D399';
+                    bg = '#D1FAE5'; color = '#4F936C'; border = '#34D399';
                   } else if (isVis) {
                     bg = '#FEE2E2'; color = '#DC2626'; border = '#FCA5A5';
                   } else {
@@ -1093,7 +1358,7 @@ const styles = StyleSheet.create({
   /* ── Question card ── */
   questionCard: {
     borderRadius: 22, borderWidth: 1, padding: 18,
-    shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#C85C3E', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06, shadowRadius: 16, elevation: 3,
   },
   questionCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
@@ -1136,7 +1401,7 @@ const styles = StyleSheet.create({
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1,
   },
-  gridBtnText: { fontSize: 13, fontWeight: '700', color: '#4F46E5' },
+  gridBtnText: { fontSize: 13, fontWeight: '700', color: '#C85C3E' },
   bottomNavMainRow: { flexDirection: 'row', gap: 10 },
   navBtnPrev: {
     width: 50, height: 50, borderRadius: 16, borderWidth: 1,
@@ -1316,6 +1581,63 @@ const styles = StyleSheet.create({
 
   /* marks table */
   marksSection: { borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  marksHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingRight: 18,
+  },
+  schemeBadge: {
+    backgroundColor: '#FDECE6',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#F5C6B3',
+  },
+  schemeBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#C85C3E',
+  },
+  schemeTabsRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 3,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    gap: 4,
+  },
+  schemeTab: {
+    flex: 1,
+    paddingVertical: 7,
+    alignItems: 'center',
+    borderRadius: 9,
+  },
+  schemeTabActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  schemeTabText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  schemeTabTextActive: {
+    fontWeight: '800',
+    color: '#C85C3E',
+  },
+  negativeLostSub: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#DC2626',
+    marginTop: 2,
+  },
   marksTableHead: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 18, paddingVertical: 7,
@@ -1332,7 +1654,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   marksRowLabel: { fontSize: 12, color: '#374151', fontWeight: '500' },
-  marksRowVal: { fontSize: 16, fontWeight: '800', width: 32, textAlign: 'center' },
+  marksRowVal: { fontSize: 14, fontWeight: '800', minWidth: 44, textAlign: 'center' },
   marksRowBar: {
     width: 60, height: 6, borderRadius: 3,
     backgroundColor: '#F3F4F6', overflow: 'hidden', marginLeft: 10,
@@ -1343,7 +1665,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18, paddingVertical: 13, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)',
   },
   marksScoreLabel: { fontSize: 13, fontWeight: '800', letterSpacing: 0.5 },
-  marksScorePct: { fontSize: 22, fontWeight: '900' },
+  marksScorePct: { fontSize: 20, fontWeight: '900' },
 
   /* grade panel */
   gradePanel: {
@@ -1359,6 +1681,49 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginLeft: 12,
   },
   gradeSealLetter: { fontSize: 26, fontWeight: '900' },
+
+  /* drill mistakes banner */
+  drillMistakesBanner: {
+    marginHorizontal: 14, marginTop: 12, borderRadius: 14, overflow: 'hidden',
+    shadowColor: '#C85C3E', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25, shadowRadius: 8, elevation: 4,
+  },
+  diagnoseMistakesBanner: {
+    marginHorizontal: 14, marginTop: 10, borderRadius: 14, overflow: 'hidden',
+    shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25, shadowRadius: 8, elevation: 4,
+  },
+  askAiTutorCardBtn: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+  askAiTutorGrad: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  askAiTutorText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+  drillMistakesGrad: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14,
+  },
+  drillMistakesLeft: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1,
+  },
+  drillMistakesTitle: {
+    fontSize: 14, fontWeight: '800', color: '#FFFFFF',
+  },
+  drillMistakesSub: {
+    fontSize: 11, color: 'rgba(255,255,255,0.85)', marginTop: 2,
+  },
 
   /* action buttons */
   resultActions: { flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingVertical: 14 },
@@ -1427,16 +1792,16 @@ const styles = StyleSheet.create({
   },
   reviewOptText: { fontSize: 13, lineHeight: 18 },
   solutionBox: {
-    borderRadius: 12, padding: 12, gap: 5, backgroundColor: '#EEF2FF', marginTop: 4,
+    borderRadius: 12, padding: 12, gap: 5, backgroundColor: '#F6DFD2', marginTop: 4,
   },
   solutionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  solutionLabel: { fontSize: 12, fontWeight: '700', color: '#4F46E5' },
+  solutionLabel: { fontSize: 12, fontWeight: '700', color: '#C85C3E' },
   solutionText: { fontSize: 13, lineHeight: 20, color: '#374151' },
   tipText: { fontSize: 12, lineHeight: 18, color: '#6B7280' },
 
   /* text diagram block */
   diagramBox: {
-    backgroundColor: '#1E1B4B',
+    backgroundColor: '#6B382C',
     borderRadius: 12,
     padding: 12,
     marginHorizontal: 16,

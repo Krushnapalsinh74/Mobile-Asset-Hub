@@ -10,10 +10,10 @@ router.get("/plans", async (_req, res) => {
       return res.status(500).json({ error: "Database connection failed" });
     }
     const allPlans = await db.select().from(plansTable);
-    res.json(allPlans);
+    return res.json(allPlans);
   } catch (err) {
     console.error("Error fetching plans:", err);
-    res.status(500).json({ error: "Could not fetch plans" });
+    return res.status(500).json({ error: "Could not fetch plans" });
   }
 });
 

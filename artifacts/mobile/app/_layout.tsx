@@ -7,16 +7,16 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useFonts } from "expo-font";
 import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
-import { AppState, AppStateStatus, Platform } from "react-native";
+import { ActivityIndicator, AppState, AppStateStatus, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { AppProvider } from "@/context/AppContext";
+import { AppProvider, useApp } from "@/context/AppContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -38,21 +38,55 @@ function onAppStateChange(status: AppStateStatus) {
 }
 
 const HEADER_STYLE = {
-  headerStyle: { backgroundColor: '#F5F7FF' },
-  headerTintColor: '#4F46E5',
+  headerStyle: { backgroundColor: '#F4EEE5' },
+  headerTintColor: '#C85C3E',
   headerTitleStyle: {
     fontFamily: 'Inter_600SemiBold',
-    color: '#1E1B4B',
+    color: '#3D2D27',
     fontSize: 16,
   },
   headerBackTitle: 'Back',
 } as const;
 
 function RootLayoutNav() {
+  const { isLoaded, studentEmail, boardId, standardId } = useApp();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const firstSegment = (segments[0] as string | undefined) ?? '';
+    const isPublicRoute = firstSegment === 'welcome' || firstSegment === 'login' || firstSegment === 'register';
+
+    if (!studentEmail) {
+      if (!isPublicRoute) {
+        router.replace('/welcome');
+      }
+    } else {
+      if (isPublicRoute) {
+        if (!boardId || !standardId) {
+          router.replace('/onboarding');
+        } else {
+          router.replace('/subjects');
+        }
+      }
+    }
+  }, [isLoaded, studentEmail, boardId, standardId, segments]);
+
+  if (!isLoaded) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F4EEE5' }}>
+        <ActivityIndicator size="large" color="#C85C3E" />
+      </View>
+    );
+  }
+
   return (
     <Stack screenOptions={HEADER_STYLE}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="register" options={{ headerShown: false }} />
       <Stack.Screen name="welcome" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       <Stack.Screen name="subjects" options={{ headerShown: false }} />
@@ -67,7 +101,11 @@ function RootLayoutNav() {
       <Stack.Screen name="settings" options={{ headerShown: false }} />
       <Stack.Screen name="history" options={{ headerShown: false }} />
       <Stack.Screen name="saved" options={{ headerShown: false }} />
-      <Stack.Screen name="pricing" options={{ headerShown: false }} />
+      <Stack.Screen name="questions-pdf" options={{ headerShown: false }} />
+      <Stack.Screen name="flashcard" options={{ headerShown: false }} />
+      <Stack.Screen name="checkout" options={{ headerShown: false }} />
+      <Stack.Screen name="classroom-slides" options={{ headerShown: false }} />
+      <Stack.Screen name="report-card" options={{ headerShown: false }} />
     </Stack>
   );
 }

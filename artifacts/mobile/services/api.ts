@@ -1,8 +1,11 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { sendGroqChat } from "./groq";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Yunora / kpark-edu.web.app — curriculum backend
 // ─────────────────────────────────────────────────────────────────────────────
 const YUNORA_BASE = "https://kpark-edu.web.app/api";
-const YUNORA_EMAIL = process.env.EXPO_PUBLIC_YUNORA_EMAIL ?? "admin@yunora.ai";
+const YUNORA_EMAIL = process.env.EXPO_PUBLIC_YUNORA_EMAIL ?? "admin@kpark.com";
 const YUNORA_PASSWORD = process.env.EXPO_PUBLIC_YUNORA_PASSWORD ?? "admin123";
 
 interface YunoraTokenState {
@@ -10,38 +13,85 @@ interface YunoraTokenState {
   expiresAt: number;
 }
 
-const DEFAULT_TOKEN =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjksImVtYWlsIjoidGVzdEBhZG1pbi5jb20iLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3ODkwMjMzOTQsImV4cCI6MTc4OTYyODE5NH0.hCZdawQkje2Qm68ERH6D9b6mTnoxYurrKHttahEAECs";
+const YUNORA_TOKEN_KEY = "@edu:yunora_token";
 
-/** Decode JWT expiry without a library — returns ms timestamp */
+// Active token with valid expiry (refreshed automatically when needed)
+const DEFAULT_TOKEN =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImVtYWlsIjoiYWRtaW5Aa3BhcmsuY29tIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzkyMzg4NjUyLCJleHAiOjE3OTI5OTM0NTJ9.5TQ9E9i8qLu1YboTEJJcV4IvBn4_0NBm6qZ91BKVZrM";
+
+/** Decode JWT expiry safely across platforms — returns ms timestamp */
 function _jwtExpiresAt(jwt: string): number {
   try {
-    const payload = JSON.parse(atob(jwt.split(".")[1]));
-    return Number(payload.exp) * 1000;
-  } catch {
-    return Date.now() + 6 * 24 * 60 * 60 * 1000; // fallback: 6 days
-  }
+    const part = jwt.split(".")[1];
+    if (!part) return Date.now() + 6 * 24 * 60 * 60 * 1000;
+    const base64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonStr =
+      typeof atob === "function"
+        ? atob(base64)
+        : typeof Buffer !== "undefined"
+          ? Buffer.from(base64, "base64").toString("utf-8")
+          : null;
+    if (jsonStr) {
+      const payload = JSON.parse(jsonStr);
+      if (payload.exp) return Number(payload.exp) * 1000;
+    }
+  } catch {}
+  return Date.now() + 6 * 24 * 60 * 60 * 1000; // fallback: 6 days
 }
 
-let _yunoraToken: YunoraTokenState | null = {
-  token: DEFAULT_TOKEN,
-  expiresAt: _jwtExpiresAt(DEFAULT_TOKEN),
-};
+function _readLocalSavedToken(): YunoraTokenState | null {
+  if (typeof window !== "undefined" && window.localStorage) {
+    try {
+      const raw = window.localStorage.getItem(YUNORA_TOKEN_KEY);
+      if (raw) {
+        const item = JSON.parse(raw);
+        if (item?.token && item.expiresAt > Date.now() + 60_000) {
+          return item;
+        }
+      }
+    } catch {}
+  }
+  return null;
+}
+
+let _yunoraToken: YunoraTokenState | null =
+  _readLocalSavedToken() ?? {
+    token: DEFAULT_TOKEN,
+    expiresAt: _jwtExpiresAt(DEFAULT_TOKEN),
+  };
 let _tokenPromise: Promise<string> | null = null;
 
 async function _signInFresh(): Promise<YunoraTokenState> {
-  const r = await fetch(`${YUNORA_BASE}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: YUNORA_EMAIL, password: YUNORA_PASSWORD }),
-  });
-  if (!r.ok) {
-    const msg = await r.text().catch(() => "");
-    throw new Error(`Yunora auth failed (${r.status}): ${msg}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    const r = await fetch(`${YUNORA_BASE}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: YUNORA_EMAIL, password: YUNORA_PASSWORD }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!r.ok) {
+      const msg = await r.text().catch(() => "");
+      throw new Error(`Yunora auth failed (${r.status}): ${msg}`);
+    }
+    const d = await r.json();
+    const token: string = d.token;
+    const state: YunoraTokenState = { token, expiresAt: _jwtExpiresAt(token) };
+    if (typeof window !== "undefined" && window.localStorage) {
+      try { window.localStorage.setItem(YUNORA_TOKEN_KEY, JSON.stringify(state)); } catch {}
+    }
+    AsyncStorage.setItem(YUNORA_TOKEN_KEY, JSON.stringify(state)).catch(() => {});
+    return state;
+  } catch (err) {
+    clearTimeout(timer);
+    // If sign in timed out or errored but we have an unexpired cached/default token, use it
+    if (_yunoraToken && _yunoraToken.token) {
+      return _yunoraToken;
+    }
+    throw err;
   }
-  const d = await r.json();
-  const token: string = d.token;
-  return { token, expiresAt: _jwtExpiresAt(token) };
 }
 
 async function getYunoraToken(): Promise<string> {
@@ -53,6 +103,11 @@ async function getYunoraToken(): Promise<string> {
       // Return cached token if still valid (with 60s buffer)
       if (_yunoraToken && _yunoraToken.expiresAt > Date.now() + 60_000) {
         return _yunoraToken.token;
+      }
+      const saved = _readLocalSavedToken();
+      if (saved) {
+        _yunoraToken = saved;
+        return saved.token;
       }
       _yunoraToken = await _signInFresh();
       return _yunoraToken.token;
@@ -419,7 +474,7 @@ export const smsOtpApi = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function getLocalBase(): string {
-  // Use local backend if specified, else fallback to production
+  // Use the local API for profile and payment operations during development.
   return process.env.EXPO_PUBLIC_LOCAL_API_URL ?? YUNORA_BASE;
 }
 
@@ -492,14 +547,71 @@ export interface AppSettings {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Real Curriculum Cache (storing actual API responses only)
+// ─────────────────────────────────────────────────────────────────────────────
+const REAL_SUBJECTS_CACHE_PREFIX = "@edu:real_subjects_cache:";
+const REAL_CHAPTERS_CACHE_PREFIX = "@edu:real_chapters_cache:";
+const _realSubjectsMemory = new Map<string, Subject[]>();
+const _realChaptersMemory = new Map<string, Chapter[]>();
+
+export function getCachedSubjects(boardId?: string | null, standardId?: string | null): Subject[] | undefined {
+  if (!boardId || !standardId) return undefined;
+  const cacheKey = `${boardId}:${standardId}`;
+  if (_realSubjectsMemory.has(cacheKey)) {
+    return _realSubjectsMemory.get(cacheKey);
+  }
+
+  if (typeof window !== "undefined" && window.localStorage) {
+    try {
+      const raw = window.localStorage.getItem(REAL_SUBJECTS_CACHE_PREFIX + cacheKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          _realSubjectsMemory.set(cacheKey, parsed);
+          return parsed;
+        }
+      }
+    } catch {}
+  }
+
+  return undefined;
+}
+
+export function getCachedChapters(subId?: string | null): Chapter[] | undefined {
+  if (!subId) return undefined;
+  if (_realChaptersMemory.has(subId)) {
+    return _realChaptersMemory.get(subId);
+  }
+
+  if (typeof window !== "undefined" && window.localStorage) {
+    try {
+      const raw = window.localStorage.getItem(REAL_CHAPTERS_CACHE_PREFIX + subId);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          _realChaptersMemory.set(subId, parsed);
+          return parsed;
+        }
+      }
+    } catch {}
+  }
+
+  return undefined;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main edu API — curriculum data, generation, chat & questions
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const eduApi = {
   getSettings: () =>
     req<AppSettings>("/settings").catch(() => ({
-      appName: "Mobile Asset Hub",
+      appName: "Knowledge Park",
     })),
+
+  getCachedSubjects,
+  getCachedChapters,
 
   // ── Curriculum hierarchy — Yunora backend ──────────────────────────────
 
@@ -513,19 +625,48 @@ export const eduApi = {
       items.map((s) => ({ id: s.id, name: s.name, level: (s as any).level })),
     ),
 
-  getSubjects: (boardId: string, stdId: string) =>
-    yunoraList<Subject>("/subjects", { boardId, standardId: stdId }).then(
-      (items) => items.map((s) => ({ id: s.id, name: s.name })),
-    ),
+  getSubjects: async (boardId: string, stdId: string): Promise<Subject[]> => {
+    const cacheKey = `${boardId}:${stdId}`;
+    try {
+      const items = await yunoraList<Subject>("/subjects", { boardId, standardId: stdId });
+      const mapped: Subject[] = items.map((s) => ({
+        id: s.id,
+        name: s.name,
+        code: (s as any).code,
+      }));
 
-  getChapters: (_boardId: string, _stdId: string, subId: string) =>
-    yunoraList<Chapter>("/chapters", { subjectId: subId }).then((items) =>
-      items.map((c) => ({
+      _realSubjectsMemory.set(cacheKey, mapped);
+      if (typeof window !== "undefined" && window.localStorage) {
+        try { window.localStorage.setItem(REAL_SUBJECTS_CACHE_PREFIX + cacheKey, JSON.stringify(mapped)); } catch {}
+      }
+      AsyncStorage.setItem(REAL_SUBJECTS_CACHE_PREFIX + cacheKey, JSON.stringify(mapped)).catch(() => {});
+
+      return mapped;
+    } catch {
+      return getCachedSubjects(boardId, stdId) ?? [];
+    }
+  },
+
+  getChapters: async (_boardId: string, _stdId: string, subId: string): Promise<Chapter[]> => {
+    try {
+      const items = await yunoraList<Chapter>("/chapters", { subjectId: subId });
+      const mapped: Chapter[] = items.map((c) => ({
         id: c.id,
         name: c.name,
         order: (c as any).orderIndex ?? (c as any).order,
-      })),
-    ),
+      }));
+
+      mapped.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      _realChaptersMemory.set(subId, mapped);
+      if (typeof window !== "undefined" && window.localStorage) {
+        try { window.localStorage.setItem(REAL_CHAPTERS_CACHE_PREFIX + subId, JSON.stringify(mapped)); } catch {}
+      }
+      AsyncStorage.setItem(REAL_CHAPTERS_CACHE_PREFIX + subId, JSON.stringify(mapped)).catch(() => {});
+      return mapped;
+    } catch {
+      return getCachedChapters(subId) ?? [];
+    }
+  },
 
   getTopics: (
     _boardId: string,
@@ -555,7 +696,7 @@ export const eduApi = {
       body: JSON.stringify({ ...params, freshQuestions: true }),
     }),
 
-  chat: (params: {
+  chat: async (params: {
     message: string;
     context?: string;
     boardId?: string;
@@ -563,15 +704,27 @@ export const eduApi = {
     subjectId?: string;
     chapterId?: string;
     topicId?: string;
-  }) =>
-    fetch("https://kpark-edu.web.app/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(params),
-    }).then(async (r) => {
-      if (!r.ok) throw new Error(`Chat API error: ${r.status}`);
-      return r.json() as Promise<{ response: string }>;
-    }),
+    history?: any[];
+    boardName?: string;
+    standardName?: string;
+    subjectName?: string;
+    chapterName?: string;
+    topicName?: string;
+    studentName?: string;
+  }) => {
+    const response = await sendGroqChat({
+      message: params.message,
+      history: params.history,
+      context: params.context,
+      boardName: params.boardName,
+      standardName: params.standardName,
+      subjectName: params.subjectName,
+      chapterName: params.chapterName,
+      topicName: params.topicName,
+      studentName: params.studentName,
+    });
+    return { response };
+  },
 
   generateQuestions: (params: {
     board: string;
@@ -664,10 +817,10 @@ export interface SubscriptionPlan {
 }
 
 export interface RegisterPayload {
-  name?: string;
-  email?: string;
-  password?: string;
-  planId?: string | number;
+  name: string;
+  email: string;
+  password: string;
+  planId: string | number;
 }
 
 export interface RegisterResponse {

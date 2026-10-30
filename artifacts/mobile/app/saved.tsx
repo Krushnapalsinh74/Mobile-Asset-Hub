@@ -1,4 +1,5 @@
 import { BottomTabBar, BOTTOM_TAB_INNER_HEIGHT } from '@/components/BottomTabBar';
+import { DesktopHeaderNav } from '@/components/DesktopHeaderNav';
 import MathText from '@/components/MathText';
 import { useApp } from '@/context/AppContext';
 import type { SavedQuestion } from '@/context/AppContext';
@@ -17,11 +18,11 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D', 'E'];
-const SUBJECTS = ['All', 'Physics', 'Chemistry', 'Maths', 'Bio'];
 
 function timeAgo(ts: number) {
   const diff = Date.now() - ts;
@@ -38,29 +39,34 @@ function timeAgo(ts: number) {
 
 function savedToQuestion(sq: SavedQuestion): Question {
   return {
-    question:    sq.question,
-    options:     sq.options,
-    answer:      sq.answer,
-    solution:    sq.solution,
+    question: sq.question,
+    options: sq.options,
+    answer: sq.answer,
+    solution: sq.solution,
     explanation: sq.explanation,
-    tip:         sq.tip,
+    tip: sq.tip,
   };
 }
 
 export default function SavedScreen() {
   const { savedQuestions, unsaveQuestion } = useApp();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width >= 860;
+
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState('All');
+  const subjectTabs = ['All', ...Array.from(new Set(savedQuestions.map((q) => q.subjectName).filter(Boolean)))];
 
-  const topPad = insets.top + (Platform.OS === 'web' ? 24 : 0);
-  const tabBarHeight = BOTTOM_TAB_INNER_HEIGHT + insets.bottom + (Platform.OS === 'web' ? 8 : 0);
+  const topPad = insets.top + (Platform.OS === 'web' ? 20 : 0);
+  const tabBarHeight = isDesktop ? 24 : BOTTOM_TAB_INNER_HEIGHT + insets.bottom + (Platform.OS === 'web' ? 12 : 0);
 
   function toggleExpand(id: string) {
     Haptics.selectionAsync();
-    setExpanded(prev => {
+    setExpanded((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -72,8 +78,8 @@ export default function SavedScreen() {
     const converted: Question[] = questions.map(savedToQuestion);
     const sessionId = saveQuestions(converted);
 
-    const subjects = [...new Set(questions.map(q => q.subjectName))];
-    const chapters = [...new Set(questions.map(q => q.chapterName).filter(Boolean))];
+    const subjects = [...new Set(questions.map((q) => q.subjectName))];
+    const chapters = [...new Set(questions.map((q) => q.chapterName).filter(Boolean))];
     const subjectName = subjects.length === 1 ? subjects[0]! : 'Mixed';
     const chapterName = chapters.length > 0 ? chapters.join('|||') : 'Saved Questions';
 
@@ -95,314 +101,826 @@ export default function SavedScreen() {
     );
   }
 
-  const filteredQuestions = savedQuestions.filter(q => 
+  const filteredQuestions = savedQuestions.filter((q) =>
     activeTab === 'All' ? true : q.subjectName?.toLowerCase().includes(activeTab.toLowerCase())
   );
 
   return (
     <View style={styles.root}>
-      {/* ── GRADIENT HEADER ── */}
-      <LinearGradient
-        colors={['#1E1B4B', '#3B27ED', '#5B4AF0']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.header, { paddingTop: topPad + 20 }]}
-      >
-        <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Saved Questions</Text>
-            <Text style={styles.headerSub}>Your bookmarked questions</Text>
-          </View>
-          <View style={styles.searchBtn}>
-            <Ionicons name="search" size={18} color="#FFF" />
-          </View>
-        </View>
-      </LinearGradient>
-
-      {/* FILTER CHIPS */}
-      <View style={styles.filterStrip}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-          {SUBJECTS.map((sub) => {
-            const isActive = activeTab === sub;
-            return (
-              <Pressable
-                key={sub}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setActiveTab(sub);
-                }}
-                style={[styles.filterChip, isActive && styles.filterChipActive]}
-              >
-                <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>{sub}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
-
       <ScrollView
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
         contentContainerStyle={{
-          paddingHorizontal: 20,
-          paddingTop: 16,
-          paddingBottom: tabBarHeight + 24,
-          gap: 16,
+          paddingTop: isDesktop ? topPad : 0,
+          paddingBottom: tabBarHeight + 32,
+          flexGrow: 1,
         }}
       >
-        {savedQuestions.length === 0 ? (
-          <View style={styles.emptyStateContainer}>
-            <View style={styles.emptyIllustration}>
-              <View style={styles.docCircle}>
-                <Ionicons name="document-text" size={80} color="#E0E7FF" style={{ opacity: 0.8 }} />
-                <View style={styles.emptyBookmarkBadge}>
-                  <Ionicons name="bookmark" size={24} color="#5B4AF0" />
+        {/* ── DESKTOP UNIFIED TOP NAV BAR ── */}
+        {isDesktop ? (
+          <View style={styles.desktopNavWrapper}>
+            <DesktopHeaderNav activeTab="saved" />
+
+            {/* Desktop Page Title Banner */}
+            <View style={styles.desktopHeaderStrip}>
+              <View style={{ flex: 1 }}>
+                <View style={styles.desktopBreadcrumb}>
+                  <Pressable onPress={() => router.replace('/subjects')}>
+                    <Text style={styles.desktopBreadcrumbLink}>Dashboard</Text>
+                  </Pressable>
+                  <Ionicons name="chevron-forward" size={12} color="#A49186" />
+                  <Text style={styles.desktopBreadcrumbActive}>Saved Questions</Text>
+                </View>
+                <Text style={styles.desktopPageTitle}>Saved Bookmarks & Review Vault</Text>
+                <Text style={styles.desktopPageSub}>
+                  Quickly review challenging questions you bookmarked during study sessions and practice tests ({savedQuestions.length} saved)
+                </Text>
+              </View>
+
+              {savedQuestions.length > 0 && (
+                <Pressable
+                  style={styles.desktopPracticeBtn}
+                  onPress={() => launchQuiz(filteredQuestions.length > 0 ? filteredQuestions : savedQuestions)}
+                >
+                  <Ionicons name="play" size={16} color="#FFF" />
+                  <Text style={styles.desktopPracticeBtnText}>
+                    Practice These ({filteredQuestions.length})
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+        ) : (
+          /* ── MOBILE HEADER (Clean Top App Bar with Back & Quiz Action) ── */
+          <View style={[styles.mobileNavHeader, { paddingTop: topPad + 10 }]}>
+            <View style={styles.mobileNavRow}>
+              <Pressable
+                onPress={() => {
+                  if (router.canGoBack()) router.back();
+                  else router.replace('/subjects');
+                }}
+                style={styles.mobileBackBtn}
+                accessibilityLabel="Go back"
+              >
+                <Ionicons name="arrow-back" size={20} color="#3D2D27" />
+              </Pressable>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.mobileNavTitle} numberOfLines={1}>Saved Vault</Text>
+                <Text style={styles.mobileNavSub} numberOfLines={1}>
+                  {savedQuestions.length} {savedQuestions.length === 1 ? 'question' : 'questions'} bookmarked
+                </Text>
+              </View>
+              {savedQuestions.length > 0 && (
+                <Pressable
+                  style={styles.mobilePracticeBtn}
+                  onPress={() => launchQuiz(filteredQuestions.length > 0 ? filteredQuestions : savedQuestions)}
+                >
+                  <Ionicons name="play" size={13} color="#FFF" />
+                  <Text style={styles.mobilePracticeBtnText}>
+                    Quiz ({filteredQuestions.length})
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* ── FILTER CHIPS ── */}
+        <View style={[styles.filterStrip, isDesktop && styles.filterStripDesktop]}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+            {subjectTabs.map((sub) => {
+              const isActive = activeTab === sub;
+              return (
+                <Pressable
+                  key={sub}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setActiveTab(sub);
+                  }}
+                  style={[styles.filterChip, isActive && styles.filterChipActive]}
+                >
+                  <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                    {sub}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* ── MAIN CONTENT CONTAINER ── */}
+        <View style={[styles.container, isDesktop && styles.containerDesktop]}>
+          {savedQuestions.length === 0 ? (
+            <View style={styles.emptyStateContainer}>
+              <View style={styles.emptyIllustration}>
+                <Ionicons name="bookmark-outline" size={44} color="#C85C3E" />
+              </View>
+              <Text style={styles.emptyTitle}>No saved questions yet</Text>
+              <Text style={styles.emptySub}>
+                Tap the bookmark icon on any test question or explanation to save it here for quick review.
+              </Text>
+
+              <Pressable onPress={() => router.replace('/subjects')} style={styles.startBtn}>
+                <Text style={styles.startBtnText}>Browse Practice Questions</Text>
+                <Ionicons name="arrow-forward" size={16} color="#FFF" style={{ marginLeft: 8 }} />
+              </Pressable>
+            </View>
+          ) : isDesktop ? (
+            <View style={styles.desktopBentoRow}>
+              {/* Left Column: Questions List */}
+              <View style={styles.desktopBentoMain}>
+                {filteredQuestions.length === 0 ? (
+                  <View style={styles.emptyFilteredState}>
+                    <Text style={styles.emptyFilteredText}>No saved questions found in {activeTab}.</Text>
+                  </View>
+                ) : (
+                  <View style={styles.questionsList}>
+                    {filteredQuestions.map((q) => {
+                      const isOpen = expanded.has(q.id);
+                      return (
+                        <Pressable
+                          key={q.id}
+                          onPress={() => toggleExpand(q.id)}
+                          style={styles.qCard}
+                        >
+                          <View style={styles.qAccentBar} />
+                          <View style={styles.qBody}>
+                            <View style={styles.qHeaderRow}>
+                              <View style={styles.qMeta}>
+                                <View style={styles.subjectPill}>
+                                  <Ionicons name="book-outline" size={11} color="#C85C3E" />
+                                  <Text style={styles.subjectPillText} numberOfLines={1}>
+                                    {q.subjectName}
+                                  </Text>
+                                </View>
+                                {q.chapterName && (
+                                  <Text style={styles.chapterText} numberOfLines={1}>
+                                    {q.chapterName.split('|||')[0]}
+                                  </Text>
+                                )}
+                              </View>
+                              <View style={styles.qActions}>
+                                <Text style={styles.savedTime}>{timeAgo(q.savedAt)}</Text>
+                                <Pressable onPress={() => handleUnsave(q.id)} hitSlop={8} style={styles.unsaveBtn}>
+                                  <Ionicons name="trash-outline" size={14} color="#DC2626" />
+                                </Pressable>
+                              </View>
+                            </View>
+
+                            <View style={styles.questionRow}>
+                              <View style={styles.qNumBadge}>
+                                <Ionicons name="help-circle" size={14} color="#C85C3E" />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <MathText
+                                  style={styles.questionText}
+                                  numberOfLines={isOpen ? undefined : 3}
+                                  text={q.question}
+                                />
+                              </View>
+                              <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={16} color="#A49186" />
+                            </View>
+
+                            {isOpen && (
+                              <View style={styles.expandedBody}>
+                                {q.options && q.options.length > 0 && (
+                                  <View style={styles.optionsWrap}>
+                                    <Text style={styles.sectionLabel}>Choices</Text>
+                                    {q.options.map((opt, oi) => {
+                                      const isCorrect = oi === q.correctOptionIndex;
+                                      return (
+                                        <View
+                                          key={oi}
+                                          style={[
+                                            styles.optionRow,
+                                            isCorrect && styles.optionRowCorrect,
+                                          ]}
+                                        >
+                                          <View style={[styles.optLabel, isCorrect && styles.optLabelCorrect]}>
+                                            <Text style={[styles.optLabelText, isCorrect && styles.optLabelTextCorrect]}>
+                                              {OPTION_LABELS[oi]}
+                                            </Text>
+                                          </View>
+                                          <MathText
+                                            style={[styles.optText, isCorrect && styles.optTextCorrect]}
+                                            text={opt}
+                                          />
+                                          {isCorrect && <Ionicons name="checkmark-circle" size={16} color="#059669" />}
+                                        </View>
+                                      );
+                                    })}
+                                  </View>
+                                )}
+
+                                {(q.explanation || q.solution || q.tip) && (
+                                  <View style={styles.solutionBox}>
+                                    <View style={styles.solutionHeader}>
+                                      <Ionicons name="bulb" size={15} color="#C85C3E" />
+                                      <Text style={styles.solutionTitle}>Explanation & Solution</Text>
+                                    </View>
+                                    {(q.explanation || q.solution) && (
+                                      <MathText style={styles.solutionText} text={q.explanation || q.solution || ''} />
+                                    )}
+                                    {q.tip && (
+                                      <View style={styles.tipBox}>
+                                        <MathText style={styles.tipText} text={`💡 ${q.tip}`} />
+                                      </View>
+                                    )}
+                                  </View>
+                                )}
+                              </View>
+                            )}
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+
+              {/* Right Column: Vault Analytics & Study Hub */}
+              <View style={styles.desktopBentoAside}>
+                <View style={styles.asideCard}>
+                  <View style={styles.asideCardHeader}>
+                    <Ionicons name="bookmark" size={18} color="#C85C3E" />
+                    <Text style={styles.asideCardTitle}>Vault Overview</Text>
+                  </View>
+                  <View style={styles.asideMetricsRow}>
+                    <View style={styles.asideMetricBox}>
+                      <Text style={styles.asideMetricVal}>{savedQuestions.length}</Text>
+                      <Text style={styles.asideMetricLbl}>Bookmarked</Text>
+                    </View>
+                    <View style={styles.asideMetricBox}>
+                      <Text style={styles.asideMetricVal}>{filteredQuestions.length}</Text>
+                      <Text style={styles.asideMetricLbl}>In {activeTab}</Text>
+                    </View>
+                  </View>
+                  <Pressable
+                    style={styles.asidePrimaryBtn}
+                    onPress={() => launchQuiz(filteredQuestions.length > 0 ? filteredQuestions : savedQuestions)}
+                  >
+                    <Ionicons name="play" size={16} color="#FFF" />
+                    <Text style={styles.asidePrimaryBtnText}>
+                      Practice These ({filteredQuestions.length})
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.asideSecondaryBtn}
+                    onPress={() => router.push('/flashcard' as any)}
+                  >
+                    <Ionicons name="albums-outline" size={16} color="#7653A4" />
+                    <Text style={styles.asideSecondaryBtnText}>
+                      Open Flashcard Mode
+                    </Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.asideCard}>
+                  <View style={styles.asideCardHeader}>
+                    <Ionicons name="bulb-outline" size={18} color="#D97706" />
+                    <Text style={styles.asideCardTitle}>Retention Tip</Text>
+                  </View>
+                  <Text style={styles.asideTipText}>
+                    Revisiting questions you bookmarked within 24-48 hours strengthens neural pathways and prevents forgetting during final exam evaluations.
+                  </Text>
                 </View>
               </View>
             </View>
-            <Text style={styles.emptyTitle}>No saved questions yet</Text>
-            <Text style={styles.emptySub}>
-              Tap the bookmark icon on any question{'\n'}to save it here for quick access later.
-            </Text>
-
-            <View style={styles.featuresList}>
-              {[
-                { title: 'Save important questions', sub: 'Keep track of tricky questions', icon: 'bookmark' },
-                { title: 'Revise anytime', sub: 'Access your saved questions anytime, anywhere', icon: 'time' },
-                { title: 'Improve faster', sub: 'Focus on your weak topics', icon: 'briefcase' },
-              ].map((f, i) => (
-                <View key={i} style={styles.featureItem}>
-                  <View style={styles.featureIconWrap}>
-                    <Ionicons name={f.icon as any} size={20} color="#5B4AF0" />
-                  </View>
-                  <View style={styles.featureTextWrap}>
-                    <Text style={styles.featureTitle}>{f.title}</Text>
-                    <Text style={styles.featureDesc}>{f.sub}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-
-            <Pressable onPress={() => router.replace('/subjects' as any)} style={styles.exploreBtn}>
-              <Text style={styles.exploreBtnText}>Explore Questions</Text>
-              <Ionicons name="arrow-forward" size={16} color="#FFF" style={{ marginLeft: 8 }} />
-            </Pressable>
-          </View>
-        ) : filteredQuestions.length === 0 ? (
-          <View style={{ alignItems: 'center', marginTop: 40 }}>
-            <Text style={{ color: '#64748B' }}>No saved questions in {activeTab}.</Text>
-          </View>
-        ) : (
-          filteredQuestions.map((q) => {
-            const isOpen = expanded.has(q.id);
-            return (
-              <Pressable
-                key={q.id}
-                onPress={() => toggleExpand(q.id)}
-                style={styles.qCard}
-              >
-                <LinearGradient colors={['#5B4AF0', '#7C3AED']} style={styles.qAccentBar} />
-                <View style={styles.qBody}>
-                  <View style={styles.qHeaderRow}>
-                    <View style={styles.qMeta}>
-                      <View style={styles.subjectPill}>
-                        <Ionicons name="book-outline" size={10} color="#5B4AF0" />
-                        <Text style={styles.subjectPillText} numberOfLines={1}>{q.subjectName}</Text>
-                      </View>
-                      {q.chapterName && (
-                        <Text style={styles.chapterText} numberOfLines={1}>
-                          {q.chapterName.split('|||')[0]}
-                        </Text>
-                      )}
-                    </View>
-                    <View style={styles.qActions}>
-                      <Text style={styles.savedTime}>{timeAgo(q.savedAt)}</Text>
-                      <Pressable onPress={() => handleUnsave(q.id)} hitSlop={8} style={styles.unsaveBtn}>
-                        <Ionicons name="trash-outline" size={13} color="#DC2626" />
-                      </Pressable>
-                    </View>
-                  </View>
-
-                  <View style={styles.questionRow}>
-                    <View style={styles.qNumBadge}>
-                      <Ionicons name="help-circle" size={14} color="#5B4AF0" />
-                    </View>
-                    <MathText style={styles.questionText} numberOfLines={isOpen ? undefined : 3} text={q.question} />
-                    <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#94A3B8" />
-                  </View>
-
-                  {isOpen && (
-                    <View style={styles.expandedBody}>
-                      {q.options && q.options.length > 0 && (
-                        <View style={styles.optionsWrap}>
-                          <Text style={styles.sectionLabel}>Options</Text>
-                          {q.options.map((opt, oi) => {
-                            const isCorrect = oi === q.correctOptionIndex;
-                            return (
-                              <View key={oi} style={[styles.optionRow, isCorrect && styles.optionRowCorrect]}>
-                                <View style={[styles.optLabel, isCorrect && styles.optLabelCorrect]}>
-                                  <Text style={[styles.optLabelText, isCorrect && styles.optLabelTextCorrect]}>
-                                    {OPTION_LABELS[oi]}
-                                  </Text>
-                                </View>
-                                <MathText style={[styles.optText, isCorrect && styles.optTextCorrect]} text={opt} />
-                                {isCorrect && <Ionicons name="checkmark-circle" size={16} color="#059669" />}
-                              </View>
-                            );
-                          })}
-                        </View>
-                      )}
-
-                      {(q.explanation || q.solution || q.tip) && (
-                        <View style={styles.solutionBox}>
-                          <View style={styles.solutionHeader}>
-                            <LinearGradient colors={['#5B4AF0', '#7C3AED']} style={styles.solutionIcon}>
-                              <Ionicons name="bulb" size={12} color="#FFF" />
-                            </LinearGradient>
-                            <Text style={styles.solutionTitle}>Why this answer is correct</Text>
-                          </View>
-                          {(q.explanation || q.solution) && (
-                            <MathText style={styles.solutionText} text={q.explanation || q.solution || ''} />
-                          )}
-                          {q.tip && (
-                            <View style={styles.tipBox}>
-                              <MathText style={styles.tipText} text={`💡 ${q.tip}`} />
+          ) : (
+            /* Mobile Question List */
+            filteredQuestions.length === 0 ? (
+              <View style={styles.emptyFilteredState}>
+                <Text style={styles.emptyFilteredText}>No saved questions found in {activeTab}.</Text>
+              </View>
+            ) : (
+              <View style={styles.questionsList}>
+                {filteredQuestions.map((q) => {
+                  const isOpen = expanded.has(q.id);
+                  return (
+                    <Pressable
+                      key={q.id}
+                      onPress={() => toggleExpand(q.id)}
+                      style={styles.qCard}
+                    >
+                      <View style={styles.qAccentBar} />
+                      <View style={styles.qBody}>
+                        <View style={styles.qHeaderRow}>
+                          <View style={styles.qMeta}>
+                            <View style={styles.subjectPill}>
+                              <Ionicons name="book-outline" size={11} color="#C85C3E" />
+                              <Text style={styles.subjectPillText} numberOfLines={1}>
+                                {q.subjectName}
+                              </Text>
                             </View>
-                          )}
+                            {q.chapterName && (
+                              <Text style={styles.chapterText} numberOfLines={1}>
+                                {q.chapterName.split('|||')[0]}
+                              </Text>
+                            )}
+                          </View>
+                          <View style={styles.qActions}>
+                            <Text style={styles.savedTime}>{timeAgo(q.savedAt)}</Text>
+                            <Pressable onPress={() => handleUnsave(q.id)} hitSlop={8} style={styles.unsaveBtn}>
+                              <Ionicons name="trash-outline" size={14} color="#DC2626" />
+                            </Pressable>
+                          </View>
                         </View>
-                      )}
-                    </View>
-                  )}
-                </View>
-              </Pressable>
-            );
-          })
-        )}
+
+                        <View style={styles.questionRow}>
+                          <View style={styles.qNumBadge}>
+                            <Ionicons name="help-circle" size={14} color="#C85C3E" />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <MathText
+                              style={styles.questionText}
+                              numberOfLines={isOpen ? undefined : 3}
+                              text={q.question}
+                            />
+                          </View>
+                          <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={16} color="#A49186" />
+                        </View>
+
+                        {isOpen && (
+                          <View style={styles.expandedBody}>
+                            {q.options && q.options.length > 0 && (
+                              <View style={styles.optionsWrap}>
+                                <Text style={styles.sectionLabel}>Choices</Text>
+                                {q.options.map((opt, oi) => {
+                                  const isCorrect = oi === q.correctOptionIndex;
+                                  return (
+                                    <View
+                                      key={oi}
+                                      style={[
+                                        styles.optionRow,
+                                        isCorrect && styles.optionRowCorrect,
+                                      ]}
+                                    >
+                                      <View style={[styles.optLabel, isCorrect && styles.optLabelCorrect]}>
+                                        <Text style={[styles.optLabelText, isCorrect && styles.optLabelTextCorrect]}>
+                                          {OPTION_LABELS[oi]}
+                                        </Text>
+                                      </View>
+                                      <MathText
+                                        style={[styles.optText, isCorrect && styles.optTextCorrect]}
+                                        text={opt}
+                                      />
+                                      {isCorrect && <Ionicons name="checkmark-circle" size={16} color="#059669" />}
+                                    </View>
+                                  );
+                                })}
+                              </View>
+                            )}
+
+                            {(q.explanation || q.solution || q.tip) && (
+                              <View style={styles.solutionBox}>
+                                <View style={styles.solutionHeader}>
+                                  <Ionicons name="bulb" size={15} color="#C85C3E" />
+                                  <Text style={styles.solutionTitle}>Explanation & Solution</Text>
+                                </View>
+                                {(q.explanation || q.solution) && (
+                                  <MathText style={styles.solutionText} text={q.explanation || q.solution || ''} />
+                                )}
+                                {q.tip && (
+                                  <View style={styles.tipBox}>
+                                    <MathText style={styles.tipText} text={`💡 ${q.tip}`} />
+                                  </View>
+                                )}
+                              </View>
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )
+          )}
+        </View>
       </ScrollView>
 
-      <BottomTabBar activeTab="saved" />
+      {/* Floating Bottom Tab Bar ONLY on mobile screens */}
+      {!isDesktop && <BottomTabBar activeTab="saved" />}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FFFFFF' },
-
-  /* HEADER */
-  header: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+  root: {
+    flex: 1,
+    backgroundColor: '#FBF8F4',
   },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerTitle: { fontSize: 24, fontWeight: '800', color: '#FFF', letterSpacing: -0.5 },
-  headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 4 },
-  searchBtn: {
-    width: 40, height: 40, borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+
+  /* DESKTOP NAV WRAPPER */
+  desktopNavWrapper: {
+    width: '100%',
+    paddingHorizontal: 32,
+    marginBottom: 20,
+  },
+  desktopHeaderStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFDF9',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E8DFD5',
+    padding: 24,
+    gap: 20,
+    shadowColor: '#3D2D27',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  desktopBreadcrumb: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  desktopBreadcrumbLink: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#C85C3E',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  desktopBreadcrumbActive: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#8B786D',
+  },
+  desktopPageTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#3D2D27',
+    letterSpacing: -0.3,
+  },
+  desktopPageSub: {
+    fontSize: 12.5,
+    color: '#76645B',
+    marginTop: 4,
+    maxWidth: 620,
+    lineHeight: 18,
+  },
+  desktopPracticeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: 14,
+    backgroundColor: '#C85C3E',
+    shadowColor: '#C85C3E',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  desktopPracticeBtnText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  /* MOBILE NAV HEADER */
+  mobileNavHeader: {
+    backgroundColor: '#FFFDF9',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ECE4D9',
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+  },
+  mobileNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  mobileBackBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#F3ECE3',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  mobileNavTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#3D2D27',
+  },
+  mobileNavSub: {
+    fontSize: 12,
+    color: '#8B786D',
+    marginTop: 1,
+  },
+  mobilePracticeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 10,
+    backgroundColor: '#C85C3E',
+    shadowColor: '#C85C3E',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22,
+    shadowRadius: 4,
+    elevation: 2,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  mobilePracticeBtnText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '800',
   },
 
   /* FILTER CHIPS */
-  filterStrip: { marginTop: 16 },
-  filterScroll: { paddingHorizontal: 20, gap: 8, paddingBottom: 8 },
-  filterChip: {
-    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
-    backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0',
+  filterStrip: {
+    marginTop: 12,
+    marginBottom: 4,
   },
-  filterChipActive: { backgroundColor: '#5B4AF0', borderColor: '#5B4AF0' },
-  filterChipText: { fontSize: 13, fontWeight: '600', color: '#64748B' },
+  filterStripDesktop: {
+    width: '100%',
+    alignSelf: 'stretch',
+    paddingHorizontal: 32,
+  },
+  filterScroll: { paddingHorizontal: 16, gap: 8, paddingBottom: 6 },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E8DFD5',
+    backgroundColor: '#FFFDF9',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  filterChipActive: { backgroundColor: '#C85C3E', borderColor: '#C85C3E' },
+  filterChipText: { fontSize: 12, fontWeight: '700', color: '#5E4B42' },
   filterChipTextActive: { color: '#FFF' },
 
+  /* RESPONSIVE CONTAINER */
+  container: {
+    width: '100%',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+  },
+  containerDesktop: {
+    width: '100%',
+    alignSelf: 'stretch',
+    paddingHorizontal: 32,
+    paddingTop: 8,
+  },
+
+  /* DESKTOP BENTO ROW */
+  desktopBentoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 24,
+    width: '100%',
+  },
+  desktopBentoMain: {
+    flex: 1,
+    minWidth: 0,
+    gap: 14,
+  },
+  desktopBentoAside: {
+    width: 380,
+    minWidth: 320,
+    gap: 16,
+  },
+  asideCard: {
+    backgroundColor: '#FFFDF9',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E8DFD5',
+    padding: 20,
+    gap: 14,
+    shadowColor: '#3D2D27',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  asideCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  asideCardTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#3D2D27',
+  },
+  asideMetricsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  asideMetricBox: {
+    flex: 1,
+    backgroundColor: '#F8F4EE',
+    borderRadius: 14,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ECE4D9',
+  },
+  asideMetricVal: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#3D2D27',
+  },
+  asideMetricLbl: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#76645B',
+    marginTop: 2,
+  },
+  asidePrimaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#C85C3E',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  asidePrimaryBtnText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  asideSecondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FAF5FF',
+    borderWidth: 1.5,
+    borderColor: '#E9D5FF',
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  asideSecondaryBtnText: {
+    color: '#7653A4',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  asideTipText: {
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: '#76645B',
+  },
+
   /* EMPTY STATE */
-  emptyStateContainer: { alignItems: 'center', paddingTop: 20 },
-  emptyIllustration: { position: 'relative', marginBottom: 24 },
-  docCircle: {
-    width: 160, height: 160, borderRadius: 80,
-    backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center',
-    position: 'relative'
+  emptyStateContainer: {
+    paddingTop: 40,
+    alignItems: 'center',
   },
-  emptyBookmarkBadge: {
-    position: 'absolute', top: 30, right: 30,
-    backgroundColor: '#FFF', padding: 8, borderRadius: 12,
-    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, elevation: 4,
+  emptyIllustration: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    backgroundColor: '#FFFDF9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E8DFD5',
+    marginBottom: 16,
+    shadowColor: '#3D2D27',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
   },
-  emptyTitle: { fontSize: 20, fontWeight: '800', color: '#1E293B', marginBottom: 12 },
-  emptySub: { fontSize: 13, textAlign: 'center', lineHeight: 20, color: '#64748B', marginBottom: 32 },
-
-  featuresList: { alignSelf: 'stretch', gap: 16, marginBottom: 32 },
-  featureItem: { flexDirection: 'row', alignItems: 'center', gap: 16, backgroundColor: '#F8FAFC', padding: 16, borderRadius: 20 },
-  featureIconWrap: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center' },
-  featureTextWrap: { flex: 1 },
-  featureTitle: { fontSize: 14, fontWeight: '800', color: '#1E293B', marginBottom: 4 },
-  featureDesc: { fontSize: 12, color: '#64748B', lineHeight: 16 },
-
-  exploreBtn: {
-    alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#5B4AF0', paddingVertical: 16, borderRadius: 16,
-    shadowColor: '#5B4AF0', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
+  emptyTitle: { fontSize: 18, fontWeight: '800', color: '#3D2D27', marginBottom: 8 },
+  emptySub: { fontSize: 13, textAlign: 'center', lineHeight: 20, color: '#76645B', maxWidth: 440, marginBottom: 24 },
+  startBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#C85C3E',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 16,
+    shadowColor: '#C85C3E',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
   },
-  exploreBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  startBtnText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
+  emptyFilteredState: { alignItems: 'center', marginTop: 40 },
+  emptyFilteredText: { fontSize: 13, color: '#76645B' },
 
   /* QUESTION CARD */
+  questionsList: { gap: 14 },
+  questionsListDesktop: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
   qCard: {
-    borderRadius: 20, flexDirection: 'row', overflow: 'hidden',
-    backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
+    borderRadius: 18,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E8DFD5',
+    backgroundColor: '#FFFDF9',
+    shadowColor: '#3D2D27',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
   },
-  qAccentBar: { width: 5, alignSelf: 'stretch' },
-  qBody: { flex: 1, padding: 16, gap: 12 },
-  
-  qHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  qMeta: { flex: 1, gap: 4 },
+  qCardDesktop: {
+    width: 'calc(50% - 8px)' as any,
+    minWidth: 360,
+    flexBasis: 'calc(50% - 8px)' as any,
+  },
+  qAccentBar: { width: 5, backgroundColor: '#C85C3E' },
+  qBody: { flex: 1, padding: 18 },
+  qHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  qMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
   subjectPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
-    paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20, backgroundColor: '#EEF2FF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: '#FDECE6',
   },
-  subjectPillText: { fontSize: 11, fontWeight: '700', color: '#5B4AF0' },
-  chapterText: { fontSize: 11, color: '#64748B' },
-  qActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  savedTime: { fontSize: 10, color: '#94A3B8' },
+  subjectPillText: { color: '#C85C3E', fontSize: 11, fontWeight: '800' },
+  chapterText: { fontSize: 12, fontWeight: '600', color: '#76645B', flex: 1 },
+  qActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  savedTime: { fontSize: 11, color: '#A49186' },
   unsaveBtn: {
-    width: 28, height: 28, borderRadius: 8, backgroundColor: '#FEE2E2',
-    alignItems: 'center', justifyContent: 'center',
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   questionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   qNumBadge: {
-    width: 28, height: 28, borderRadius: 8, backgroundColor: '#EEF2FF',
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    backgroundColor: '#FDECE6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
   },
-  questionText: { flex: 1, fontSize: 14, fontWeight: '600', lineHeight: 21, color: '#0F172A' },
+  questionText: { fontSize: 13.5, lineHeight: 21, fontWeight: '600', color: '#3D2D27' },
 
-  expandedBody: { gap: 12 },
-  optionsWrap: { gap: 8 },
-  sectionLabel: { fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 4 },
+  expandedBody: { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#F0E6DE' },
+  optionsWrap: { gap: 8, marginBottom: 16 },
+  sectionLabel: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, color: '#76645B', marginBottom: 4 },
   optionRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#F8FAFC',
-    paddingHorizontal: 12, paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 11,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: '#EFE7DE',
+    backgroundColor: '#FFF',
   },
-  optionRowCorrect: { backgroundColor: '#F0FDF4', borderColor: '#22C55E' },
+  optionRowCorrect: { borderColor: '#10B981', backgroundColor: '#ECFDF5' },
   optLabel: {
-    width: 24, height: 24, borderRadius: 8, backgroundColor: '#E2E8F0',
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    backgroundColor: '#EBE2D8',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  optLabelCorrect: { backgroundColor: '#22C55E' },
-  optLabelText: { fontSize: 12, fontWeight: '800', color: '#64748B' },
+  optLabelCorrect: { backgroundColor: '#10B981' },
+  optLabelText: { fontSize: 10.5, fontWeight: '800', color: '#5C4C44' },
   optLabelTextCorrect: { color: '#FFF' },
-  optText: { fontSize: 14, color: '#334155', flex: 1, lineHeight: 20 },
-  optTextCorrect: { color: '#166534', fontWeight: '500' },
+  optText: { flex: 1, fontSize: 12.5, color: '#3D2D27' },
+  optTextCorrect: { fontWeight: '700', color: '#065F46' },
 
-  solutionBox: { borderRadius: 16, borderWidth: 1, borderColor: '#E0E7FF', backgroundColor: '#EEF2FF', padding: 16, gap: 12 },
-  solutionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  solutionIcon: {
-    width: 24, height: 24, borderRadius: 8,
-    alignItems: 'center', justifyContent: 'center',
+  solutionBox: {
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: '#FFF7F2',
+    borderWidth: 1,
+    borderColor: '#F2DDD3',
+    gap: 8,
   },
-  solutionTitle: { fontSize: 14, fontWeight: '800', color: '#5B4AF0' },
-  solutionText: { fontSize: 13, color: '#1E293B', lineHeight: 20 },
-  tipBox: { borderRadius: 12, borderWidth: 1, borderColor: '#FDE68A', backgroundColor: '#FEF3C7', padding: 12 },
-  tipText: { fontSize: 13, color: '#92400E', lineHeight: 18 },
+  solutionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  solutionTitle: { fontSize: 12.5, fontWeight: '800', color: '#C85C3E' },
+  solutionText: { fontSize: 12.5, lineHeight: 19, color: '#3D2D27' },
+  tipBox: { marginTop: 4, padding: 10, borderRadius: 9, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A' },
+  tipText: { fontSize: 11.5, color: '#92400E' },
 });

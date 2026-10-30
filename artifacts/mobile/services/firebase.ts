@@ -3,6 +3,7 @@
 // native modules; uses reCAPTCHA web view for app verification)
 // ─────────────────────────────────────────────────────────────────────────────
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { initializeApp, getApps } from 'firebase/app';
 import {
   initializeAuth,
@@ -34,13 +35,17 @@ const app = getApps().length === 0
 
 // Initialise Auth with AsyncStorage persistence (React Native compatible)
 let _auth: Auth;
-try {
-  _auth = initializeAuth(app, {
-    persistence: getRNPersistence ? getRNPersistence(AsyncStorage) : browserLocalPersistence,
-  });
-} catch {
-  // Already initialised (hot reload)
+if (Platform.OS === 'web') {
   _auth = getAuth(app);
+} else {
+  try {
+    _auth = initializeAuth(app, {
+      persistence: getRNPersistence ? getRNPersistence(AsyncStorage) : browserLocalPersistence,
+    });
+  } catch {
+    // Already initialised (hot reload)
+    _auth = getAuth(app);
+  }
 }
 
 // We want real SMS to work, so we removed the test mode override.
@@ -51,7 +56,6 @@ export { _auth as firebaseAuth };
 // Phone OTP helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { Platform } from 'react-native';
 import { RecaptchaVerifier } from 'firebase/auth';
 
 /** Send SMS OTP via Firebase Phone Auth. Returns a ConfirmationResult. */

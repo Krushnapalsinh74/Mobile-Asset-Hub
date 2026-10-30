@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
+import MathText from '@/components/MathText';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -76,25 +77,61 @@ export default function FlashcardScreen() {
     let cancelled = false;
     setLoading(true);
     setError(false);
-    eduApi.generateQuestions({
-      board: boardId ?? boardName ?? '',
-      standard: standardId ?? standardName ?? '',
-      subject: subjectName,
-      chapter: chapterName,
-      options: { mode: 'mcq', count: 10, seed: Date.now() },
-    }).then(res => {
-      if (cancelled) return;
-      const r = res as any;
-      const qs: Question[] = (
-        r?.questions ?? r?.data?.questions ?? r?.result?.questions ?? (Array.isArray(r) ? r : [])
-      );
-      setQuestions(qs);
-      setLoading(false);
-    }).catch(() => {
-      if (!cancelled) { setError(true); setLoading(false); }
-    });
-    return () => { cancelled = true; };
-  }, [topicId]);
+
+    async function fetchFlashcards() {
+      try {
+        // 1. Try bank questions first
+        if (chapterId) {
+          try {
+            const bankQs = await eduApi.getBankQuestions({
+              chapterId,
+              topicId: topicId || undefined,
+            });
+            if (!cancelled && bankQs && bankQs.length > 0) {
+              setQuestions(bankQs);
+              setLoading(false);
+              return;
+            }
+          } catch (bankErr) {
+            console.warn('Bank questions fetch failed, trying AI generation:', bankErr);
+          }
+        }
+
+        // 2. Try AI Question Generation
+        const res = await eduApi.generateQuestions({
+          board: boardName || boardId || 'CBSE',
+          standard: standardName || standardId || 'Class 11',
+          subject: subjectName || 'Physics',
+          chapter: chapterName || 'Chapter',
+          ...(topicName ? { topic: topicName } : {}),
+          options: { mode: 'mcq', count: 10, seed: Date.now() },
+        });
+
+        if (cancelled) return;
+        const r = res as any;
+        const qs: Question[] =
+          r?.questions ?? r?.data?.questions ?? r?.result?.questions ?? (Array.isArray(r) ? r : []);
+
+        if (qs.length > 0) {
+          setQuestions(qs);
+          setLoading(false);
+          return;
+        }
+
+        throw new Error('No questions returned');
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err?.message || 'No flashcards available');
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchFlashcards();
+    return () => {
+      cancelled = true;
+    };
+  }, [chapterId, topicId, subjectId, chapterName, subjectName]);
 
   const current = questions[currentIndex];
   const correctIdx = current ? getCorrectOptionIndex(current) : -1;
@@ -152,7 +189,7 @@ export default function FlashcardScreen() {
     if (router.canGoBack()) {
       router.back();
     } else {
-      router.replace('/topics');
+      router.replace({ pathname: '/chapters', params: { subjectId, subjectName } });
     }
   };
 
@@ -176,7 +213,7 @@ export default function FlashcardScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <LinearGradient
-          colors={knownCount >= questions.length * 0.7 ? ['#065F46', '#10B981'] : ['#312E81', '#4F46E5']}
+          colors={knownCount >= questions.length * 0.7 ? ['#065F46', '#4F936C'] : ['#312E81', '#C85C3E']}
           style={[styles.doneHeader, { paddingTop: topPad + 24 }]}
         >
           <View style={styles.doneIconWrap}>
@@ -188,9 +225,9 @@ export default function FlashcardScreen() {
         <ScrollView contentContainerStyle={[styles.doneContent, { paddingBottom: insets.bottom + 32 }]}>
           <View style={styles.doneStatsRow}>
             <View style={[styles.doneStat, { backgroundColor: '#D1FAE5' }]}>
-              <Ionicons name="checkmark-circle" size={28} color="#10B981" />
+              <Ionicons name="checkmark-circle" size={28} color="#4F936C" />
               <Text style={[styles.doneStatNum, { color: '#065F46' }]}>{knownCount}</Text>
-              <Text style={[styles.doneStatLabel, { color: '#059669' }]}>Know It</Text>
+              <Text style={[styles.doneStatLabel, { color: '#4F936C' }]}>Know It</Text>
             </View>
             <View style={[styles.doneStat, { backgroundColor: '#FEF3C7' }]}>
               <Ionicons name="refresh-circle" size={28} color="#F59E0B" />
@@ -250,8 +287,12 @@ export default function FlashcardScreen() {
           </View>
         </Pressable>
         <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>{topicName}</Text>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>Flashcards</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
+            {topicName || chapterName || 'Flashcards'}
+          </Text>
+          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
+            {chapterName ? `${subjectName ? `${subjectName} • ` : ''}${chapterName}` : 'Flashcards'}
+          </Text>
         </View>
         <View style={[styles.cardCountPill, { backgroundColor: colors.primaryLight }]}>
           <Text style={[styles.cardCountText, { color: colors.primary }]}>
@@ -271,7 +312,7 @@ export default function FlashcardScreen() {
       {/* Status pills row */}
       <View style={[styles.statusRow, { backgroundColor: colors.card }]}>
         <View style={styles.statusPill}>
-          <View style={[styles.statusDot, { backgroundColor: '#10B981' }]} />
+          <View style={[styles.statusDot, { backgroundColor: '#4F936C' }]} />
           <Text style={[styles.statusText, { color: colors.mutedForeground }]}>{knownCount} know it</Text>
         </View>
         <View style={[styles.statusDivider, { backgroundColor: colors.border }]} />
@@ -289,7 +330,10 @@ export default function FlashcardScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 20 }]}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 20 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Card */}
@@ -306,7 +350,9 @@ export default function FlashcardScreen() {
                   <Text style={styles.qNumBubbleText}>Q{currentIndex + 1}</Text>
                 </View>
               </View>
-              <Text style={styles.cardFrontText}>{current?.question}</Text>
+              <View style={{ flex: 1, justifyContent: 'center' }}>
+                <MathText text={current?.question ?? ''} style={styles.cardFrontText} />
+              </View>
               <View style={styles.flipHint}>
                 <Ionicons name="sync" size={14} color="rgba(255,255,255,0.6)" />
                 <Text style={styles.flipHintText}>Tap to reveal answer</Text>
@@ -317,8 +363,8 @@ export default function FlashcardScreen() {
             <View style={[styles.card, styles.cardBack, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.cardTopRow}>
                 <View style={[styles.cardBackBadge, { backgroundColor: '#D1FAE5' }]}>
-                  <Ionicons name="checkmark-circle" size={14} color="#10B981" />
-                  <Text style={[styles.cardBackBadgeText, { color: '#10B981' }]}>ANSWER</Text>
+                  <Ionicons name="checkmark-circle" size={14} color="#4F936C" />
+                  <Text style={[styles.cardBackBadgeText, { color: '#4F936C' }]}>ANSWER</Text>
                 </View>
                 <View style={[styles.qNumBubble, { backgroundColor: colors.primaryLight }]}>
                   <Text style={[styles.qNumBubbleText, { color: colors.primary }]}>Q{currentIndex + 1}</Text>
@@ -337,20 +383,26 @@ export default function FlashcardScreen() {
                           styles.answerOption,
                           {
                             backgroundColor: isCorrect ? '#D1FAE5' : colors.secondary,
-                            borderColor: isCorrect ? '#10B981' : colors.border,
+                            borderColor: isCorrect ? '#4F936C' : colors.border,
                             borderWidth: isCorrect ? 2 : 1,
                           },
                         ]}
                       >
-                        <View style={[styles.optLetter, { backgroundColor: isCorrect ? '#10B981' : colors.border }]}>
+                        <View style={[styles.optLetter, { backgroundColor: isCorrect ? '#4F936C' : colors.border }]}>
                           <Text style={[styles.optLetterText, { color: isCorrect ? '#FFF' : colors.mutedForeground }]}>
                             {OPTION_LABELS[oi]}
                           </Text>
                         </View>
-                        <Text style={[styles.optText, { color: isCorrect ? '#065F46' : colors.mutedForeground, fontWeight: isCorrect ? '600' : '400' }]}>
-                          {opt}
-                        </Text>
-                        {isCorrect && <Ionicons name="checkmark-circle" size={16} color="#10B981" />}
+                        <View style={{ flex: 1 }}>
+                          <MathText
+                            text={opt}
+                            style={[
+                              styles.optText,
+                              { color: isCorrect ? '#065F46' : colors.text, fontWeight: isCorrect ? '600' : '400' },
+                            ]}
+                          />
+                        </View>
+                        {isCorrect && <Ionicons name="checkmark-circle" size={16} color="#4F936C" />}
                       </View>
                     );
                   })}
@@ -363,9 +415,7 @@ export default function FlashcardScreen() {
                     <Ionicons name="bulb" size={13} color={colors.primary} />
                     <Text style={[styles.solutionLabel, { color: colors.primary }]}>Explanation</Text>
                   </View>
-                  <Text style={[styles.solutionText, { color: colors.text }]} numberOfLines={6}>
-                    {current.solution}
-                  </Text>
+                  <MathText text={current.solution} style={[styles.solutionText, { color: colors.text }]} />
                 </View>
               ) : null}
 
@@ -388,10 +438,10 @@ export default function FlashcardScreen() {
               <Text style={[styles.actionBtnLgText, { color: '#92400E' }]}>Need Practice</Text>
             </Pressable>
             <Pressable
-              style={[styles.actionBtnLg, { backgroundColor: '#D1FAE5', borderColor: '#10B981', borderWidth: 1.5 }]}
+              style={[styles.actionBtnLg, { backgroundColor: '#D1FAE5', borderColor: '#4F936C', borderWidth: 1.5 }]}
               onPress={handleKnow}
             >
-              <Ionicons name="checkmark-circle" size={22} color="#10B981" />
+              <Ionicons name="checkmark-circle" size={22} color="#4F936C" />
               <Text style={[styles.actionBtnLgText, { color: '#065F46' }]}>Know It!</Text>
             </Pressable>
           </View>

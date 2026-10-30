@@ -9,7 +9,7 @@ import { useQueries } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -86,10 +86,10 @@ const MARKS_OPTIONS = [1, 2, 3, 4];
 type Difficulty = 'easy' | 'medium' | 'hard' | 'advanced';
 
 const DIFFICULTY_OPTIONS: { value: Difficulty; label: string; icon: string; color: string }[] = [
-  { value: 'easy',     label: 'Easy',     icon: '😊', color: '#10B981' },
+  { value: 'easy',     label: 'Easy',     icon: '😊', color: '#4F936C' },
   { value: 'medium',  label: 'Medium',   icon: '🔥', color: '#F59E0B' },
   { value: 'hard',    label: 'Hard',     icon: '💀', color: '#EF4444' },
-  { value: 'advanced',label: 'Advanced', icon: '🚀', color: '#7C3AED' },
+  { value: 'advanced',label: 'Advanced', icon: '🚀', color: '#C85C3E' },
 ];
 
 type ChapterConfig = {
@@ -193,9 +193,87 @@ export default function TestConfigScreen() {
   const [loadingMsg, setLoadingMsg] = useState('');
   const [error, setError] = useState('');
 
+  const [resolvedChapterIds, setResolvedChapterIds] = useState<string[]>(chapterIds);
+  const [resolving, setResolving] = useState(false);
+
+  useEffect(() => {
+    if (chapterIds.length > 0) {
+      setResolvedChapterIds(chapterIds);
+      return;
+    }
+    if (!boardId || !standardId) return;
+
+    let cancelled = false;
+    setResolving(true);
+
+    async function autoResolve() {
+      try {
+        let sId = paramSubjectId || '';
+        let sName = paramSubjectName || '';
+
+        if (!sId) {
+          const subs = await eduApi.getSubjects(boardId!, standardId!);
+          if (subs.length > 0) {
+            const matched = paramSubjectName
+              ? subs.find((s) => s.name.toLowerCase() === paramSubjectName.toLowerCase())
+              : null;
+            const chosen = matched || subs[0];
+            sId = getId(chosen);
+            sName = chosen.name;
+          }
+        }
+
+        if (!sId) return;
+
+        const chs = await eduApi.getChapters(boardId!, standardId!, sId);
+        if (chs.length > 0 && !cancelled) {
+          const matched = paramChapterName
+            ? chs.find((c) => c.name.toLowerCase().includes(paramChapterName.toLowerCase()))
+            : null;
+          const chosen = matched || chs[0];
+          const cid = getId(chosen);
+          const cname = chosen.name;
+
+          setConfigs((prev) => ({
+            ...prev,
+            [cid]: {
+              chapterId: cid,
+              chapterName: cname,
+              subjectId: sId,
+              subjectName: sName,
+              marksPerQ: 1,
+              difficulties: ['medium'],
+              difficultyBreakdown: { easy: 3, medium: 5, hard: 3, advanced: 3 },
+              expanded: false,
+            },
+          }));
+          setResolvedChapterIds([cid]);
+        }
+      } catch (e) {
+        console.warn('Auto resolve chapter failed in test-config:', e);
+      } finally {
+        if (!cancelled) setResolving(false);
+      }
+    }
+
+    autoResolve();
+    return () => {
+      cancelled = true;
+    };
+  }, [chapterIds, boardId, standardId, paramSubjectId, paramSubjectName, paramChapterName]);
+
   const topicQueries = useQueries({
-    queries: chapterIds.map(cid => {
-      const cfg = configs[cid]!;
+    queries: resolvedChapterIds.map((cid) => {
+      const cfg = configs[cid] ?? {
+        chapterId: cid,
+        chapterName: cid,
+        subjectId: paramSubjectId ?? '',
+        subjectName: paramSubjectName ?? '',
+        marksPerQ: 1,
+        difficulties: ['medium'],
+        difficultyBreakdown: { easy: 3, medium: 5, hard: 3, advanced: 3 },
+        expanded: false,
+      };
       return {
         queryKey: ['topics', boardId, standardId, cfg.subjectId, cid],
         queryFn: () => eduApi.getTopics(boardId!, standardId!, cfg.subjectId, cid),
@@ -204,12 +282,12 @@ export default function TestConfigScreen() {
     }),
   });
 
-  const configList = chapterIds.map(cid => configs[cid]!);
+  const configList = resolvedChapterIds.map((cid) => configs[cid]).filter(Boolean) as ChapterConfig[];
   const totalQuestions = configList.reduce((s, c) => s + getChapterCount(c), 0);
   const totalMarks = configList.reduce((s, c) => s + getChapterCount(c) * c.marksPerQ, 0);
 
   function updateConfig(cid: string, patch: Partial<ChapterConfig>) {
-    setConfigs(prev => ({ ...prev, [cid]: { ...prev[cid]!, ...patch } }));
+    setConfigs((prev) => ({ ...prev, [cid]: { ...prev[cid]!, ...patch } }));
   }
 
   function toggleDifficulty(cid: string, d: Difficulty) {
@@ -506,15 +584,16 @@ export default function TestConfigScreen() {
       const sessionId = saveQuestions(allQuestions);
 
       const doLaunch = () => {
-        const first = configList[0]!;
+        const first = configList[0];
+        if (!first) return;
         router.push({
           pathname: '/test-quiz' as any,
           params: {
             sessionId,
             subjectId: first.subjectId,
             subjectName: first.subjectName,
-            chapterId: chapterIds.join(','),
-            chapterName: chapterNames.join('|||'),
+            chapterId: resolvedChapterIds.join(','),
+            chapterName: resolvedChapterIds.map((cid) => configs[cid]?.chapterName || cid).join('|||'),
             mode: 'mcq',
           },
         });
@@ -566,7 +645,21 @@ export default function TestConfigScreen() {
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0) + 14;
 
-  if (chapterIds.length === 0) {
+  if (resolving) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background, padding: 24, alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700', textAlign: 'center' }}>
+          Configuring practice test...
+        </Text>
+        <Text style={{ color: colors.mutedForeground, fontSize: 13, textAlign: 'center' }}>
+          Loading curriculum questions for {paramChapterName || paramSubjectName || 'your topic'}
+        </Text>
+      </View>
+    );
+  }
+
+  if (resolvedChapterIds.length === 0) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background, padding: 24, alignItems: 'center', justifyContent: 'center' }}>
         <Ionicons name="documents-outline" size={48} color={colors.mutedForeground} />
@@ -574,14 +667,22 @@ export default function TestConfigScreen() {
           No chapters selected
         </Text>
         <Text style={{ color: colors.mutedForeground, fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 8, textAlign: 'center' }}>
-          Go back and select one or more chapters to generate a test.
+          Choose a subject or chapter to configure your test.
         </Text>
-        <Pressable
-          style={{ marginTop: 24, backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14 }}
-          onPress={handleBack}
-        >
-          <Text style={{ color: '#FFF', fontWeight: '700', fontFamily: 'Inter_700Bold' }}>Go Back</Text>
-        </Pressable>
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+          <Pressable
+            style={{ backgroundColor: colors.primary, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14 }}
+            onPress={() => router.replace('/chapters')}
+          >
+            <Text style={{ color: '#FFF', fontWeight: '700' }}>Browse Chapters</Text>
+          </Pressable>
+          <Pressable
+            style={{ backgroundColor: colors.secondary, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14 }}
+            onPress={handleBack}
+          >
+            <Text style={{ color: colors.text, fontWeight: '600' }}>Go Back</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -590,7 +691,7 @@ export default function TestConfigScreen() {
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* ── GRADIENT HEADER ── */}
       <LinearGradient
-        colors={['#3730A3', '#4F46E5', '#7C3AED']}
+        colors={['#6B382C', '#C85C3E', '#C85C3E']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[styles.header, { paddingTop: topPad }]}
@@ -658,8 +759,17 @@ export default function TestConfigScreen() {
           QUESTIONS PER CHAPTER
         </Text>
 
-        {chapterIds.map((cid, idx) => {
-          const cfg = configs[cid]!;
+        {resolvedChapterIds.map((cid, idx) => {
+          const cfg = configs[cid] ?? {
+            chapterId: cid,
+            chapterName: cid,
+            subjectId: paramSubjectId ?? '',
+            subjectName: paramSubjectName ?? '',
+            marksPerQ: 1,
+            difficulties: ['medium'],
+            difficultyBreakdown: { easy: 3, medium: 5, hard: 3, advanced: 3 },
+            expanded: false,
+          };
           const topicQuery = topicQueries[idx];
           const topics: Topic[] = topicQuery?.data ?? [];
           const topicsLoading = topicQuery?.isLoading ?? false;

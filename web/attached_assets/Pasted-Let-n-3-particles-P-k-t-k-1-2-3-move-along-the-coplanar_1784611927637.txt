@@ -1,0 +1,56 @@
+Let n=3 particles P 
+k
+​
+ (t) (k=1,2,3) move along the coplanar ellipse E: 
+3
+x 
+2
+ 
+​
+ +y 
+2
+ =1 such that their eccentric angles at any time t≥0 are given by ϕ 
+k
+​
+ (t)=ωt+ 
+3
+kπ
+​
+ , where ω>0 is a constant. Let  
+S
+ (t)=∑ 
+k=1
+3
+​
+  
+r
+  
+k
+​
+ (t) be the sum of their position vectors relative to the origin O. At any instant t, a point Q(t) is positioned in the same plane such that:\n\n1. The relative position vector  
+u
+ (t)= 
+r
+  
+Q
+​
+ (t)− 
+S
+ (t) has a constant magnitude ∣ 
+u
+ (t)∣=L=2.\n2.  
+u
+ (t)⋅ 
+S
+ (t)=0.\n3. The cross product  
+S
+ (t)× 
+u
+ (t)=z(t) 
+k
+^
+  satisfies z(t)>0.\n\nAs t varies over one complete period T= 
+ω
+2π
+​
+ , the point Q(t) traces a closed curve Γ. Find the area of the region enclosed by Γ. <diagram type="svg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 400" width="100%" height="100%">\n <!-- Background -->\n <rect width="100%" height="100%" fill="#0F172A" />\n \n <!-- Grid Lines -->\n <g stroke="#334155" stroke-width="0.5" stroke-dasharray="3,3">\n <line x1="50" y1="200" x2="450" y2="200" />\n <line x1="250" y1="50" x2="250" y2="350" />\n </g>\n\n <!-- Coordinate Axes -->\n <g stroke="#64748B" stroke-width="1.5">\n <line x1="30" y1="200" x2="470" y2="200" />\n <line x1="250" y1="30" x2="250" y2="370" />\n </g>\n \n <!-- Axes Labels -->\n <text x="460" y="190" fill="#64748B" font-family="sans-serif" font-size="12">x</text>\n <text x="260" y="45" fill="#64748B" font-family="sans-serif" font-size="12">y</text>\n <text x="235" y="215" fill="#64748B" font-family="sans-serif" font-size="12">O</text>\n\n <!-- Inner Ellipse C1 -->\n <ellipse cx="250" cy="200" rx="100" ry="75" fill="none" stroke="#10B981" stroke-width="2" stroke-dasharray="5,5" />\n <text x="170" y="140" fill="#10B981" font-family="sans-serif" font-size="12" font-style="italic">C₁ (Locus of S)</text>\n\n <!-- Outer Trajectory Gamma -->\n <!-- Approximate representation of the offset curve -->\n <path d="M 110,200 C 110,105 170,75 250,75 C 330,75 390,105 390,200 C 390,295 330,325 250,325 C 170,325 110,295 110,200 Z" fill="none" stroke="#3B82F6" stroke-width="2.5" />\n <text x="360" y="280" fill="#3B82F6" font-family="sans-serif" font-size="12" font-weight="bold">Γ (Locus of Q)</text>\n\n <!-- Vectors and Triangles -->\n <!-- S point at (310, 140), Q point at (267.6, 97.6) -->\n \n <!-- Vector S(t) -->\n <line x1="250" y1="200" x2="310" y2="140" stroke="#A855F7" stroke-width="2.5" marker-end="url(#arrow-purple)" />\n <circle cx="310" cy="140" r="4" fill="#A855F7" />\n <text x="318" y="148" fill="#A855F7" font-family="sans-serif" font-size="12" font-weight="bold">S(t)</text>\n <text x="270" y="185" fill="#A855F7" font-family="sans-serif" font-size="11">S(t)</text>\n\n <!-- Vector u(t) -->\n <line x1="310" y1="140" x2="267.6" y2="97.6" stroke="#EF4444" stroke-width="2.5" marker-end="url(#arrow-red)" />\n <circle cx="267.6" cy="97.6" r="4" fill="#EF4444" />\n <text x="245" y="92" fill="#EF4444" font-family="sans-serif" font-size="12" font-weight="bold">Q(t)</text>\n <text x="295" y="115" fill="#EF4444" font-family="sans-serif" font-size="11">u(t)</text>\n\n <!-- Vector r_Q(t) -->\n <line x1="250" y1="200" x2="267.6" y2="97.6" stroke="#F59E0B" stroke-dasharray="3,3" stroke-width="1.5" />\n <text x="235" y="150" fill="#F59E0B" font-family="sans-serif" font-size="11">r_Q(t)</text>\n\n <!-- Right Angle Symbol -->\n <!-- Path for the right angle at S -->\n <path d="M 302.9,132.9 L 295.8,140 L 302.9,147.1" fill="none" stroke="#E2E8F0" stroke-width="1" />\n\n <!-- Markers definition -->\n <defs>\n <marker id="arrow-purple" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">\n <path d="M 0 1 L 10 5 L 0 9 z" fill="#A855F7" />\n </marker>\n <marker id="arrow-red" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">\n <path d="M 0 1 L 10 5 L 0 9 z" fill="#EF4444" />\n </marker>\n </defs>\n</svg></diagram>

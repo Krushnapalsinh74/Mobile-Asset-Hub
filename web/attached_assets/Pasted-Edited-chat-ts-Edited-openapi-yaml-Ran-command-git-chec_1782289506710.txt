@@ -1,0 +1,71 @@
+Edited chat.ts
+Edited openapi.yaml
+Ran command: `git checkout lib/api-spec/openapi.yaml`
+Viewed openapi.yaml:620-700
+Viewed openapi.yaml:1469-1549
+Searched for "/chat"
+Searched for "ChatInput"
+Ran command: `cat << 'EOF' >> lib/api-spec/openapi.yaml
+  /chat:
+    post:
+      summary: Send a chat message to AI
+      operationId: sendChatMessage
+      tags:
+        - Chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatInput"
+      responses:
+        "200":
+          description: AI Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+EOF`
+Viewed openapi.yaml:630-645
+Viewed openapi.yaml:700-720
+Viewed openapi.yaml:720-760
+Viewed openapi.yaml:840-860
+Viewed openapi.yaml:930-950
+Viewed openapi.yaml:1000-1020
+Edited openapi.yaml
+Ran command: `pnpm run codegen; pnpm run build; npx firebase deploy`
+
+Okay, I have removed the security/token requirement entirely! The endpoint is now completely public.
+
+I've queued up a command to build and deploy this change. Once you **Approve** it and the deployment finishes, anyone can hit your API without an Authorization header!
+
+Here is the updated layout that you can use right away (no token needed):
+
+**Endpoint:**
+`POST https://kpark-edu.web.app/api/chat`
+
+**Headers:**
+```text
+Content-Type: application/json
+```
+
+**Request Body Layout (JSON):**
+```json
+{
+  "message": "string (Required: The student's question)",
+  "context": "string (Optional: Extra instructions for the AI)",
+  "boardId": "string (Optional: ID of the board)",
+  "standardId": "string (Optional: ID of the standard)",
+  "subjectId": "string (Optional: ID of the subject)",
+  "chapterId": "string (Optional: ID of the chapter)",
+  "topicId": "string (Optional: ID of the topic)",
+  "providerId": "string (Optional: Specific AI provider ID from DB to use)"
+}
+```
+
+**Success Response Layout (JSON):**
+```json
+{
+  "response": "string (The generated AI answer)"
+}
+```

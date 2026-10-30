@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export const BOTTOM_TAB_INNER_HEIGHT = 65;
+export const BOTTOM_TAB_INNER_HEIGHT = 64;
 
 type TabDef = {
   key: string;
@@ -30,38 +30,36 @@ function handleTabPress(key: string) {
 export function BottomTabBar({ activeTab = 'home' }: { activeTab?: string }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const selectedTab = activeTab === 'settings' ? 'profile' : activeTab;
 
   return (
     <View style={[
       styles.bar,
       {
         backgroundColor: colors.card,
-        borderTopColor: colors.border,
-        paddingBottom: insets.bottom + (Platform.OS === 'web' ? 8 : 0),
+        borderColor: colors.border,
+        paddingBottom: insets.bottom + 7,
       },
     ]}>
       {TABS.map(tab => {
-        const isActive = tab.key === activeTab;
-        const color = isActive ? '#2563EB' : '#94A3B8';
+        const isActive = tab.key === selectedTab;
+        const color = isActive ? '#FFF8EF' : '#8B786D';
         
         return (
           <Pressable
             key={tab.key}
-            style={styles.tabItem}
+            style={[styles.tabItem, isActive && styles.tabItemActive]}
             onPress={() => handleTabPress(tab.key)}
+            accessibilityRole="button"
+            accessibilityLabel={tab.label}
+            accessibilityState={{ selected: isActive }}
           >
             <View style={styles.iconContainer}>
               <Ionicons
                 name={isActive ? tab.activeIcon : tab.icon}
-                size={22}
+                size={20}
                 color={color}
               />
-              {/* Notification badge mock for specific icons */}
-              {tab.key === 'notifications' && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>3</Text>
-                </View>
-              )}
             </View>
             <Text style={[styles.label, { color }]}>
               {tab.label}
@@ -76,45 +74,36 @@ export function BottomTabBar({ activeTab = 'home' }: { activeTab?: string }) {
 const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
-    borderTopWidth: 1,
-    paddingTop: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 10,
-    backgroundColor: '#FFF'
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 22,
+    marginHorizontal: 12,
+    maxWidth: 520,
+    width: '94%',
+    alignSelf: 'center',
+    marginBottom: Platform.OS === 'web' ? 12 : 0,
+    paddingHorizontal: 8,
+    paddingTop: 7,
+    shadowColor: '#3D2D27',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.09,
+    shadowRadius: 12,
+    elevation: 8,
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingBottom: 4,
+    height: 48,
+    borderRadius: 16,
+    gap: 2,
   },
+  tabItemActive: { backgroundColor: '#C85C3E' },
   iconContainer: {
     position: 'relative',
-    marginBottom: 4,
   },
   label: {
     fontSize: 10,
     fontWeight: '700',
   },
-  badge: {
-    position: 'absolute',
-    top: -4,
-    right: -6,
-    backgroundColor: '#EF4444',
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#FFF',
-  },
-  badgeText: {
-    color: '#FFF',
-    fontSize: 8,
-    fontWeight: 'bold',
-  }
 });

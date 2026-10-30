@@ -1,0 +1,251 @@
+.nta-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  background-color: #f1f4f8;
+  font-family: Arial, sans-serif;
+  overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+}
+
+.nta-header {
+  background-color: #21618C;
+  color: white;
+  padding: 10px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.nta-header-title {
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.nta-main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Left Panel - Question Area */
+.nta-left-panel {
+  flex: 3;
+  display: flex;
+  flex-direction: column;
+  background-color: white;
+  margin: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.nta-question-header {
+  padding: 10px;
+  background-color: #3498DB;
+  color: white;
+  font-weight: bold;
+  display: flex;
+  justify-content: space-between;
+}
+
+.nta-question-body {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.nta-options {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nta-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nta-actions {
+  display: flex;
+  justify-content: space-between;
+  padding: 15px;
+  background-color: #eee;
+  border-top: 1px solid #ccc;
+}
+
+.nta-btn {
+  padding: 8px 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.nta-btn-save { background-color: #2ECC71; color: white; border-color: #27AE60; }
+.nta-btn-clear { background-color: #fff; color: #333; }
+.nta-btn-review { background-color: #E67E22; color: white; border-color: #D35400; }
+.nta-btn-mark { background-color: #3498DB; color: white; border-color: #2980B9; }
+.nta-btn-submit { background-color: #E74C3C; color: white; border-color: #C0392B; }
+
+/* Right Panel - Palette */
+.nta-right-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: white;
+  margin: 10px 10px 10px 0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  min-width: 300px;
+  max-width: 350px;
+}
+
+.nta-profile {
+  display: flex;
+  padding: 15px;
+  border-bottom: 1px solid #eee;
+  align-items: center;
+  gap: 15px;
+}
+
+.nta-profile-pic {
+  width: 60px;
+  height: 60px;
+  background-color: #ddd;
+  border-radius: 4px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #888;
+}
+
+.nta-palette-status {
+  padding: 15px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  font-size: 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.nta-status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nta-badge {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: bold;
+  border-radius: 4px; /* Default square/rounded */
+}
+
+/* NTA Badge specific shapes & colors */
+.badge-not-visited {
+  background-color: #eee;
+  color: #333;
+  border: 1px solid #ccc;
+}
+.badge-not-answered {
+  background-color: #E74C3C; /* Red */
+  color: white;
+  border-radius: 50% 50% 0 0; /* Dome shape in NTA */
+}
+.badge-answered {
+  background-color: #2ECC71; /* Green */
+  color: white;
+  border-radius: 50% 50% 0 0; 
+}
+.badge-review {
+  background-color: #9B59B6; /* Purple */
+  color: white;
+  border-radius: 50%; /* Circle */
+}
+.badge-answered-review {
+  background-color: #9B59B6;
+  color: white;
+  border-radius: 50%;
+  position: relative;
+}
+.badge-answered-review::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  background-color: #2ECC71;
+  border-radius: 50%;
+  border: 1px solid white;
+}
+
+.nta-palette-grid-container {
+  padding: 15px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.nta-palette-header {
+  font-weight: bold;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.nta-palette-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+
+.nta-palette-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+/* Specific styling for login/instructions */
+.nta-login-card, .nta-instructions-card {
+  background: white;
+  max-width: 800px;
+  margin: 40px auto;
+  padding: 30px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.nta-login-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.nta-login-header img {
+  max-height: 80px;
+  margin-bottom: 15px;
+}
+
+.nta-login-title {
+  color: #21618C;
+  font-size: 24px;
+  font-weight: bold;
+}
