@@ -744,7 +744,7 @@ export const subscriptionApi = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  verifyPayment: (token: string, payload: VerifyPaymentPayload) =>
+  verifyPayment: (_token: string, payload: VerifyPaymentPayload) =>
     yunoraReq<{ success: boolean }>("/payments/verify", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -786,3 +786,87 @@ export const aiExtApi = {
   getCurrentUser: () => yunoraReq<any>("/auth/me"),
 };
 
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Student Plans & Razorpay Payment API
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface Plan {
+  id: number;
+  name: string;
+  price: number;
+  questionLimit?: number;
+  accessScope?: "all" | "board" | "standard" | "subject" | "chapter";
+  durationDays?: number | null;
+  boardId?: number | null;
+  standardId?: number | null;
+  subjectId?: number | null;
+  chapterId?: number | null;
+  promoCode?: string | null;
+  discountPercent?: number | null;
+  isActive?: boolean;
+  description?: string;
+}
+
+export const paymentApi = {
+  getPlans: async (subjectId?: string | number): Promise<Plan[]> => {
+    try {
+      const res = await yunoraReq<{ data: Plan[] }>("/plans");
+      const allPlans = res?.data ?? [];
+      if (subjectId) {
+        return allPlans.filter(
+          (p) =>
+            p.isActive !== false &&
+            (String(p.subjectId) === String(subjectId) ||
+              p.accessScope === "all" ||
+              !p.subjectId)
+        );
+      }
+      return allPlans.filter((p) => p.isActive !== false);
+    } catch (e) {
+      console.warn("Could not load plans from server", e);
+      return [];
+    }
+  },
+
+  getPaymentConfig: async (): Promise<{
+    razorpayKeyId: string;
+    isConfigured: boolean;
+    currency: string;
+  }> => {
+    try {
+      const res = await fetch(`${YUNORA_BASE}/payments/config`);
+      if (!res.ok) throw new Error("Payment config request failed");
+      return await res.json();
+    } catch {
+      return { razorpayKeyId: "", isConfigured: false, currency: "INR" };
+    }
+  },
+
+  createOrder: async (planId: number | string, promoCode?: string) => {
+    return await yunoraReq<any>("/payments/order", {
+      method: "POST",
+      body: JSON.stringify({ planId, promoCode }),
+    });
+  },
+
+  verifyPayment: async (payload: {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+  }) => {
+    return await yunoraReq<any>("/payments/verify", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  getSubscriptionStatus: async () => {
+    try {
+      return await yunoraReq<any>("/payments/status");
+    } catch {
+      return { hasActivePlan: false, unlockedSubjectIds: [] };
+    }
+  },
+};

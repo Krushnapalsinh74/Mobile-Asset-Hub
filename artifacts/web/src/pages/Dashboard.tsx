@@ -1,5 +1,21 @@
 import { useState, useEffect } from "react";
-import { BookOpen, Book, Trophy, MessageCircle, BarChart2, Zap, Activity, Clock, TrendingUp, PlayCircle } from "lucide-react";
+import { 
+  BookOpen, 
+  Book, 
+  Trophy, 
+  MessageCircle, 
+  BarChart2, 
+  Zap, 
+  Activity, 
+  Clock, 
+  TrendingUp, 
+  PlayCircle,
+  Lock,
+  Unlock,
+  CreditCard,
+  Sparkles,
+  ArrowRight
+} from "lucide-react";
 import { PulseLoader } from "../components/Spinner";
 import { useLocation } from "wouter";
 import { eduApi, type Subject } from "../services/api";
@@ -7,7 +23,14 @@ import { useApp } from "../context/AppContext";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
-  const { studentName, boardId, standardId, boardName, standardName } = useApp();
+  const { 
+    studentName, 
+    boardId, 
+    standardId, 
+    boardName, 
+    standardName,
+    isSubjectUnlocked 
+  } = useApp();
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -68,15 +91,15 @@ export default function Dashboard() {
                 {getGreeting()}, {firstName}
               </h1>
               <p style={{ fontSize: '16px', color: 'var(--text-secondary)', margin: '0 0 24px 0', maxWidth: '500px' }}>
-                Here is your learning overview for {boardName || 'your board'} • {standardName || 'your standard'}. Let's make today productive.
+                Here is your learning overview for {boardName || 'your board'} • {standardName || 'your standard'}. Subjects are unlocked as per your subscription plans.
               </p>
               
               <div style={{ display: 'flex', gap: '16px' }}>
                 <button onClick={() => setLocation('/test-config')} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', borderRadius: '12px', fontWeight: 600, boxShadow: 'var(--shadow-glow)' }}>
                   <PlayCircle size={18} /> Resume Last Topic
                 </button>
-                <button onClick={() => setLocation('/chat')} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', borderRadius: '12px', fontWeight: 600, background: 'white' }}>
-                  <MessageCircle size={18} /> Ask AI Tutor
+                <button onClick={() => setLocation('/payment')} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', borderRadius: '12px', fontWeight: 600, background: 'white' }}>
+                  <CreditCard size={18} /> Manage Plans
                 </button>
               </div>
             </div>
@@ -136,10 +159,21 @@ export default function Dashboard() {
           {/* Main Content Area */}
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.5px', margin: 0 }}>
-                Course Modules
-              </h2>
-              <button className="btn" style={{ fontSize: '14px', color: 'var(--brand-primary)', fontWeight: 600, background: 'transparent', padding: 0 }}>View All</button>
+              <div>
+                <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.5px', margin: 0 }}>
+                  Course Modules & Subjects
+                </h2>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                  Click an unlocked subject to practice, or subscribe to unlock access.
+                </p>
+              </div>
+              <button 
+                onClick={() => setLocation('/payment')}
+                className="btn" 
+                style={{ fontSize: '14px', color: 'var(--brand-primary)', fontWeight: 600, background: 'transparent', padding: 0, display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                Browse All Plans <ArrowRight size={14} />
+              </button>
             </div>
             
             {loading ? (
@@ -148,40 +182,92 @@ export default function Dashboard() {
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
-                {subjects.map((sub, idx) => (
-                  <div 
-                    key={sub.id || sub._id}
-                    onClick={() => setLocation(`/subjects/${sub.id || sub._id}/chapters`)}
-                    style={{ 
-                      padding: '24px', background: 'white', borderRadius: '20px', 
-                      border: '1px solid var(--border-color)', cursor: 'pointer',
-                      transition: 'all 0.2s ease', position: 'relative', overflow: 'hidden'
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--brand-primary)'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
-                  >
-                    <div style={{ position: 'absolute', top: 0, right: 0, width: '100px', height: '100px', background: `radial-gradient(circle, ${idx % 2 === 0 ? 'rgba(79, 70, 229, 0.05)' : 'rgba(16, 185, 129, 0.05)'} 0%, transparent 70%)`, borderBottomLeftRadius: '100%' }}></div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px', position: 'relative', zIndex: 1 }}>
-                      <div style={{ width: '48px', height: '48px', background: idx % 2 === 0 ? '#EEF2FF' : '#ECFDF5', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: idx % 2 === 0 ? '#4F46E5' : '#10B981' }}>
-                        <Book size={24} />
+                {subjects.map((sub, idx) => {
+                  const sId = sub.id || sub._id;
+                  const unlocked = isSubjectUnlocked(sId);
+
+                  return (
+                    <div 
+                      key={sId}
+                      onClick={() => {
+                        if (unlocked) {
+                          setLocation(`/subjects/${sId}/chapters`);
+                        } else {
+                          setLocation(`/payment?subjectId=${sId}`);
+                        }
+                      }}
+                      style={{ 
+                        padding: '24px', 
+                        background: 'white', 
+                        borderRadius: '20px', 
+                        border: unlocked ? '1px solid var(--border-color)' : '1px dashed #FCA5A5', 
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease', 
+                        position: 'relative', 
+                        overflow: 'hidden'
+                      }}
+                      onMouseEnter={(e) => { 
+                        e.currentTarget.style.borderColor = unlocked ? 'var(--brand-primary)' : '#EF4444'; 
+                        e.currentTarget.style.transform = 'translateY(-2px)'; 
+                        e.currentTarget.style.boxShadow = 'var(--shadow-md)'; 
+                      }}
+                      onMouseLeave={(e) => { 
+                        e.currentTarget.style.borderColor = unlocked ? 'var(--border-color)' : '#FCA5A5'; 
+                        e.currentTarget.style.transform = 'none'; 
+                        e.currentTarget.style.boxShadow = 'none'; 
+                      }}
+                    >
+                      <div style={{ position: 'absolute', top: 0, right: 0, width: '100px', height: '100px', background: `radial-gradient(circle, ${unlocked ? (idx % 2 === 0 ? 'rgba(79, 70, 229, 0.05)' : 'rgba(16, 185, 129, 0.05)') : 'rgba(239, 68, 68, 0.05)'} 0%, transparent 70%)`, borderBottomLeftRadius: '100%' }}></div>
+                      
+                      {/* Top Row: Icon + Lock / Unlock Badge */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', position: 'relative', zIndex: 1 }}>
+                        <div style={{ width: '48px', height: '48px', background: unlocked ? (idx % 2 === 0 ? '#EEF2FF' : '#ECFDF5') : '#FEF2F2', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: unlocked ? (idx % 2 === 0 ? '#4F46E5' : '#10B981') : '#EF4444' }}>
+                          <Book size={24} />
+                        </div>
+
+                        {unlocked ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 700, color: '#10B981', background: '#ECFDF5', padding: '4px 10px', borderRadius: '12px' }}>
+                            <Unlock size={12} /> Active Plan
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 700, color: '#DC2626', background: '#FEF2F2', padding: '4px 10px', borderRadius: '12px' }}>
+                            <Lock size={12} /> Locked
+                          </div>
+                        )}
                       </div>
-                      <div>
+
+                      <div style={{ position: 'relative', zIndex: 1, marginBottom: '20px' }}>
                         <h3 style={{ fontSize: '18px', margin: '0 0 4px 0', fontWeight: 700, color: 'var(--text-primary)' }}>{sub.name}</h3>
-                        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, fontWeight: 500 }}>Standard {standardName}</p>
+                        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, fontWeight: 500 }}>
+                          Standard {standardName || ''} {sub.code ? `• ${sub.code}` : ''}
+                        </p>
+                      </div>
+                      
+                      <div style={{ position: 'relative', zIndex: 1 }}>
+                        {unlocked ? (
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                              <span>Progress</span>
+                              <span style={{ color: 'var(--text-primary)' }}>{Math.floor(Math.random() * 40) + 20}%</span>
+                            </div>
+                            <div style={{ height: '6px', background: 'var(--bg-surface)', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div style={{ height: '100%', background: idx % 2 === 0 ? 'var(--brand-gradient)' : 'linear-gradient(90deg, #10B981, #34D399)', width: `${Math.floor(Math.random() * 40) + 20}%`, borderRadius: '4px' }}></div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '8px', borderTop: '1px solid #FEE2E2' }}>
+                            <span style={{ fontSize: '13px', color: 'var(--brand-primary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Sparkles size={14} /> Unlock Subject
+                            </span>
+                            <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                              View Plans &rarr;
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    
-                    <div style={{ position: 'relative', zIndex: 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                        <span>Progress</span>
-                        <span style={{ color: 'var(--text-primary)' }}>{Math.floor(Math.random() * 40) + 20}%</span>
-                      </div>
-                      <div style={{ height: '6px', background: 'var(--bg-surface)', borderRadius: '4px', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', background: idx % 2 === 0 ? 'var(--brand-gradient)' : 'linear-gradient(90deg, #10B981, #34D399)', width: `${Math.floor(Math.random() * 40) + 20}%`, borderRadius: '4px' }}></div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {subjects.length === 0 && (
                   <div style={{ gridColumn: 'span 2', padding: '48px', textAlign: 'center', color: 'var(--text-tertiary)', background: 'white', borderRadius: '24px', border: '1px dashed var(--border-color)' }}>
                     No subjects found for your profile.
@@ -194,6 +280,23 @@ export default function Dashboard() {
           {/* Sidebar Area */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             
+            {/* Quick Unlock Card */}
+            <div style={{ background: 'white', borderRadius: '24px', padding: '24px', border: '1px solid var(--border-color)', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <CreditCard size={18} color="var(--brand-primary)" /> Subject Subscriptions
+              </h3>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5, margin: '0 0 16px 0' }}>
+                Subscribe to subjects to access question banks, chapter notes, and AI test simulations.
+              </p>
+              <button 
+                onClick={() => setLocation('/payment')} 
+                className="btn btn-primary" 
+                style={{ width: '100%', padding: '12px', borderRadius: '12px', fontSize: '13px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+              >
+                <Sparkles size={16} /> View Subject Plans
+              </button>
+            </div>
+
             <div style={{ background: 'white', borderRadius: '24px', padding: '24px', border: '1px solid var(--border-color)', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
               <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Clock size={18} color="var(--brand-primary)" /> Recent Activity
@@ -216,7 +319,7 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
-              <button className="btn btn-outline" style={{ width: '100%', marginTop: '24px', padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 600 }}>View Full History</button>
+              <button onClick={() => setLocation('/history')} className="btn btn-outline" style={{ width: '100%', marginTop: '24px', padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 600 }}>View Full History</button>
             </div>
 
             <div style={{ background: 'var(--brand-primary)', borderRadius: '24px', padding: '32px', color: 'white', position: 'relative', overflow: 'hidden' }}>

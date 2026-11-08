@@ -101,9 +101,11 @@ function RootLayoutNav() {
       <Stack.Screen name="settings" options={{ headerShown: false }} />
       <Stack.Screen name="history" options={{ headerShown: false }} />
       <Stack.Screen name="saved" options={{ headerShown: false }} />
+      <Stack.Screen name="mistakes" options={{ headerShown: false }} />
       <Stack.Screen name="questions-pdf" options={{ headerShown: false }} />
       <Stack.Screen name="flashcard" options={{ headerShown: false }} />
       <Stack.Screen name="checkout" options={{ headerShown: false }} />
+      <Stack.Screen name="payment" options={{ headerShown: false }} />
       <Stack.Screen name="classroom-slides" options={{ headerShown: false }} />
       <Stack.Screen name="report-card" options={{ headerShown: false }} />
     </Stack>

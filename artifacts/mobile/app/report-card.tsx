@@ -419,10 +419,16 @@ export default function ReportCardScreen() {
             </View>
           </View>
           {mistakeQuestions.length > 0 && (
-            <Pressable style={styles.mistakeDrillBtn} onPress={startMistakeDrill}>
-              <Text style={styles.mistakeDrillBtnText}>Drill Weak Areas</Text>
-              <Ionicons name="arrow-forward" size={14} color="#FFF" />
-            </Pressable>
+            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+              <Pressable style={[styles.mistakeDrillBtn, { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#DFD1C3' }]} onPress={() => router.push('/mistakes' as any)}>
+                <Ionicons name="book-outline" size={14} color="#C85C3E" />
+                <Text style={[styles.mistakeDrillBtnText, { color: '#C85C3E' }]}>Mistake Notebook</Text>
+              </Pressable>
+              <Pressable style={styles.mistakeDrillBtn} onPress={startMistakeDrill}>
+                <Text style={styles.mistakeDrillBtnText}>Drill Weak Areas</Text>
+                <Ionicons name="arrow-forward" size={14} color="#FFF" />
+              </Pressable>
+            </View>
           )}
         </View>
 

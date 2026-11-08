@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Switch, Route, Link, useLocation } from "wouter";
 import { 
   BookOpen, Layers, Clock, Bookmark, 
-  MessageCircle, Settings, LogIn, ChevronLeft, ChevronRight
+  Settings, LogIn, ChevronLeft, ChevronRight,
+  CreditCard
 } from "lucide-react";
 import { useApp } from "./context/AppContext";
 
@@ -22,6 +23,7 @@ import Explanation from "./pages/Explanation";
 import Chat from "./pages/Chat";
 import Saved from "./pages/Saved";
 import SettingsPage from "./pages/SettingsPage";
+import Payment from "./pages/Payment";
 
 import NtaLogin from "./pages/nta/NtaLogin";
 import NtaInstructions from "./pages/nta/NtaInstructions";
@@ -35,6 +37,7 @@ function Sidebar() {
   const links = [
     { href: "/dashboard", label: "Dashboard", icon: <Layers size={18} /> },
     { href: "/subjects", label: "Subjects", icon: <BookOpen size={18} /> },
+    { href: "/payment", label: "Plans & Unlock", icon: <CreditCard size={18} /> },
     { href: "/history", label: "History", icon: <Clock size={18} /> },
     { href: "/saved", label: "Saved", icon: <Bookmark size={18} /> },
     { href: "/settings", label: "Settings", icon: <Settings size={18} /> },
@@ -62,44 +65,57 @@ function Sidebar() {
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
-          color: 'var(--text-secondary)',
-          zIndex: 20,
-          boxShadow: 'var(--shadow-sm)'
+          zIndex: 10,
+          color: 'var(--text-secondary)'
         }}
       >
-        {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+        {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
       </button>
 
-      <nav className="sidebar-nav">
-        {links.map((link) => (
-          <Link 
-            key={link.href} 
-            href={link.href}
-            className={`nav-item ${location.startsWith(link.href) ? "active" : ""}`}
-          >
-            {link.icon}
-            {!collapsed && <span>{link.label}</span>}
-          </Link>
-        ))}
-      </nav>
-      
-      <div style={{ marginTop: 'auto', padding: collapsed ? '20px 8px' : '20px 16px', background: 'var(--bg-primary)', borderRadius: '16px', fontSize: '13px', display: 'flex', flexDirection: 'column', alignItems: collapsed ? 'center' : 'stretch' }}>
-        {isAuthenticated ? (
-          <>
-            {!collapsed && <div style={{ fontWeight: 600, marginBottom: '4px', color: 'var(--text-primary)' }}>{studentName || 'Student'}</div>}
-            <button onClick={logout} className="btn" style={{ padding: 0, background: 'none', color: 'var(--text-secondary)', fontSize: '13px' }}>
-              {collapsed ? <LogIn size={16} style={{ transform: 'rotate(180deg)' }} /> : 'Log out'}
-            </button>
-          </>
-        ) : (
-          <>
-            {!collapsed && <div style={{ color: 'var(--text-secondary)', marginBottom: '12px' }}>Guest Mode</div>}
-            <Link href="/login">
-              <button className="btn btn-primary" style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px', padding: collapsed ? '10px 0' : '10px 18px' }}>
-                <LogIn size={16} /> {!collapsed && 'Log In / Sign Up'}
-              </button>
+      <nav className="nav-links">
+        {links.map((link) => {
+          const isActive = location === link.href || (link.href !== "/dashboard" && location.startsWith(link.href));
+          return (
+            <Link 
+              key={link.href} 
+              href={link.href} 
+              className={`nav-link ${isActive ? 'active' : ''}`}
+            >
+              {link.icon}
+              {!collapsed && <span>{link.label}</span>}
             </Link>
-          </>
+          );
+        })}
+      </nav>
+
+      <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+        {isAuthenticated ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between' }}>
+            {!collapsed && (
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                  {studentName || "Learner"}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Active Student</div>
+              </div>
+            )}
+            <button 
+              onClick={logout} 
+              title="Logout" 
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '4px' }}
+            >
+              <LogIn size={16} />
+            </button>
+          </div>
+        ) : (
+          <Link 
+            href="/login" 
+            className="nav-link" 
+            style={{ padding: '8px', color: 'var(--brand-primary)', fontWeight: 600 }}
+          >
+            <LogIn size={18} />
+            {!collapsed && <span>Sign In</span>}
+          </Link>
         )}
       </div>
     </aside>
@@ -107,25 +123,10 @@ function Sidebar() {
 }
 
 function MainLayout({ children }: { children: React.ReactNode }) {
-  const [location] = useLocation();
-  
-  // Don't show topbar inside the quiz, it has its own
-  const isQuiz = location.startsWith('/test/') || location === '/onboarding' || location === '/login' || location === '/';
-
   return (
     <div className="app-container">
-      {location !== '/onboarding' && location !== '/login' && location !== '/' && <Sidebar />}
+      <Sidebar />
       <main className="main-content">
-        {!isQuiz && (
-          <header className="topbar">
-            <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, letterSpacing: '-0.5px' }}>Knowledge Park</h2>
-            <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-              <button className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '13px', borderRadius: '12px', boxShadow: 'var(--shadow-glow)' }}>
-                <MessageCircle size={16} style={{ marginRight: '6px' }} /> Ask AI Tutor
-              </button>
-            </div>
-          </header>
-        )}
         {children}
       </main>
     </div>
@@ -165,6 +166,8 @@ function RouteHandler() {
             <Route path="/dashboard"><Dashboard /></Route>
             <Route path="/subjects"><Subjects /></Route>
             <Route path="/subjects/:id/chapters"><Chapters /></Route>
+            <Route path="/payment"><Payment /></Route>
+            <Route path="/plans"><Payment /></Route>
             <Route path="/chapters/:id/topics"><Topics /></Route>
             <Route path="/topics/:id/dashboard"><TopicDashboard /></Route>
             <Route path="/test-config"><TestConfig /></Route>

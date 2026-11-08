@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { paymentApi } from '../services/api';
 
 interface AppContextType {
   studentName: string | null;
@@ -20,6 +21,13 @@ interface AppContextType {
   savedQuestions: any[];
   saveQuestion: (q: any) => void;
   unsaveQuestion: (id: string) => void;
+
+  // Payment & Subject Access
+  unlockedSubjects: (string | number)[];
+  isSubjectUnlocked: (subjectId: string | number) => boolean;
+  unlockSubject: (subjectId: string | number) => void;
+  activeSubscription: any;
+  refreshSubscription: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -33,6 +41,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [standardName, setStandardNameState] = useState<string | null>(null);
   const [testHistory, setTestHistory] = useState<any[]>([]);
   const [savedQuestions, setSavedQuestions] = useState<any[]>([]);
+  const [unlockedSubjects, setUnlockedSubjects] = useState<(string | number)[]>([]);
+  const [activeSubscription, setActiveSubscription] = useState<any>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
@@ -49,12 +59,61 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setTestHistory(Array.isArray(hist) ? hist : []);
       const saved = JSON.parse(localStorage.getItem('savedQuestions') || '[]');
       setSavedQuestions(Array.isArray(saved) ? saved : []);
+      const unlocked = JSON.parse(localStorage.getItem('unlockedSubjects') || '[]');
+      setUnlockedSubjects(Array.isArray(unlocked) ? unlocked : []);
     } catch {
       setTestHistory([]);
       setSavedQuestions([]);
+      setUnlockedSubjects([]);
     }
     
     setIsLoaded(true);
+  }, []);
+
+  const refreshSubscription = useCallback(async () => {
+    try {
+      const res = await paymentApi.getSubscriptionStatus();
+      if (res) {
+        setActiveSubscription(res);
+        if (Array.isArray(res.unlockedSubjectIds) && res.unlockedSubjectIds.length > 0) {
+          setUnlockedSubjects((prev) => {
+            const merged = Array.from(new Set([...prev, ...res.unlockedSubjectIds]));
+            localStorage.setItem('unlockedSubjects', JSON.stringify(merged));
+            return merged;
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Could not refresh subscription status', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (studentEmail) {
+      refreshSubscription();
+    }
+  }, [studentEmail, refreshSubscription]);
+
+  const isSubjectUnlocked = useCallback(
+    (subjectId: string | number) => {
+      // If student has global active subscription without subject restriction
+      if (activeSubscription?.hasActivePlan && (activeSubscription?.accessScope === 'all' || !activeSubscription?.subjectId)) {
+        return true;
+      }
+      const sId = String(subjectId);
+      const nId = Number(subjectId);
+      return unlockedSubjects.some((u) => String(u) === sId || (Number(u) === nId && !Number.isNaN(nId)));
+    },
+    [unlockedSubjects, activeSubscription]
+  );
+
+  const unlockSubject = useCallback((subjectId: string | number) => {
+    setUnlockedSubjects((prev) => {
+      if (prev.some((u) => String(u) === String(subjectId))) return prev;
+      const next = [...prev, subjectId];
+      localStorage.setItem('unlockedSubjects', JSON.stringify(next));
+      return next;
+    });
   }, []);
 
   const addTestResult = (result: any) => {
@@ -112,6 +171,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setStandardNameState(null);
     setTestHistory([]);
     setSavedQuestions([]);
+    setUnlockedSubjects([]);
+    setActiveSubscription(null);
     localStorage.clear();
   };
 
@@ -136,6 +197,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         savedQuestions,
         saveQuestion,
         unsaveQuestion,
+        unlockedSubjects,
+        isSubjectUnlocked,
+        unlockSubject,
+        activeSubscription,
+        refreshSubscription,
       }}
     >
       {children}

@@ -90,6 +90,7 @@ interface AppState {
   isLoaded: boolean;
   plans: SubscriptionPlan[];
   activePlanId: string | null;
+  unlockedSubjects: (string | number)[];
 }
 
 interface AppContextValue extends AppState {
@@ -113,6 +114,8 @@ interface AppContextValue extends AppState {
   subscriptionStatus: import('@/services/api').SubscriptionStatusResponse | null;
   refreshSubscription: () => Promise<void>;
   setActivePlan: (planId: string) => Promise<void>;
+  isSubjectUnlocked: (subjectId: string | number) => boolean;
+  unlockSubject: (subjectId: string | number) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -131,6 +134,7 @@ const KEYS = {
   savedQuestions: '@edu:savedQuestions',
   mistakeQuestions: '@edu:mistakeQuestions',
   activePlanId: '@edu:activePlanId',
+  unlockedSubjects: '@edu:unlockedSubjects',
 };
 
 function parse<T>(s: string | null, fallback: T): T {
@@ -180,6 +184,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isLoaded: Platform.OS === 'web',
       plans: [],
       activePlanId: getInitialSyncString(KEYS.activePlanId, null),
+      unlockedSubjects: getInitialSync(KEYS.unlockedSubjects, []),
     };
   });
 
@@ -218,6 +223,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         savedQuestions: parse(map[KEYS.savedQuestions], prev.savedQuestions),
         mistakeQuestions: parse(map[KEYS.mistakeQuestions], prev.mistakeQuestions),
         activePlanId: map[KEYS.activePlanId] ?? prev.activePlanId,
+        unlockedSubjects: parse(map[KEYS.unlockedSubjects], prev.unlockedSubjects || []),
         isLoaded: true,
         plans: prev.plans,
       }));
@@ -371,6 +377,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setState(s => ({ ...s, activePlanId: planId }));
   };
 
+  
+  const isSubjectUnlocked = (subjectId: string | number) => {
+    if (subscriptionStatus?.hasActivePlan && (subscriptionStatus?.subscription as any)?.accessScope === 'all') {
+      return true;
+    }
+    const sId = String(subjectId);
+    const nId = Number(subjectId);
+    return (state.unlockedSubjects || []).some(
+      (u) => String(u) === sId || (Number(u) === nId && !Number.isNaN(nId))
+    );
+  };
+
+  const unlockSubject = async (subjectId: string | number) => {
+    const sId = String(subjectId);
+    const current = state.unlockedSubjects || [];
+    if (!current.map(String).includes(sId)) {
+      const updated = [...current, subjectId];
+      await AsyncStorage.setItem(KEYS.unlockedSubjects, JSON.stringify(updated));
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+        try { window.localStorage.setItem(KEYS.unlockedSubjects, JSON.stringify(updated)); } catch {}
+      }
+      setState(s => ({ ...s, unlockedSubjects: updated }));
+    }
+  };
+
   const isPremium = 
     !!subscriptionStatus?.hasActivePlan || 
     (!!state.activePlanId && 
@@ -394,7 +425,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       studentName: null, studentEmail: null, boardId: null, boardName: null,
       standardId: null, standardName: null, lastStudied: null, subjectProgress: {},
       testHistory: [], chatHistory: [], savedQuestions: [], mistakeQuestions: [],
-      isLoaded: true, plans: state.plans, activePlanId: null,
+      isLoaded: true, plans: state.plans, activePlanId: null, unlockedSubjects: [],
     });
   };
 
@@ -405,7 +436,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       deleteChatSession,
       saveQuestion, unsaveQuestion, recordMistakes, removeMistake, clearMistakes,
       clearAll, isPremium, setActivePlan,
-      subscriptionStatus, refreshSubscription,
+      subscriptionStatus, refreshSubscription, isSubjectUnlocked, unlockSubject,
     }}>
       {children}
     </AppContext.Provider>

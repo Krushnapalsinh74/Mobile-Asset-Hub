@@ -5,14 +5,14 @@ import { router } from 'expo-router';
 import { useApp } from '@/context/AppContext';
 import { KNOWLEDGE_PARK_LOGO_IMAGE } from '@/constants/branding';
 
-export type DesktopNavTab = 'home' | 'history' | 'saved' | 'chat' | 'settings';
+export type DesktopNavTab = 'home' | 'history' | 'saved' | 'mistakes' | 'chat' | 'settings';
 
 interface DesktopHeaderNavProps {
   activeTab?: DesktopNavTab;
 }
 
 export function DesktopHeaderNav({ activeTab }: DesktopHeaderNavProps) {
-  const { studentName, boardName, standardName, savedQuestions } = useApp();
+  const { studentName, boardName, standardName, savedQuestions, mistakeQuestions } = useApp();
 
   return (
     <View style={styles.desktopNav}>
@@ -113,6 +113,35 @@ export function DesktopHeaderNav({ activeTab }: DesktopHeaderNavProps) {
           {savedQuestions.length > 0 && (
             <View style={styles.desktopNavBadge}>
               <Text style={styles.desktopNavBadgeText}>{savedQuestions.length}</Text>
+            </View>
+          )}
+        </Pressable>
+
+        {/* Mistake Notebook */}
+        <Pressable
+          style={({ hovered }: any) => [
+            styles.desktopNavLink,
+            activeTab === 'mistakes' && styles.desktopNavLinkMistakeActive,
+            hovered && styles.desktopNavLinkHovered,
+          ]}
+          onPress={() => router.push('/mistakes' as any)}
+        >
+          <Ionicons
+            name={activeTab === 'mistakes' ? 'alert-circle' : 'alert-circle-outline'}
+            size={16}
+            color={activeTab === 'mistakes' ? '#DC2626' : '#5E4B42'}
+          />
+          <Text
+            style={[
+              styles.desktopNavLinkText,
+              activeTab === 'mistakes' && styles.desktopNavLinkTextMistakeActive,
+            ]}
+          >
+            Mistakes
+          </Text>
+          {mistakeQuestions.length > 0 && (
+            <View style={styles.desktopNavBadgeMistake}>
+              <Text style={styles.desktopNavBadgeText}>{mistakeQuestions.length}</Text>
             </View>
           )}
         </Pressable>
@@ -252,6 +281,9 @@ const styles = StyleSheet.create({
   desktopNavLinkActive: {
     backgroundColor: '#FFF2EB',
   },
+  desktopNavLinkMistakeActive: {
+    backgroundColor: '#FEE2E2',
+  },
   desktopNavLinkHovered: {
     backgroundColor: '#F5ECE4',
   },
@@ -264,8 +296,22 @@ const styles = StyleSheet.create({
     color: '#C85C3E',
     fontWeight: '800',
   },
+  desktopNavLinkTextMistakeActive: {
+    color: '#DC2626',
+    fontWeight: '800',
+  },
   desktopNavBadge: {
     backgroundColor: '#C85C3E',
+    borderRadius: 9,
+    minWidth: 17,
+    height: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    marginLeft: 2,
+  },
+  desktopNavBadgeMistake: {
+    backgroundColor: '#DC2626',
     borderRadius: 9,
     minWidth: 17,
     height: 17,

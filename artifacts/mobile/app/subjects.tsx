@@ -33,6 +33,8 @@ export default function SubjectsScreen() {
     testHistory,
     chatHistory,
     savedQuestions,
+    mistakeQuestions,
+    isSubjectUnlocked,
   } = useApp();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -109,6 +111,7 @@ export default function SubjectsScreen() {
   if (isDesktop) {
     return (
       <DesktopHome
+        isSubjectUnlocked={isSubjectUnlocked}
         studentName={studentName}
         boardName={boardName}
         standardName={standardName}
@@ -120,6 +123,7 @@ export default function SubjectsScreen() {
         testHistory={testHistory}
         chatHistory={chatHistory}
         savedQuestions={savedQuestions}
+        mistakeQuestions={mistakeQuestions}
       />
     );
   }
@@ -145,6 +149,9 @@ export default function SubjectsScreen() {
           <View style={styles.appBarRight}>
             <Pressable style={styles.mobileHeaderAction} onPress={() => router.push('/history')} accessibilityLabel="Test history">
               <Ionicons name="time-outline" size={19} color="#3D2D27" />
+            </Pressable>
+            <Pressable style={[styles.mobileHeaderAction, { backgroundColor: '#FFF5EE' }]} onPress={() => router.push('/payment' as any)} accessibilityLabel="Plans & Pricing">
+              <Ionicons name="card-outline" size={19} color="#C85C3E" />
             </Pressable>
             <Pressable style={styles.mobileHeaderAction} onPress={() => router.push('/saved')} accessibilityLabel="Saved questions">
               <Ionicons name="bookmark-outline" size={19} color="#3D2D27" />
@@ -440,6 +447,7 @@ export default function SubjectsScreen() {
 }
 
 function DesktopHome({
+  isSubjectUnlocked,
   studentName,
   boardName,
   standardName,
@@ -452,6 +460,7 @@ function DesktopHome({
   chatHistory,
   savedQuestions,
 }: {
+  isSubjectUnlocked?: (id: any) => boolean;
   studentName?: string | null;
   boardName?: string | null;
   standardName?: string | null;
@@ -463,6 +472,7 @@ function DesktopHome({
   testHistory: TestResult[];
   chatHistory: ChatSession[];
   savedQuestions: SavedQuestion[];
+  mistakeQuestions?: import("@/context/AppContext").MistakeQuestion[];
 }) {
   const [searchText, setSearchText] = useState('');
   const [selectMode, setSelectMode] = useState(false);

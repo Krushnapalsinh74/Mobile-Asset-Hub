@@ -49,7 +49,7 @@ function savedToQuestion(sq: SavedQuestion): Question {
 }
 
 export default function SavedScreen() {
-  const { savedQuestions, unsaveQuestion } = useApp();
+  const { savedQuestions, unsaveQuestion, mistakeQuestions } = useApp();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= 860;
@@ -183,6 +183,25 @@ export default function SavedScreen() {
             </View>
           </View>
         )}
+
+        {/* ── TOP SECTION TOGGLE: SAVED BOOKMARKS vs MISTAKE NOTEBOOK ── */}
+        <View style={[styles.navSwitcher, isDesktop && styles.navSwitcherDesktop]}>
+          <Pressable style={[styles.navSwitcherTab, styles.navSwitcherTabActive]}>
+            <Ionicons name="bookmark" size={16} color="#C85C3E" />
+            <Text style={[styles.navSwitcherText, styles.navSwitcherTextActive]}>
+              Bookmarks Vault ({savedQuestions.length})
+            </Text>
+          </Pressable>
+          <Pressable
+            style={styles.navSwitcherTab}
+            onPress={() => router.replace('/mistakes' as any)}
+          >
+            <Ionicons name="alert-circle-outline" size={16} color="#76645B" />
+            <Text style={styles.navSwitcherText}>
+              Mistake Notebook ({mistakeQuestions.length})
+            </Text>
+          </Pressable>
+        </View>
 
         {/* ── FILTER CHIPS ── */}
         <View style={[styles.filterStrip, isDesktop && styles.filterStripDesktop]}>
@@ -633,6 +652,51 @@ const styles = StyleSheet.create({
   mobilePracticeBtnText: {
     color: '#FFF',
     fontSize: 12,
+    fontWeight: '800',
+  },
+
+  /* Tab Switcher: Bookmarks vs Mistakes */
+  navSwitcher: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: '#EAE1D5',
+    padding: 4,
+    borderRadius: 14,
+  },
+  navSwitcherDesktop: {
+    width: '100%',
+    paddingHorizontal: 0,
+    marginHorizontal: 0,
+    marginBottom: 12,
+    alignSelf: 'stretch',
+    maxWidth: 1240,
+  },
+  navSwitcherTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: 10,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  navSwitcherTabActive: {
+    backgroundColor: '#FFF',
+    shadowColor: '#3D2D27',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  navSwitcherText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#76645B',
+  },
+  navSwitcherTextActive: {
+    color: '#C85C3E',
     fontWeight: '800',
   },
 

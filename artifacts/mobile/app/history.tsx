@@ -393,6 +393,20 @@ export default function HistoryScreen() {
 
                       <Pressable
                         style={styles.asideActionBtn}
+                        onPress={() => router.push('/mistakes' as any)}
+                      >
+                        <View style={[styles.asideActionIcon, { backgroundColor: '#FEE2E2' }]}>
+                          <Ionicons name="book-outline" size={16} color="#DC2626" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.asideActionTitle}>Mistake Notebook</Text>
+                          <Text style={styles.asideActionSub}>{mistakeQuestions.length} to master</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={14} color="#A49186" />
+                      </Pressable>
+
+                      <Pressable
+                        style={styles.asideActionBtn}
                         onPress={handleDrillAllMistakes}
                       >
                         <View style={[styles.asideActionIcon, { backgroundColor: '#FEE2E2' }]}>
